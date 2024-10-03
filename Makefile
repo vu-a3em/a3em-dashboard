@@ -19,10 +19,10 @@ endif
 all:
 	$(BREW_CMD)
 	$(PYTHON_CMD)
-	rm -rf build dist a3em* *.egg-info
+	rm -rf build dist a3em* *.egg-info __pycache__ dashboard/__pycache__
 
 clean:
-	rm -rf build dist a3em* *.egg-info
+	rm -rf build dist a3em* *.egg-info __pycache__ dashboard/__pycache__
 
 uninstall:
 	$(UNINSTALL_CMD)
