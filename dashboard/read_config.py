@@ -16,7 +16,6 @@ VALID_AUDIO_MODES = {'Threshold-Based': 'AMPLITUDE',
                      'Continuous': 'CONTINUOUS'}
 VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO'}
 VALID_TIME_SCALES = {'Second': 'SECONDS', 'Minute': 'MINUTES', 'Hour': 'HOURS', 'Day': 'DAYS'}
-VALID_MIC_AMP_LEVELS = {'Low': 'LOW', 'Medium': 'MEDIUM', 'High': 'HIGH'}
 
 
 # PARSER FUNCTION -----------------------------------------------------------------------------------------------------
@@ -56,12 +55,16 @@ def read_config(self, filename, SchedulePhase):
                local_datetime = datetime.fromtimestamp(int(value), pytz.utc).astimezone(pytz.timezone(time_zone))
                self.deployment_end_date.set(local_datetime.strftime('%Y-%m-%d'))
                self.deployment_end_time.set(local_datetime.strftime('%H:%M'))
+            elif key == 'GPS_AVAILABLE':
+               self.gps_available.set(value == 'True')
+            elif key == 'AWAKE_ON_MAGNET':
+               self.awake_on_magnet.set(value == 'True')
             elif key == 'LEDS_ENABLED':
                self.leds_enabled.set(value == 'True')
             elif key == 'LEDS_ACTIVE_SECONDS':
                self.leds_active_seconds.set(int(value))
             elif key == 'MIC_AMPLIFICATION':
-               self.microphone_amplification_level.set(list(VALID_MIC_AMP_LEVELS.keys())[list(VALID_MIC_AMP_LEVELS.values()).index(value)])
+               self.mic_amplification_level_db.set(float(value))
             elif key == 'MAGNET_FIELD_VALIDATION_MS':
                self.magnetic_field_validation_length_ms.set(int(value))
             elif key == 'VHF_RADIO_START_TIME':

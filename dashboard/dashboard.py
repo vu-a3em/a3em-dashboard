@@ -34,7 +34,6 @@ VALID_AUDIO_MODES = {'Threshold-Based': 'AMPLITUDE',
                      'Continuous': 'CONTINUOUS'}
 VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO'}
 VALID_TIME_SCALES = {'Second': 'SECONDS', 'Minute': 'MINUTES', 'Hour': 'HOURS', 'Day': 'DAYS'}
-VALID_MIC_AMP_LEVELS = {'Low': 'LOW', 'Medium': 'MEDIUM', 'High': 'HIGH'}
 VALID_VHF_MODES = {'Never': 'NEVER', 'End of Deployment': 'END', 'Scheduled': 'SCHEDULED'}
 VALID_IMU_SAMPLE_RATES = ['3', '6', '12', '25', '50', '100', '200', '400', '800']
 VALID_DOFS = ['3']
@@ -72,6 +71,68 @@ def validate_number(var, min_val, max_val, why, new_val):
       var.set(min_val)
       return True
    return new_val.isdigit() and int(new_val) <= max_val
+
+def validate_float(var, new_val):
+   return new_val.replace('.', '').isdigit() and new_val.count('.') <= 1 and float(new_val) >= 0.0 and float(new_val) <= 45.0
+
+def validate_details(self):
+   write_order = [0]
+   last_phase_end = None
+   time_zone = self.device_timezone.get()
+   utc_offset = int(datetime.now(pytz.timezone(time_zone)).utcoffset().total_seconds())
+   start_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.deployment_start_date.get() + ' ' + self.deployment_start_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
+   end_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.deployment_end_date.get() + ' ' + self.deployment_end_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
+   vhf_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.vhf_start_date.get() + ' ' + self.vhf_start_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
+   if start_datetime >= end_datetime:
+      return 'Deployment start datetime must be before deployment end datetime'
+   if vhf_datetime < start_datetime:
+      return 'VHF start datetime must be after deployment start datetime'
+   if self.deployment_is_split.get():
+      start_times = []
+      if len(self.deployment_phases) == 0:
+         return 'At least one deployment phase must be defined'
+      for idx, phase in enumerate(self.deployment_phases):
+         _, date_start, date_end, time_start, time_end = self.deployment_phase_times[idx]
+         start_times.append((int(datetime.strptime(date_start.get() + ' ' + time_start.get(), '%Y-%m-%d %H:%M').timestamp()), idx))
+      write_order = [item[1] for item in sorted(start_times, key=lambda x: x[0])]
+   for idx in write_order:
+      phase = self.deployment_phases[idx]
+      if self.deployment_is_split.get():
+         _, date_start, date_end, time_start, time_end = self.deployment_phase_times[idx]
+         phase_start_datetime = pytz.timezone(time_zone).localize(datetime.strptime(date_start.get() + ' ' + time_start.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
+         phase_end_datetime = pytz.timezone(time_zone).localize(datetime.strptime(date_end.get() + ' ' + time_end.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
+         if phase_start_datetime < start_datetime or phase_end_datetime > end_datetime:
+            return 'Deployment phases must be within deployment start/end times'
+         if last_phase_end and phase_start_datetime < last_phase_end:
+            return 'Deployment phases cannot overlap'
+         last_phase_end = phase_end_datetime
+      if phase.audio_recording_mode.get() == 'Interval-Based':
+         interval_seconds = 0
+         if phase.audio_trigger_interval_time_scale.get() == 'Second':
+            interval_seconds = int(phase.audio_trigger_interval.get())
+         elif phase.audio_trigger_interval_time_scale.get() == 'Minute':
+            interval_seconds = int(phase.audio_trigger_interval.get()) * 60
+         elif phase.audio_trigger_interval_time_scale.get() == 'Hour':
+            interval_seconds = int(phase.audio_trigger_interval.get()) * 3600
+         elif phase.audio_trigger_interval_time_scale.get() == 'Day':
+            interval_seconds = int(phase.audio_trigger_interval.get()) * 86400
+         if int(phase.audio_clip_length.get()) > interval_seconds:
+            return 'Audio-reading interval must be greater than or equal to the audio clip length'
+      if phase.audio_recording_mode.get() == 'Schedule-Based':
+         last_end_time = 0
+         if len(phase.audio_trigger_times) == 0:
+            return 'Schedule-based audio recording must have at least one start/end time pair'
+         for trigger_time in phase.audio_trigger_times:
+            hours, minutes = trigger_time[0].get().split(':')
+            start_time = (((int(hours) * 3600) + (int(minutes) * 60)) - utc_offset) % 86400
+            hours, minutes = trigger_time[1].get().split(':')
+            end_time = (((int(hours) * 3600) + (int(minutes) * 60)) - utc_offset) % 86400
+            if start_time >= end_time:
+               return 'Schedule-based audio start times must be before their corresponding end times'
+            if start_time < last_end_time:
+               return 'Schedule-based audio start/end times cannot overlap'
+            last_end_time = end_time
+   return None
 
 
 # INTERMEDIATE STORAGE CLASSES ----------------------------------------------------------------------------------------
@@ -119,10 +180,12 @@ class A3EMGui(ttk.Frame):
 
       # Create all necessary shared variables
       self.deployment_is_split = tk.BooleanVar(self.master, False)
-      self.set_rtc_at_magnet_detect = tk.BooleanVar(self.master, False)
-      self.leds_enabled = tk.BooleanVar(self.master, False)
+      self.set_rtc_at_magnet_detect = tk.BooleanVar(self.master, True)
+      self.gps_available = tk.BooleanVar(self.master, False)
+      self.awake_on_magnet = tk.BooleanVar(self.master, True)
+      self.leds_enabled = tk.BooleanVar(self.master, True)
       self.leds_active_seconds = tk.IntVar(self.master, 3600)
-      self.microphone_amplification_level = tk.StringVar(self.master, 'High')
+      self.mic_amplification_level_db = tk.DoubleVar(self.master, 35.0)
       self.magnetic_field_validation_length_ms = tk.IntVar(self.master, 5000)
       self.target_selection = tk.StringVar(self.master, 'Select a target device...')
       self.device_timezone = tk.StringVar(self.master, tzlocal.get_localzone())
@@ -235,6 +298,10 @@ class A3EMGui(ttk.Frame):
       for field in self.led_fields:
          field.configure(state=['' if self.leds_enabled.get() else 'disabled'])
 
+   def _change_magnet_enabled(self):
+      for field in self.magnet_fields:
+         field.configure(state=['' if self.awake_on_magnet.get() else 'disabled'])
+
    def _imu_mode_changed(self, phase, event=None):
       for field in self.imu_motion_fields:
          field.configure(state=['' if phase.imu_recording_mode.get() == 'Motion-Based' else 'disabled'])
@@ -291,59 +358,67 @@ class A3EMGui(ttk.Frame):
       row.grid(row=2, column=0, columnspan=5, pady=(0,10), sticky=tk.W+tk.E)
       ttk.Label(row, text='Device Label:  ').pack(side=tk.LEFT, expand=False)
       ttk.Entry(row, textvariable=self.device_label, validate='all', validatecommand=(row.register(lambda new_val: len(new_val) <= MAX_DEVICE_LABEL_LEN), '%P')).pack(side=tk.RIGHT, fill=tk.X, expand=True)
-      ttk.Checkbutton(prompt_area, text='Device LEDs Enabled', variable=self.leds_enabled, command=self._change_leds_enabled).grid(column=0, row=3, columnspan=5, sticky=tk.W)
+      ttk.Checkbutton(prompt_area, text='GPS Available on Device', variable=self.gps_available).grid(column=0, row=3, columnspan=5, pady=(0,5), sticky=tk.W)
+      ttk.Checkbutton(prompt_area, text='Device LEDs Enabled', variable=self.leds_enabled, command=self._change_leds_enabled).grid(column=0, row=4, columnspan=5, sticky=tk.W)
       field1 = ttk.Label(prompt_area, text='     LEDs Active after Activation for:')
-      field1.grid(column=0, row=4, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
+      field1.grid(column=0, row=5, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
       field2 = ttk.Entry(prompt_area, textvariable=self.leds_active_seconds, width=7, validate='all', validatecommand=(prompt_area.register(partial(validate_number, self.leds_active_seconds, 0, 604800)), '%d', '%P'))
-      field2.grid(column=3, row=4, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+      field2.grid(column=3, row=5, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
       field3 = ttk.Label(prompt_area, text=' seconds')
-      field3.grid(column=4, row=4, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+      field3.grid(column=4, row=5, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
       self.led_fields = [field1, field2, field3]
       self._change_leds_enabled()
-      ttk.Label(prompt_area, text='Microphone Amplification Level: ').grid(column=0, row=5, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Combobox(prompt_area, textvariable=self.microphone_amplification_level, width=10, values=list(VALID_MIC_AMP_LEVELS.keys()), state=['readonly']).grid(column=3, row=5, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Label(prompt_area, text='Magnetic Duration for Activation: ').grid(column=0, row=6, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Entry(prompt_area, textvariable=self.magnetic_field_validation_length_ms, width=7, validate='all', validatecommand=(prompt_area.register(partial(validate_number, self.magnetic_field_validation_length_ms, 1000, 30000)), '%d', '%P')).grid(column=3, row=6, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Label(prompt_area, text=' ms').grid(column=4, row=6, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Separator(prompt_area, orient='horizontal').grid(column=0, row=7, pady=20, columnspan=5, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Label(prompt_area, text='Scheduling Details', font=('Helvetica', '14', 'bold')).grid(column=0, row=8, columnspan=5, pady=(0,10), sticky=tk.W+tk.N+tk.S)
-      ttk.Label(prompt_area, text='Deployment Timezone:').grid(column=0, row=9, columnspan=2, pady=(0,8), sticky=tk.W+tk.N+tk.S)
-      ttk.Combobox(prompt_area, textvariable=self.device_timezone, values=pytz.all_timezones, state=['readonly']).grid(column=2, row=9, columnspan=3, pady=(0,8), sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Label(prompt_area, text='Start Date').grid(column=0, row=10, sticky=tk.W)
-      ttk.Label(prompt_area, text='Start Time').grid(column=1, row=10, sticky=tk.W)
-      ttk.Label(prompt_area, text='End Date').grid(column=3, row=10, sticky=tk.W)
-      ttk.Label(prompt_area, text='End Time').grid(column=4, row=10, sticky=tk.W)
+      ttk.Label(prompt_area, text='Microphone Amplification Level: ').grid(column=0, row=6, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Spinbox(prompt_area, textvariable=self.mic_amplification_level_db, width=10, from_=0.0, to=45.0, increment=0.5, validate='all', validatecommand=(prompt_area.register(partial(validate_float, self.mic_amplification_level_db)), '%P')).grid(column=3, row=6, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Label(prompt_area, text=' dB').grid(column=4, row=6, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Checkbutton(prompt_area, text='Magnetic Activation Enabled', variable=self.awake_on_magnet, command=self._change_magnet_enabled).grid(column=0, row=7, columnspan=5, sticky=tk.W)
+      field1 = ttk.Label(prompt_area, text='     Magnetic Duration for Activation: ')
+      field1.grid(column=0, row=8, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
+      field2 = ttk.Entry(prompt_area, textvariable=self.magnetic_field_validation_length_ms, width=7, validate='all', validatecommand=(prompt_area.register(partial(validate_number, self.magnetic_field_validation_length_ms, 1000, 30000)), '%d', '%P'))
+      field2.grid(column=3, row=8, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+      field3 = ttk.Label(prompt_area, text=' ms')
+      field3.grid(column=4, row=8, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+      self.magnet_fields = [field1, field2, field3]
+      self._change_magnet_enabled()
+      ttk.Separator(prompt_area, orient='horizontal').grid(column=0, row=9, pady=20, columnspan=5, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Label(prompt_area, text='Scheduling Details', font=('Helvetica', '14', 'bold')).grid(column=0, row=10, columnspan=5, pady=(0,10), sticky=tk.W+tk.N+tk.S)
+      ttk.Label(prompt_area, text='Deployment Timezone:').grid(column=0, row=11, columnspan=2, pady=(0,8), sticky=tk.W+tk.N+tk.S)
+      ttk.Combobox(prompt_area, textvariable=self.device_timezone, values=pytz.all_timezones, state=['readonly']).grid(column=2, row=11, columnspan=3, pady=(0,8), sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Label(prompt_area, text='Start Date').grid(column=0, row=12, sticky=tk.W)
+      ttk.Label(prompt_area, text='Start Time').grid(column=1, row=12, sticky=tk.W)
+      ttk.Label(prompt_area, text='End Date').grid(column=3, row=12, sticky=tk.W)
+      ttk.Label(prompt_area, text='End Time').grid(column=4, row=12, sticky=tk.W)
       start_date = DateEntry(prompt_area, textvariable=self.deployment_start_date, selectmode='day', firstweekday='sunday', showweeknumbers=False, date_pattern='yyyy-mm-dd')
-      start_date.grid(column=0, row=11, sticky=tk.W)
+      start_date.grid(column=0, row=13, sticky=tk.W)
       start_date.bind('<FocusIn>', self._focus_in)
       start_date.bind('<Button-1>', self._date_entry_clicked)
       start_date.bind('<<DateEntrySelected>>', self._date_entry_changed)
-      ttk.Entry(prompt_area, textvariable=self.deployment_start_time, width=7, validate='all', validatecommand=(prompt_area.register(partial(validate_time, self.deployment_start_time)), '%d', '%P')).grid(column=1, row=11, sticky=tk.W)
+      ttk.Entry(prompt_area, textvariable=self.deployment_start_time, width=7, validate='all', validatecommand=(prompt_area.register(partial(validate_time, self.deployment_start_time)), '%d', '%P')).grid(column=1, row=13, sticky=tk.W)
       end_date = DateEntry(prompt_area, textvariable=self.deployment_end_date, selectmode='day', firstweekday='sunday', showweeknumbers=False, date_pattern='yyyy-mm-dd')
-      end_date.grid(column=3, row=11, sticky=tk.W)
+      end_date.grid(column=3, row=13, sticky=tk.W)
       end_date.bind('<FocusIn>', self._focus_in)
       end_date.bind('<Button-1>', self._date_entry_clicked)
       end_date.bind('<<DateEntrySelected>>', partial(self._deployment_end_changed, None, 0)) 
-      ttk.Entry(prompt_area, textvariable=self.deployment_end_time, width=7, validate='all', validatecommand=(prompt_area.register(partial(self._deployment_end_changed, self.deployment_end_time)), '%d', '%P')).grid(column=4, row=11, sticky=tk.W)
-      ttk.Checkbutton(prompt_area, text='Set RTC to Start Date/Time upon Magnetic Activation', variable=self.set_rtc_at_magnet_detect).grid(column=0, row=12, columnspan=5, pady=(10,0), sticky=tk.W+tk.N+tk.S)
-      ttk.Checkbutton(prompt_area, text='Split Deployment into Phases', variable=self.deployment_is_split, command=self._change_deployment_split).grid(column=0, row=13, columnspan=5, pady=(5,10), sticky=tk.W+tk.N+tk.S)
-      ttk.Label(prompt_area, text='VHF Beacon Activation Mode: ').grid(column=0, row=14, columnspan=2, pady=(0,7), sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Entry(prompt_area, textvariable=self.deployment_end_time, width=7, validate='all', validatecommand=(prompt_area.register(partial(self._deployment_end_changed, self.deployment_end_time)), '%d', '%P')).grid(column=4, row=13, sticky=tk.W)
+      ttk.Checkbutton(prompt_area, text='Set RTC to Start Date/Time upon Magnetic Activation', variable=self.set_rtc_at_magnet_detect).grid(column=0, row=14, columnspan=5, pady=(10,0), sticky=tk.W+tk.N+tk.S)
+      ttk.Checkbutton(prompt_area, text='Split Deployment into Phases', variable=self.deployment_is_split, command=self._change_deployment_split).grid(column=0, row=15, columnspan=5, pady=(5,10), sticky=tk.W+tk.N+tk.S)
+      ttk.Label(prompt_area, text='VHF Beacon Activation Mode: ').grid(column=0, row=16, columnspan=2, pady=(0,7), sticky=tk.W+tk.E+tk.N+tk.S)
       vhf_selector = ttk.Combobox(prompt_area, textvariable=self.vhf_mode, width=10, values=list(VALID_VHF_MODES.keys()), state=['readonly'])
-      vhf_selector.grid(column=2, row=14, columnspan=3, pady=(0,7), sticky=tk.W+tk.E+tk.N+tk.S)
+      vhf_selector.grid(column=2, row=16, columnspan=3, pady=(0,7), sticky=tk.W+tk.E+tk.N+tk.S)
       vhf_selector.bind('<<ComboboxSelected>>', self._change_vhf_enabled)
       field1 = ttk.Label(prompt_area, text='VHF Date')
-      field1.grid(column=3, row=15, columnspan=1, sticky=tk.W)
+      field1.grid(column=3, row=17, columnspan=1, sticky=tk.W)
       field2 = ttk.Label(prompt_area, text='VHF Time')
-      field2.grid(column=4, row=15, columnspan=1, sticky=tk.W)
+      field2.grid(column=4, row=17, columnspan=1, sticky=tk.W)
       field3 = ttk.Label(prompt_area, text='Enable: ')
-      field3.grid(column=2, row=16, columnspan=1, sticky=tk.W)
+      field3.grid(column=2, row=18, columnspan=1, sticky=tk.W)
       field4 = DateEntry(prompt_area, textvariable=self.vhf_start_date, selectmode='day', firstweekday='sunday', showweeknumbers=False, date_pattern='yyyy-mm-dd')
-      field4.grid(column=3, row=16, columnspan=1, sticky=tk.W)
+      field4.grid(column=3, row=18, columnspan=1, sticky=tk.W)
       field4.bind('<FocusIn>', self._focus_in)
       field4.bind('<Button-1>', self._date_entry_clicked)
       field4.bind('<<DateEntrySelected>>', self._date_entry_changed)
       field5 = ttk.Entry(prompt_area, textvariable=self.vhf_start_time, width=7, validate='all', validatecommand=(prompt_area.register(partial(validate_time, self.vhf_start_time)), '%d', '%P'))
-      field5.grid(column=4, row=16, columnspan=1, sticky=tk.W)
+      field5.grid(column=4, row=18, columnspan=1, sticky=tk.W)
       self.vhf_fields = [field1, field2, field3, field4, field5]
       self._change_vhf_enabled()
 
@@ -547,8 +622,13 @@ class A3EMGui(ttk.Frame):
    def _configure(self):
       self._clear_canvas()
       try:
-         write_config(self, CONFIG_FILE_NAME)
-         tk.Label(self.canvas, text='Successfully stored configuration to device!').pack(fill=tk.BOTH, expand=True)
+         error = validate_details(self)
+         if error:
+            tk.Label(self.canvas, text='Fix configuration errors and try again').pack(fill=tk.BOTH, expand=True)
+            tk.messagebox.showerror('A3EM Error', error)
+         else:
+            write_config(self, CONFIG_FILE_NAME)
+            tk.Label(self.canvas, text='Successfully stored configuration to device!').pack(fill=tk.BOTH, expand=True)
       except:
          tk.Label(self.canvas, text='Unable to store the configuration file').pack(fill=tk.BOTH, expand=True)
          tk.messagebox.showerror('A3EM Error', 'ERROR\n\nUnable to write configuration file to {}'.format(self.save_directory.get()))

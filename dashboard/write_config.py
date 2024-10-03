@@ -15,7 +15,6 @@ VALID_AUDIO_MODES = {'Threshold-Based': 'AMPLITUDE',
                      'Continuous': 'CONTINUOUS'}
 VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO'}
 VALID_TIME_SCALES = {'Second': 'SECONDS', 'Minute': 'MINUTES', 'Hour': 'HOURS', 'Day': 'DAYS'}
-VALID_MIC_AMP_LEVELS = {'Low': 'LOW', 'Medium': 'MEDIUM', 'High': 'HIGH'}
 
 
 # PARSER FUNCTION -----------------------------------------------------------------------------------------------------
@@ -37,9 +36,11 @@ def write_config(self, filename):
       print('DEPLOYMENT_START_TIME = "{}"'.format(int(utc_datetime.timestamp())), file=file)
       utc_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.deployment_end_date.get() + ' ' + self.deployment_end_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
       print('DEPLOYMENT_END_TIME = "{}"'.format(int(utc_datetime.timestamp())), file=file)
+      print('GPS_AVAILABLE = "{}"'.format(self.gps_available.get()), file=file)
+      print('AWAKE_ON_MAGNET = "{}"'.format(self.awake_on_magnet.get()), file=file)
       print('LEDS_ENABLED = "{}"'.format(self.leds_enabled.get()), file=file)
       print('LEDS_ACTIVE_SECONDS = "{}"'.format(self.leds_active_seconds.get()), file=file)
-      print('MIC_AMPLIFICATION = "{}"'.format(VALID_MIC_AMP_LEVELS[self.microphone_amplification_level.get()]), file=file)
+      print('MIC_AMPLIFICATION = "{}"'.format(self.mic_amplification_level_db.get()), file=file)
       print('MAGNET_FIELD_VALIDATION_MS = "{}"'.format(self.magnetic_field_validation_length_ms.get()), file=file)
       utc_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.vhf_start_date.get() + ' ' + self.vhf_start_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
       print('VHF_RADIO_START_TIME = "{}"'.format(int(utc_datetime.timestamp())), file=file)
