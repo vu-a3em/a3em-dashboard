@@ -29,8 +29,11 @@ def write_config(self, filename):
       write_order = [item[1] for item in sorted(start_times, key=lambda x: x[0])]
    with open(os.path.join(self.save_directory.get(), filename), 'w') as file:
       time_zone = self.device_timezone.get()
+      utc_offset = int(datetime.now(pytz.timezone(time_zone)).utcoffset().total_seconds())
+      hour_utc_offset = utc_offset // 3600
       print('DEVICE_LABEL = "{}"'.format(self.device_label.get()), file=file)
-      print('DEVICE_TIMEZONE = "{}"'.format(self.device_timezone.get()), file=file)
+      print('DEVICE_TIMEZONE = "{}"'.format(time_zone), file=file)
+      print('DEVICE_UTC_OFFSET = "{}"'.format(hour_utc_offset), file=file)
       print('SET_RTC_AT_MAGNET_DETECT = "{}"'.format(self.set_rtc_at_magnet_detect.get()), file=file)
       utc_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.deployment_start_date.get() + ' ' + self.deployment_start_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
       print('DEPLOYMENT_START_TIME = "{}"'.format(int(utc_datetime.timestamp())), file=file)
@@ -62,7 +65,6 @@ def write_config(self, filename):
          print('AUDIO_TRIGGER_THRESHOLD = "{}"'.format(phase.audio_trigger_threshold.get()), file=file)
          print('AUDIO_TRIGGER_INTERVAL = "{}"'.format(phase.audio_trigger_interval.get()), file=file)
          print('AUDIO_TRIGGER_INTERVAL_TIME_SCALE = "{}"'.format(VALID_TIME_SCALES[phase.audio_trigger_interval_time_scale.get()]), file=file)
-         utc_offset = int(datetime.now(pytz.timezone(time_zone)).utcoffset().total_seconds())
          for trigger_time in phase.audio_trigger_times:
             hours, minutes = trigger_time[0].get().split(':')
             start_time = (((int(hours) * 3600) + (int(minutes) * 60)) - utc_offset) % 86400
