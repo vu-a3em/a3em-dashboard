@@ -20,6 +20,8 @@ import asyncio
 # CONSTANTS AND DEFINITIONS -------------------------------------------------------------------------------------------
 
 CONFIG_FILE_NAME = '_a3em.cfg'
+LAST_TIMESTAMP_FILE_NAME = '_a3em.timestamp'
+ACTIVATION_FILE_NAME = '_a3em.active'
 MAX_DEVICE_LABEL_LEN = 15
 MAX_AUDIO_TRIGGER_TIMES = 12
 
@@ -627,6 +629,12 @@ class A3EMGui(ttk.Frame):
             tk.Label(self.canvas, text='Fix configuration errors and try again').pack(fill=tk.BOTH, expand=True)
             tk.messagebox.showerror('A3EM Error', error)
          else:
+            file_path = os.path.join(self.save_directory.get(), LAST_TIMESTAMP_FILE_NAME)
+            if os.path.exists(file_path):
+               os.remove(file_path)
+            file_path = os.path.join(self.save_directory.get(), ACTIVATION_FILE_NAME)
+            if os.path.exists(file_path):
+               os.remove(file_path)
             write_config(self, CONFIG_FILE_NAME)
             tk.Label(self.canvas, text='Successfully stored configuration to device!').pack(fill=tk.BOTH, expand=True)
       except:
