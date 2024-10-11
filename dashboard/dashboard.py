@@ -34,7 +34,7 @@ VALID_AUDIO_MODES = {'Threshold-Based': 'AMPLITUDE',
                      'Schedule-Based': 'SCHEDULED',
                      'Interval-Based': 'INTERVAL',
                      'Continuous': 'CONTINUOUS'}
-VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO'}
+VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO', 'None': 'NONE'}
 VALID_TIME_SCALES = {'Second': 'SECONDS', 'Minute': 'MINUTES', 'Hour': 'HOURS', 'Day': 'DAYS'}
 VALID_VHF_MODES = {'Never': 'NEVER', 'End of Deployment': 'END', 'Scheduled': 'SCHEDULED'}
 VALID_IMU_SAMPLE_RATES = ['3', '6', '12', '25', '50', '100', '200', '400', '800']
@@ -152,7 +152,7 @@ class SchedulePhase:
       self.audio_trigger_interval = tk.IntVar(master, 10)
       self.audio_clip_length = tk.IntVar(master, 10)
       self.audio_sampling_rate = tk.IntVar(master, 20000)
-      self.imu_sampling_rate = tk.IntVar(master, 6)
+      self.imu_sampling_rate = tk.IntVar(master, 25)
       self.imu_degrees_of_freedom = tk.IntVar(master, 3)
       self.audio_trigger_threshold = tk.DoubleVar(master, 0.25)
       self.imu_trigger_threshold = tk.DoubleVar(master, 0.25)

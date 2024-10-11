@@ -13,7 +13,7 @@ VALID_AUDIO_MODES = {'Threshold-Based': 'AMPLITUDE',
                      'Schedule-Based': 'SCHEDULED',
                      'Interval-Based': 'INTERVAL',
                      'Continuous': 'CONTINUOUS'}
-VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO'}
+VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO', 'None': 'NONE'}
 VALID_TIME_SCALES = {'Second': 'SECONDS', 'Minute': 'MINUTES', 'Hour': 'HOURS', 'Day': 'DAYS'}
 
 
