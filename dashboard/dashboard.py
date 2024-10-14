@@ -87,7 +87,7 @@ def validate_details(self):
    vhf_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.vhf_start_date.get() + ' ' + self.vhf_start_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
    if start_datetime >= end_datetime:
       return 'Deployment start datetime must be before deployment end datetime'
-   if vhf_datetime < start_datetime:
+   if self.vhf_mode.get() != 'Never' and vhf_datetime < start_datetime:
       return 'VHF start datetime must be after deployment start datetime'
    if self.deployment_is_split.get():
       start_times = []
@@ -126,9 +126,9 @@ def validate_details(self):
             return 'Schedule-based audio recording must have at least one start/end time pair'
          for trigger_time in phase.audio_trigger_times:
             hours, minutes = trigger_time[0].get().split(':')
-            start_time = (((int(hours) * 3600) + (int(minutes) * 60)) - utc_offset) % 86400
+            start_time = (int(hours) * 3600) + (int(minutes) * 60)
             hours, minutes = trigger_time[1].get().split(':')
-            end_time = (((int(hours) * 3600) + (int(minutes) * 60)) - utc_offset) % 86400
+            end_time = (int(hours) * 3600) + (int(minutes) * 60)
             if start_time >= end_time:
                return 'Schedule-based audio start times must be before their corresponding end times'
             if start_time < last_end_time:

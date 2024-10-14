@@ -15,6 +15,7 @@ VALID_AUDIO_MODES = {'Threshold-Based': 'AMPLITUDE',
                      'Continuous': 'CONTINUOUS'}
 VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO', 'None': 'NONE'}
 VALID_TIME_SCALES = {'Second': 'SECONDS', 'Minute': 'MINUTES', 'Hour': 'HOURS', 'Day': 'DAYS'}
+VALID_VHF_MODES = {'Never': 'NEVER', 'End of Deployment': 'END', 'Scheduled': 'SCHEDULED'}
 
 
 # PARSER FUNCTION -----------------------------------------------------------------------------------------------------
@@ -46,6 +47,7 @@ def write_config(self, filename):
       print('MIC_AMPLIFICATION = "{}"'.format(self.mic_amplification_level_db.get()), file=file)
       print('MAGNET_FIELD_VALIDATION_MS = "{}"'.format(self.magnetic_field_validation_length_ms.get()), file=file)
       utc_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.vhf_start_date.get() + ' ' + self.vhf_start_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
+      print('VHF_MODE = "{}"'.format(VALID_VHF_MODES[self.vhf_mode.get()]), file=file)
       print('VHF_RADIO_START_TIME = "{}"'.format(int(utc_datetime.timestamp())), file=file)
       print('PHASED_DEPLOYMENT = "{}"'.format(self.deployment_is_split.get()), file=file)
       for idx in write_order:

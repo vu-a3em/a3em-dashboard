@@ -16,6 +16,7 @@ VALID_AUDIO_MODES = {'Threshold-Based': 'AMPLITUDE',
                      'Continuous': 'CONTINUOUS'}
 VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO', 'None': 'NONE'}
 VALID_TIME_SCALES = {'Second': 'SECONDS', 'Minute': 'MINUTES', 'Hour': 'HOURS', 'Day': 'DAYS'}
+VALID_VHF_MODES = {'Never': 'NEVER', 'End of Deployment': 'END', 'Scheduled': 'SCHEDULED'}
 
 
 # PARSER FUNCTION -----------------------------------------------------------------------------------------------------
@@ -67,11 +68,12 @@ def read_config(self, filename, SchedulePhase):
                self.mic_amplification_level_db.set(float(value))
             elif key == 'MAGNET_FIELD_VALIDATION_MS':
                self.magnetic_field_validation_length_ms.set(int(value))
+            elif key == 'VHF_MODE':
+               self.vhf_mode.set(list(VALID_VHF_MODES.keys())[list(VALID_VHF_MODES.values()).index(value)])
             elif key == 'VHF_RADIO_START_TIME':
                local_datetime = datetime.fromtimestamp(int(value), pytz.utc).astimezone(pytz.timezone(time_zone))
                self.vhf_start_date.set(local_datetime.strftime('%Y-%m-%d'))
                self.vhf_start_time.set(local_datetime.strftime('%H:%M'))
-               self.vhf_mode.set('Scheduled')
             elif key == 'PHASED_DEPLOYMENT':
                self.deployment_is_split.set(value == 'True')
                if value == 'True':
