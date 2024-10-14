@@ -4,7 +4,7 @@
 # PYTHON INCLUSIONS ---------------------------------------------------------------------------------------------------
 
 from datetime import datetime
-import os, pytz, time
+import os, pytz
 
 
 # CONSTANTS AND DEFINITIONS -------------------------------------------------------------------------------------------
@@ -34,7 +34,8 @@ def write_config(self, filename):
       hour_utc_offset = utc_offset // 3600
       print('DEVICE_LABEL = "{}"'.format(self.device_label.get()), file=file)
       print('DEVICE_TIMEZONE = "{}"'.format(time_zone), file=file)
-      print('DEVICE_UTC_OFFSET = "{}"'.format(hour_utc_offset), file=file)
+      print('DEVICE_UTC_OFFSET = "{}"'.format(utc_offset), file=file)
+      print('DEVICE_UTC_OFFSET_HOUR = "{}"'.format(hour_utc_offset), file=file)
       print('SET_RTC_AT_MAGNET_DETECT = "{}"'.format(self.set_rtc_at_magnet_detect.get()), file=file)
       utc_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.deployment_start_date.get() + ' ' + self.deployment_start_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
       print('DEPLOYMENT_START_TIME = "{}"'.format(int(utc_datetime.timestamp())), file=file)
@@ -69,9 +70,9 @@ def write_config(self, filename):
          print('AUDIO_TRIGGER_INTERVAL_TIME_SCALE = "{}"'.format(VALID_TIME_SCALES[phase.audio_trigger_interval_time_scale.get()]), file=file)
          for trigger_time in phase.audio_trigger_times:
             hours, minutes = trigger_time[0].get().split(':')
-            start_time = (((int(hours) * 3600) + (int(minutes) * 60)) - utc_offset) % 86400
+            start_time = ((int(hours) * 3600) + (int(minutes) * 60))
             hours, minutes = trigger_time[1].get().split(':')
-            end_time = (((int(hours) * 3600) + (int(minutes) * 60)) - utc_offset) % 86400
+            end_time = ((int(hours) * 3600) + (int(minutes) * 60))
             print('AUDIO_TRIGGER_SCHEDULE = "{}-{}"'.format(start_time, end_time), file=file)
          print('AUDIO_SAMPLING_RATE_HZ = "{}"'.format(phase.audio_sampling_rate.get()), file=file)
          print('AUDIO_CLIP_LENGTH_SECONDS = "{}"'.format(phase.audio_clip_length.get()), file=file)

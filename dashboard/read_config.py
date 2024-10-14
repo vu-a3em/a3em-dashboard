@@ -33,7 +33,6 @@ def read_config(self, filename, SchedulePhase):
       self.audio_detail_fields.clear()
       self.active_data_entry = None
       time_zone = pytz.utc
-      utc_offset = 0
 
       # Parse the config file line by line
       for line in file:
@@ -45,7 +44,6 @@ def read_config(self, filename, SchedulePhase):
             elif key == 'DEVICE_TIMEZONE':
                time_zone = value
                self.device_timezone.set(value)
-               utc_offset = int(datetime.now(pytz.timezone(time_zone)).utcoffset().total_seconds())
             elif key == 'SET_RTC_AT_MAGNET_DETECT':
                self.set_rtc_at_magnet_detect.set(value == 'True')
             elif key == 'DEPLOYMENT_START_TIME':
@@ -110,10 +108,8 @@ def read_config(self, filename, SchedulePhase):
                self.deployment_phases[-1].audio_trigger_interval_time_scale.set(list(VALID_TIME_SCALES.keys())[list(VALID_TIME_SCALES.values()).index(value)])
             elif key == 'AUDIO_TRIGGER_SCHEDULE':
                start, end = value.split('-')
-               start = (int(start) + utc_offset) % 86400
-               end = (int(end) + utc_offset) % 86400
-               start = '{:02d}:{:02d}'.format(start // 3600, (start % 3600) // 60)
-               end = '{:02d}:{:02d}'.format(end // 3600, (end % 3600) // 60)
+               start = '{:02d}:{:02d}'.format(int(start) // 3600, (int(start) % 3600) // 60)
+               end = '{:02d}:{:02d}'.format(int(end) // 3600, (int(end) % 3600) // 60)
                self.deployment_phases[-1].audio_trigger_times.append((tk.StringVar(self.master, start), tk.StringVar(self.master, end)))
             elif key == 'AUDIO_SAMPLING_RATE_HZ':
                self.deployment_phases[-1].audio_sampling_rate.set(int(value))
