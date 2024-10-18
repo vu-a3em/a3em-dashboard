@@ -64,6 +64,8 @@ def read_config(self, filename, SchedulePhase):
                self.leds_active_seconds.set(int(value))
             elif key == 'MIC_AMPLIFICATION':
                self.mic_amplification_level_db.set(float(value))
+            elif key == 'BATTERY_LOW_MV':
+               self.battery_low_mv.set(int(value))
             elif key == 'MAGNET_FIELD_VALIDATION_MS':
                self.magnetic_field_validation_length_ms.set(int(value))
             elif key == 'VHF_MODE':

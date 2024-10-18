@@ -188,6 +188,7 @@ class A3EMGui(ttk.Frame):
       self.leds_enabled = tk.BooleanVar(self.master, True)
       self.leds_active_seconds = tk.IntVar(self.master, 3600)
       self.mic_amplification_level_db = tk.DoubleVar(self.master, 35.0)
+      self.battery_low_mv = tk.IntVar(self.master, 3250)
       self.magnetic_field_validation_length_ms = tk.IntVar(self.master, 5000)
       self.target_selection = tk.StringVar(self.master, 'Select a target device...')
       self.device_timezone = tk.StringVar(self.master, tzlocal.get_localzone())

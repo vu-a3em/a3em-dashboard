@@ -46,6 +46,7 @@ def write_config(self, filename):
       print('LEDS_ENABLED = "{}"'.format(self.leds_enabled.get()), file=file)
       print('LEDS_ACTIVE_SECONDS = "{}"'.format(self.leds_active_seconds.get()), file=file)
       print('MIC_AMPLIFICATION = "{}"'.format(self.mic_amplification_level_db.get()), file=file)
+      print('BATTERY_LOW_MV = "{}"'.format(self.battery_low_mv), file=file)
       print('MAGNET_FIELD_VALIDATION_MS = "{}"'.format(self.magnetic_field_validation_length_ms.get()), file=file)
       utc_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.vhf_start_date.get() + ' ' + self.vhf_start_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
       print('VHF_MODE = "{}"'.format(VALID_VHF_MODES[self.vhf_mode.get()]), file=file)
