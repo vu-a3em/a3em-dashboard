@@ -12,7 +12,8 @@ except: from tkcal import DateEntry
 from tkinter import ttk, filedialog
 from datetime import datetime
 from functools import partial
-import os, psutil, pytz, tzlocal
+import os, psutil, re, sys
+import pytz, tzlocal
 import tkinter as tk
 import asyncio
 
@@ -20,8 +21,6 @@ import asyncio
 # CONSTANTS AND DEFINITIONS -------------------------------------------------------------------------------------------
 
 CONFIG_FILE_NAME = '_a3em.cfg'
-LAST_TIMESTAMP_FILE_NAME = '_a3em.timestamp'
-ACTIVATION_FILE_NAME = '_a3em.active'
 MAX_DEVICE_LABEL_LEN = 15
 MAX_AUDIO_TRIGGER_TIMES = 12
 
@@ -53,6 +52,51 @@ def get_download_directory():
       return location
    else:
       return os.path.join(os.path.expanduser('~'), 'Downloads')
+
+format_complete = False
+def format_callback(command, modifier, arg):
+   global format_complete
+   format_complete = command == 11
+   return 1
+
+def sd_card_check_formatting(device, passwd):
+   if os.name == 'nt':
+      from ctypes import windll, pointer, c_ulonglong, c_wchar_p
+      sectorsPerCluster, bytesPerSector = c_ulonglong(0), c_ulonglong(0)
+      windll.kernel32.GetDiskFreeSpaceW(c_wchar_p(device), pointer(sectorsPerCluster), pointer(bytesPerSector), None, None)
+      return bytesPerSector.value * sectorsPerCluster.value == 4096
+   elif sys.platform == 'darwin':
+      device = re.match(r'.*disk[0-9]+', device)[0]
+      os.system(f'diskutil unmountDisk force {device}')
+      valid = os.system(f'/bin/sh -c "[ $(echo {passwd} | sudo -S newfs_exfat -N {device} | grep cluster | cut -f 2 -d :) -eq 4096 ]"') == 0
+      os.system(f'diskutil mountDisk {device}')
+      return valid
+   else:
+      os.system(f'/bin/sh -c "if ! dpkg -s exfatprogs >/dev/null 2>&1 && ! echo {passwd} | sudo -S apt -y install exfatprogs >/dev/null 2>&1; then if ! dpkg -s exfat-fuse >/dev/null 2>&1 || ! dpkg -s exfat-utils >/dev/null 2>&1; then echo {passwd} | sudo -S apt -y install exfat-fuse exfat-utils >/dev/null 2>&1; fi; fi"')
+      return os.system(f'/bin/sh -c "[ $(echo {passwd} | sudo -S fsck.exfat -n -v {device} | grep cluster | cut -f 2 -d \":\" | cut -f 2 -d \" \") = \"4.00\" ]"') == 0
+
+def format_sd_card_as_exfat(mountpoint, device, passwd):
+   if os.name == 'nt':
+      from ctypes import windll, WINFUNCTYPE, pointer, c_int, c_ulonglong, c_void_p, c_wchar_p
+      global format_complete
+      format_complete = False
+      fm = windll.LoadLibrary('fmifs.dll')
+      FMT_CB_FUNC = WINFUNCTYPE(c_int, c_int, c_int, c_void_p)
+      while not format_complete:
+         fm.FormatEx(c_wchar_p(device), 0, c_wchar_p('EXFAT'), c_wchar_p('A3EM'), True, c_int(4096), FMT_CB_FUNC(format_callback))
+         while not format_complete:
+            sleep(0.1)
+         format_complete = sd_card_check_formatting(device, passwd)
+   elif sys.platform == 'darwin':
+      device = re.match(r'.*disk[0-9]+', device)[0]
+      os.system(f'diskutil unmountDisk force {device}')
+      os.system(f'echo {passwd} | sudo -S newfs_exfat -b 4096 -v A3EM {device}')
+      os.system(f'diskutil mountDisk {device}')
+   else:
+      os.system(f'/bin/sh -c "if ! dpkg -s exfatprogs >/dev/null 2>&1 && ! echo {passwd} | sudo -S apt -y install exfatprogs >/dev/null 2>&1; then if ! dpkg -s exfat-fuse >/dev/null 2>&1 || ! dpkg -s exfat-utils >/dev/null 2>&1; then echo {passwd} | sudo -S apt -y install exfat-fuse exfat-utils >/dev/null 2>&1; fi; fi"')
+      os.system(f'echo {passwd} | sudo -S umount {device}')
+      os.system(f'echo {passwd} | sudo -S mkfs -t exfat -c 4096 -L A3EM {device}')
+      os.system(f'echo {passwd} | sudo -S fsck.exfat {device}')
 
 def validate_time(var, why, new_val):
    good = (len(new_val) == 0) or \
@@ -284,9 +328,37 @@ class A3EMGui(ttk.Frame):
 
    def _scan_for_devices(self):
       self._change_button_states(False)
+      self.target_device_mapping = { 'Local Directory': (None, None) }
+      if sys.platform == 'darwin':
+         self.target_device_mapping.update({ partition.mountpoint: (re.match(r'.*disk[0-9]+', partition.device)[0], partition.fstype.lower())
+                                             for partition in psutil.disk_partitions()
+                                             if partition.fstype.lower() in ['fat', 'msdos', 'exfat'] })
+      else:
+         self.target_device_mapping.update({ partition.mountpoint: (partition.device, partition.fstype.lower())
+                                             for partition in psutil.disk_partitions()
+                                             if partition.fstype.lower() in ['fat', 'msdos', 'exfat'] })
       self.target_selection.set('Select a target device...')
-      self.target_selector['values'] = ['Local Directory'] + [partition.mountpoint for partition in psutil.disk_partitions()
-                                                              if 'fat' in partition.fstype or 'msdos' in partition.fstype]
+      self.target_selector['values'] = list(self.target_device_mapping.keys())
+
+   def _prompt_for_password(self):
+      self.passwd = 'None'
+      if os.name == 'nt' or os.geteuid() == 0:
+         return True
+      else:
+         password = tk.StringVar()
+         prompt = tk.Toplevel()
+         prompt.geometry('400x150+' + str((self.winfo_screenwidth()-400)//2) + '+' + str((self.winfo_screenheight()-150)//2))
+         prompt.title('Sudo Password Request')
+         ttk.Label(prompt, text='SD card formatting requires administrative privileges.').pack(padx=(20, 20), pady=(10, 0), expand=True)
+         ttk.Label(prompt, text='Please enter your sudo password:').pack(pady=(0, 0), expand=True)
+         entry = ttk.Entry(prompt, show='*', textvariable=password)
+         entry.bind('<Return>', lambda event: prompt.destroy())
+         entry.pack(pady=(5, 5), expand=True)
+         ttk.Button(prompt, text='OK', command=prompt.destroy).pack(pady=(0, 10), expand=True)
+         entry.focus_force()
+         self.wait_window(prompt)
+         self.passwd = password.get()
+         return True
 
    def _get_configuration(self):
       self._clear_canvas()
@@ -626,16 +698,25 @@ class A3EMGui(ttk.Frame):
       self._clear_canvas()
       try:
          error = validate_details(self)
+         if not error and self.save_directory.get() in self.target_device_mapping:
+            device_info = self.target_device_mapping[self.save_directory.get()]
+            if device_info[1] != 'exfat':
+               error = 'SD Card is not in the correct exFAT format!'
+#            if device_info[1] != 'exfat' or (not os.path.exists(os.path.join(self.save_directory.get(), CONFIG_FILE_NAME)) and self._prompt_for_password() and not sd_card_check_formatting(device_info[0], self.passwd)):
+#               if not hasattr(self, 'passwd'):
+#                  self._prompt_for_password()
+#                  error = format_sd_card_as_exfat(self.save_directory.get(), device_info[0], self.passwd)
+#               if not error:
+#                  for partition in psutil.disk_partitions():
+#                     if partition.device == device_info[0]:
+#                        self.target_selection.set(partition.mountpoint)
+#                        self.save_directory.set(partition.mountpoint)
+#            if hasattr(self, 'passwd'):
+#               del self.passwd
          if error:
             tk.Label(self.canvas, text='Fix configuration errors and try again').pack(fill=tk.BOTH, expand=True)
             tk.messagebox.showerror('A3EM Error', error)
          else:
-            file_path = os.path.join(self.save_directory.get(), LAST_TIMESTAMP_FILE_NAME)
-            if os.path.exists(file_path):
-               os.remove(file_path)
-            file_path = os.path.join(self.save_directory.get(), ACTIVATION_FILE_NAME)
-            if os.path.exists(file_path):
-               os.remove(file_path)
             write_config(self, CONFIG_FILE_NAME)
             tk.Label(self.canvas, text='Successfully stored configuration to device!').pack(fill=tk.BOTH, expand=True)
       except:
