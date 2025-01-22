@@ -17,6 +17,7 @@ VALID_AUDIO_MODES = {'Threshold-Based': 'AMPLITUDE',
 VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO', 'None': 'NONE'}
 VALID_TIME_SCALES = {'Second': 'SECONDS', 'Minute': 'MINUTES', 'Hour': 'HOURS', 'Day': 'DAYS'}
 VALID_VHF_MODES = {'Never': 'NEVER', 'End of Deployment': 'END', 'Scheduled': 'SCHEDULED'}
+VALID_MIC_TYPES = {'Analog': 'ANALOG', 'Digital': 'DIGITAL'}
 
 
 # PARSER FUNCTION -----------------------------------------------------------------------------------------------------
@@ -62,6 +63,8 @@ def read_config(self, filename, SchedulePhase):
                self.leds_enabled.set(value == 'True')
             elif key == 'LEDS_ACTIVE_SECONDS':
                self.leds_active_seconds.set(int(value))
+            elif key == 'MIC_TYPE':
+               self.microphone_type.set(list(VALID_MIC_TYPES.keys())[list(VALID_MIC_TYPES.values()).index(value)])
             elif key == 'MIC_AMPLIFICATION':
                self.mic_amplification_level_db.set(float(value))
             elif key == 'BATTERY_LOW_MV':

@@ -16,6 +16,7 @@ VALID_AUDIO_MODES = {'Threshold-Based': 'AMPLITUDE',
 VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO', 'None': 'NONE'}
 VALID_TIME_SCALES = {'Second': 'SECONDS', 'Minute': 'MINUTES', 'Hour': 'HOURS', 'Day': 'DAYS'}
 VALID_VHF_MODES = {'Never': 'NEVER', 'End of Deployment': 'END', 'Scheduled': 'SCHEDULED'}
+VALID_MIC_TYPES = {'Analog': 'ANALOG', 'Digital': 'DIGITAL'}
 
 
 # PARSER FUNCTION -----------------------------------------------------------------------------------------------------
@@ -45,6 +46,7 @@ def write_config(self, filename):
       print('AWAKE_ON_MAGNET = "{}"'.format(self.awake_on_magnet.get()), file=file)
       print('LEDS_ENABLED = "{}"'.format(self.leds_enabled.get()), file=file)
       print('LEDS_ACTIVE_SECONDS = "{}"'.format(self.leds_active_seconds.get()), file=file)
+      print('MIC_TYPE = "{}"'.format(VALID_MIC_TYPES[self.microphone_type.get()]), file=file)
       print('MIC_AMPLIFICATION = "{}"'.format(self.mic_amplification_level_db.get()), file=file)
       print('BATTERY_LOW_MV = "{}"'.format(self.battery_low_mv.get()), file=file)
       print('MAGNET_FIELD_VALIDATION_MS = "{}"'.format(self.magnetic_field_validation_length_ms.get()), file=file)
