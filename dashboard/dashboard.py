@@ -9,10 +9,13 @@ try: from .write_config import write_config
 except: from write_config import write_config
 try: from .tkcal import DateEntry
 except: from tkcal import DateEntry
+try: from .relabel_logs import relabel_audio_files
+except: from relabel_logs import relabel_audio_files
 from tkinter import ttk, filedialog
 from datetime import datetime
 from functools import partial
-import os, psutil, re, sys
+from pathlib import Path
+import glob, os, psutil, re, sys, threading
 import pytz, tzlocal
 import tkinter as tk
 import asyncio
@@ -99,6 +102,22 @@ def format_sd_card_as_exfat(mountpoint, device, passwd):
       os.system(f'echo {passwd} | sudo -S umount {device}')
       os.system(f'echo {passwd} | sudo -S mkfs -t exfat -c 4096 -L A3EM {device}')
       os.system(f'echo {passwd} | sudo -S fsck.exfat {device}')
+
+def relabel_thread(self, audio_dir, original_datetime, offset_in_seconds):
+      relabel_audio_files(audio_dir, offset_in_seconds, original_timestamp=original_datetime)
+      self._clear_canvas()
+      tk.Label(self.canvas, text='Operation complete!').pack(fill=tk.BOTH, expand=True)
+
+def relabel_log_files(self, original_date, original_time, target_date, target_time):
+   try:
+      self._clear_canvas()
+      tk.Label(self.canvas, text='Relabeling audio files, please wait...').pack(fill=tk.BOTH, expand=True)
+      original_datetime = datetime.strptime(original_date.get() + ' ' + original_time.get(), '%Y-%m-%d %H:%M:%S').timestamp()
+      target_datetime = datetime.strptime(target_date.get() + ' ' + target_time.get(), '%Y-%m-%d %H:%M:%S').timestamp()
+      relabeling_thread = threading.Thread(target=relabel_thread, args=(self, self.target_selection.get(), int(original_datetime), int(target_datetime - original_datetime)))
+      relabeling_thread.start()
+   except ValueError:
+      tk.messagebox.showerror('A3EM Formatting Error', 'Invalid datetime format\n\nEnsure that the date is formatted as YYYY-MM-DD and the time as HH:MM:SS')
 
 def validate_time(var, why, new_val):
    good = (len(new_val) == 0) or \
@@ -283,7 +302,7 @@ class A3EMGui(ttk.Frame):
       self.update_audio_button.grid(row=4, sticky=tk.W+tk.E)
       self.update_imu_button = ttk.Button(self.operations_bar, text='Update IMU Recording Details', command=self._update_imu_details)
       self.update_imu_button.grid(row=5, sticky=tk.W+tk.E)
-      ttk.Button(self.operations_bar, text='Read Deployment Statistics', command=self._read_deployment_statistics).grid(row=6, sticky=tk.W+tk.E)
+      ttk.Button(self.operations_bar, text='Post-Deployment Tools', command=self._post_deployment_tools_start).grid(row=6, sticky=tk.W+tk.E)
 
       # Scan for SD Card devices
       self._scan_for_devices()
@@ -697,9 +716,86 @@ class A3EMGui(ttk.Frame):
       self.imu_motion_fields = [field1, field2]
       self._imu_mode_changed(phase)
 
-   def _read_deployment_statistics(self):
+   def _post_deployment_tools(self):
+      files_list = sorted(glob.glob(os.path.join(self.target_selection.get(), '**', '*.wav'), recursive=True))
+      first_datetime, last_datetime = None, None
+      while not first_datetime:
+         for file in files_list:
+            try: first_datetime = datetime.strptime(Path(file).stem, '%Y-%m-%d %H-%M-%S'); break
+            except ValueError: continue
+      while not last_datetime:
+         for file in reversed(files_list):
+            try: last_datetime = datetime.strptime(Path(file).stem, '%Y-%m-%d %H-%M-%S'); break
+            except ValueError: continue
+      if first_datetime and last_datetime:
+         duration = last_datetime - first_datetime
+         duration = str(duration.days) + ' days, ' + str(duration.seconds // 3600) + ' hours, ' + str((duration.seconds // 60) % 60) + ' minutes, ' + str(duration.seconds % 60) + ' seconds'
+      else:
+         duration = 'Unknown'
+      num_files = len(files_list)
+      data_size = sum([os.path.getsize(file) for file in files_list]) / 1024 / 1024 / 1024
       self._clear_canvas()
-      print('TODO')
+      prompt_area = ttk.Frame(self.canvas)
+      prompt_area.place(relx=0.5, anchor=tk.N)
+      ttk.Label(prompt_area, text='Post-Deployment Tools', font=('Helvetica', '14', 'bold')).grid(column=0, row=0, columnspan=5, pady=(20,20), sticky=tk.N+tk.S)
+      ttk.Label(prompt_area, text='Deployment Statistics', font=('Helvetica', '12', 'bold')).grid(column=0, row=1, columnspan=5, pady=(0,10), sticky=tk.W+tk.N+tk.S)
+      ttk.Label(prompt_area, text=f'      Deployment Duration:  {duration}').grid(column=0, row=2, sticky=tk.W+tk.N+tk.S)
+      ttk.Label(prompt_area, text=f'      Number of Audio Clips:  {num_files:,}').grid(column=0, row=3, sticky=tk.W+tk.N+tk.S)
+      ttk.Label(prompt_area, text=f'      Audio Data Total Size:  {data_size:.5} GB').grid(column=0, row=4, sticky=tk.W+tk.N+tk.S)
+      ttk.Separator(prompt_area, orient='horizontal').grid(column=0, row=9, pady=20, columnspan=5, sticky=tk.W+tk.E+tk.N+tk.S)
+      tool_label = ttk.Label(prompt_area, text='Select Tool', font=('Helvetica', '12', 'bold'))
+      tool_label.grid(column=0, row=10, columnspan=5, pady=(0,10), sticky=tk.W+tk.E+tk.N+tk.S)
+      def relabel_logs(self, tool_area):
+         ttk.Label(tool_area, text=' ', width=2).grid(column=2, row=12, sticky=tk.W+tk.E)
+         ttk.Label(tool_area, text='Original Date and Time').grid(column=0, row=12, columnspan=2, sticky=tk.W)
+         ttk.Label(tool_area, text='Target Date and Time').grid(column=3, row=12, columnspan=2, sticky=tk.W)
+         orig_date_var = tk.StringVar(tool_area, str(first_datetime).split(' ')[0] if first_datetime else datetime.today().strftime('%Y-%m-%d'))
+         orig_time_var = tk.StringVar(tool_area, str(first_datetime).split(' ')[1] if first_datetime else '00:00:00')
+         target_date_var = tk.StringVar(tool_area, str(first_datetime).split(' ')[0] if first_datetime else datetime.today().strftime('%Y-%m-%d'))
+         target_time_var = tk.StringVar(tool_area, str(first_datetime).split(' ')[1] if first_datetime else '00:00:00')
+         orig_date = DateEntry(tool_area, textvariable=orig_date_var, selectmode='day', firstweekday='sunday', showweeknumbers=False, date_pattern='yyyy-mm-dd')
+         orig_date.grid(column=0, row=13, sticky=tk.W)
+         orig_date.bind('<FocusIn>', self._focus_in)
+         orig_date.bind('<Button-1>', self._date_entry_clicked)
+         orig_date.bind('<<DateEntrySelected>>', self._date_entry_changed)
+         ttk.Entry(tool_area, textvariable=orig_time_var, width=7).grid(column=1, row=13, sticky=tk.W)
+         target_date = DateEntry(tool_area, textvariable=target_date_var, selectmode='day', firstweekday='sunday', showweeknumbers=False, date_pattern='yyyy-mm-dd')
+         target_date.grid(column=3, row=13, sticky=tk.W)
+         target_date.bind('<FocusIn>', self._focus_in)
+         target_date.bind('<Button-1>', self._date_entry_clicked)
+         target_date.bind('<<DateEntrySelected>>', partial(self._deployment_end_changed, None, 0)) 
+         ttk.Entry(tool_area, textvariable=target_time_var, width=7).grid(column=4, row=13, sticky=tk.W)
+         button = ttk.Button(tool_area, text='Relabel', command=partial(relabel_log_files, self, orig_date_var, orig_time_var, target_date_var, target_time_var))
+         button.grid(column=3, row=14, columnspan=2, pady=5, sticky=tk.W+tk.E+tk.N+tk.S)
+      def tool_click(self, tool_area, tool_name):
+         tool_area.destroy()
+         tool_area = ttk.Frame(prompt_area)
+         tool_area.grid(row=11, column=0, columnspan=4, sticky=tk.W+tk.E+tk.N)
+         tool_label.configure(text=tool_name)
+         if tool_name == 'Relabel Log Files':
+            relabel_logs(self, tool_area)
+         else:
+            tk.messagebox.showinfo('A3EM Info', 'This tool is not yet implemented')
+      rows = []
+      tool_area = ttk.Frame(prompt_area)
+      tool_area.grid(row=11, column=0, columnspan=4, sticky=tk.W+tk.E+tk.N)
+      for i in range(2):
+         rows.append(ttk.Frame(tool_area))
+         rows[i].grid(column=0, row=i, columnspan=4, sticky=tk.W+tk.E+tk.N+tk.S)
+      button1 = ttk.Button(rows[0], text='Relabel Log Files', width=20, command=partial(tool_click, self, tool_area, 'Relabel Log Files'))
+      button1.pack(side=tk.LEFT, padx=(20,5), fill=tk.X, expand=True)
+      button2 = ttk.Button(rows[0], text='Todo', width=20, command=partial(tool_click, self, tool_area, 'Todo'), state=['disabled'])
+      button2.pack(side=tk.RIGHT, padx=(5,20), fill=tk.X, expand=True)
+      button3 = ttk.Button(rows[1], text='Todo', width=20, command=partial(tool_click, self, tool_area, 'Todo'), state=['disabled'])
+      button3.pack(side=tk.LEFT, padx=(20,5), fill=tk.X, expand=True)
+      button4 = ttk.Button(rows[1], text='Todo', width=20, command=partial(tool_click, self, tool_area, 'Todo'), state=['disabled'])
+      button4.pack(side=tk.RIGHT, padx=(5,20), fill=tk.X, expand=True)
+
+   def _post_deployment_tools_start(self):
+      self._clear_canvas()
+      tk.Label(self.canvas, text='Loading deployment details, please wait...').pack(fill=tk.BOTH, expand=True)
+      deployment_parsing_thread = threading.Thread(target=self._post_deployment_tools)
+      deployment_parsing_thread.start()
 
    def _configure(self):
       self._clear_canvas()

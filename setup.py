@@ -8,7 +8,7 @@ with open('README.rst', 'r') as fh:
 
 setuptools.setup(
    name='a3em',
-   version='1.0.0',
+   version='1.0.1',
    author='Will Hedgecock',
    author_email='ronald.w.hedgecock@vanderbilt.edu',
    description='A3EM Management Dashboard',
