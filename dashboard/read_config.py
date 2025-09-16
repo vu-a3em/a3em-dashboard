@@ -128,6 +128,12 @@ def read_config(self, filename, SchedulePhase):
                self.deployment_phases[-1].imu_trigger_threshold.set(float(value))
             elif key == 'IMU_SAMPLING_RATE_HZ':
                self.deployment_phases[-1].imu_sampling_rate.set(int(value))
+            elif key == 'SILENCE_THRESHOLD':
+               self.deployment_phases[-1].silence_threshold.set(int(100.0 * float(value)))
+            elif key == 'MIN_FREQUENCY':
+               self.deployment_phases[-1].min_frequency.set(int(value))
+            elif key == 'MAX_FREQUENCY':
+               self.deployment_phases[-1].max_frequency.set(int(value))
          elif '[PHASE]' in line:
             self.deployment_phases.append(SchedulePhase(self.master, tk.StringVar(self.master, 'Default')))
       self._change_deployment_split()

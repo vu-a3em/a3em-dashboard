@@ -83,3 +83,6 @@ def write_config(self, filename):
          print('IMU_DEGREES_OF_FREEDOM = "{}"'.format(phase.imu_degrees_of_freedom.get()), file=file)
          print('IMU_TRIGGER_THRESHOLD = "{}"'.format(phase.imu_trigger_threshold.get()), file=file)
          print('IMU_SAMPLING_RATE_HZ = "{}"'.format(phase.imu_sampling_rate.get()), file=file)
+         print('SILENCE_THRESHOLD = "{}"'.format(phase.silence_threshold.get() / 100.0), file=file)
+         print('MIN_FREQUENCY = "{}"'.format(phase.min_frequency.get()), file=file)
+         print('MAX_FREQUENCY = "{}"'.format(phase.max_frequency.get()), file=file)
