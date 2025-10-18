@@ -71,6 +71,8 @@ def read_config(self, filename, SchedulePhase):
                self.battery_low_mv.set(int(value))
             elif key == 'MAGNET_FIELD_VALIDATION_MS':
                self.magnetic_field_validation_length_ms.set(int(value))
+            elif key == 'FORBID_DEACTIVATION_SECONDS':
+               self.forbid_deactivation_seconds.set(int(value))
             elif key == 'VHF_MODE':
                self.vhf_mode.set(list(VALID_VHF_MODES.keys())[list(VALID_VHF_MODES.values()).index(value)])
             elif key == 'VHF_RADIO_START_TIME':

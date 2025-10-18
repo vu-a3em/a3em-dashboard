@@ -50,6 +50,7 @@ def write_config(self, filename):
       print('MIC_AMPLIFICATION = "{}"'.format(self.mic_amplification_level_db.get()), file=file)
       print('BATTERY_LOW_MV = "{}"'.format(self.battery_low_mv.get()), file=file)
       print('MAGNET_FIELD_VALIDATION_MS = "{}"'.format(self.magnetic_field_validation_length_ms.get()), file=file)
+      print('FORBID_DEACTIVATION_SECONDS = "{}"'.format(self.forbid_deactivation_seconds.get()), file=file)
       utc_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.vhf_start_date.get() + ' ' + self.vhf_start_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
       print('VHF_MODE = "{}"'.format(VALID_VHF_MODES[self.vhf_mode.get()]), file=file)
       print('VHF_RADIO_START_TIME = "{}"'.format(int(utc_datetime.timestamp())), file=file)
