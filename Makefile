@@ -24,5 +24,9 @@ all:
 clean:
 	rm -rf build dist a3em* *.egg-info __pycache__ dashboard/__pycache__
 
+publish:
+	python3 -m build
+	python3 -m twine upload dist/*
+
 uninstall:
 	$(UNINSTALL_CMD)

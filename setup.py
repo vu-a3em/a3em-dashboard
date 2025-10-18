@@ -1,8 +1,5 @@
 import setuptools
 
-with open('requirements.txt') as file:
-   install_deps = [line for line in file]
-
 with open('README.rst', 'r') as fh:
    long_description = fh.read()
 
@@ -14,11 +11,19 @@ setuptools.setup(
    description='A3EM Management Dashboard',
    long_description=long_description,
    long_description_content_type='text/x-rst',
-   url='https://github.com/hedgecrw/A3EM',
+   url='https://github.com/vu-a3em/a3em-dashboard',
    package_dir={'a3em': 'dashboard'},
    packages=['a3em'],
    include_package_data=True,
-   install_requires=install_deps,
+   install_requires=[
+      'psutil',
+      'pytz',
+      'tzlocal',
+      'tk',
+      'babel',
+      'pandas',
+      'plotly',
+   ],
    classifiers=[
       'Programming Language :: Python :: 3',
       'Operating System :: OS Independent',
