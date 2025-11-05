@@ -8,11 +8,6 @@ import json, struct, time
 import pandas as pd
 
 
-# CONSTANTS AND DEFINITIONS -------------------------------------------------------------------------------------------
-
-IMU_DATA_DELIMITER = 0xFFFEFDFC
-
-
 # PANDAS DISPLAY OPTIONS ----------------------------------------------------------------------------------------------
 
 pd.options.plotting.backend = 'plotly'
@@ -25,26 +20,17 @@ pd.set_option('display.max_rows', None)
 def get_imu_data(imu_data_path):
 	imu_data = defaultdict(dict)
 	with open(imu_data_path, 'rb') as file:
-		i = 0
+		i = 8
 		data = file.read()
+		sample_rate = struct.unpack('<I', data[0:4])[0]
+		timestamp = float(struct.unpack('<I', data[4:8])[0])
+		delta_time_s = 1.0 / float(sample_rate)
 		while i + 12 <= len(data):
-			if struct.unpack('<I', data[i:i+4])[0] == IMU_DATA_DELIMITER:
-				sample_rate = struct.unpack('<I', data[i+4:i+8])[0]
-				timestamp = struct.unpack('<I', data[i+8:i+12])[0]
-				if timestamp > int(time.time()) or timestamp < 1728916305 or sample_rate < 1 or sample_rate > 400:
-					i += 1
-				else:
-					i += 12
-					timestamp = float(timestamp)
-					delta_time_s = 1.0 / float(sample_rate)
-					while i + 12 <= len(data) and struct.unpack('<I', data[i:i+4])[0] != IMU_DATA_DELIMITER:
-						imu_data[timestamp]['x'] = struct.unpack('f', data[i:i+4])[0]
-						imu_data[timestamp]['y'] = struct.unpack('f', data[i+4:i+8])[0]
-						imu_data[timestamp]['z'] = struct.unpack('f', data[i+8:i+12])[0]
-						timestamp += delta_time_s
-						i += 12
-			else:
-				i += 1
+			imu_data[timestamp]['x'] = struct.unpack('f', data[i:i+4])[0]
+			imu_data[timestamp]['y'] = struct.unpack('f', data[i+4:i+8])[0]
+			imu_data[timestamp]['z'] = struct.unpack('f', data[i+8:i+12])[0]
+			timestamp += delta_time_s
+			i += 12
 	imu_data = [dict({'t': ts}, **datum) for ts, datum in imu_data.items()]
 	imu_data = pd.json_normalize(data=imu_data).groupby('t').first()
 	imu_data.plot(title='IMU Data Time Series', template='simple_white', labels=dict(t='Timestamp', value='Acceleration (in mgs)', variable='Axis')).show()
