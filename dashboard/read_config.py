@@ -136,6 +136,10 @@ def read_config(self, filename, SchedulePhase):
                self.deployment_phases[-1].min_frequency.set(int(value))
             elif key == 'MAX_FREQUENCY':
                self.deployment_phases[-1].max_frequency.set(int(value))
+            elif key == 'USE_OPUS':
+               self.deployment_phases[-1].use_opus_encoding.set(value == 'True')
+            elif key == 'OPUS_BITRATE':
+               self.deployment_phases[-1].opus_bitrate.set(int(value))
          elif '[PHASE]' in line:
             self.deployment_phases.append(SchedulePhase(self.master, tk.StringVar(self.master, 'Default')))
       self._change_deployment_split()

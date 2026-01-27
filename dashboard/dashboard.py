@@ -215,6 +215,7 @@ class SchedulePhase:
    def __init__(self, master, name):
       self.name = name
       self.extend_clip_if_continuous_audio = tk.BooleanVar(master, False)
+      self.use_opus_encoding = tk.BooleanVar(master, False)
       self.imu_recording_mode = tk.StringVar(master, 'Audio-Synced')
       self.audio_recording_mode = tk.StringVar(master, 'Threshold-Based')
       self.max_clips_time_scale = tk.StringVar(master, 'Hour')
@@ -228,6 +229,7 @@ class SchedulePhase:
       self.audio_trigger_threshold = tk.DoubleVar(master, 0.25)
       self.imu_trigger_threshold = tk.DoubleVar(master, 0.25)
       self.silence_threshold = tk.IntVar(master, 0)
+      self.opus_bitrate = tk.IntVar(master, 32000)
       self.min_frequency = tk.IntVar(master, DEFAULT_MIN_FREQUENCY_OF_INTEREST)
       self.max_frequency = tk.IntVar(master, DEFAULT_AUDIO_SAMPLE_RATE_HZ // 2)
       self.audio_trigger_times = []
@@ -621,47 +623,62 @@ class A3EMGui(ttk.Frame):
          phase_selector.grid(column=2, row=1, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
          phase_selector.bind('<<ComboboxSelected>>', partial(self._deployment_phase_changed, 'audio'))
          ttk.Separator(prompt_area, orient='horizontal').grid(column=0, row=2, pady=20, columnspan=5, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Label(prompt_area, text='Sampling Rate (Hz):   ').grid(column=0, row=3, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
+      sample_rate_label = ttk.Label(prompt_area, text='Sampling Rate (Hz):   ')
+      sample_rate_label.grid(column=0, row=4, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
       def sample_rate_changed(self, event):
          phase.max_frequency.set(int(phase.audio_sampling_rate.get()) // 2)
-      sampling_rate = ttk.Combobox(prompt_area, textvariable=phase.audio_sampling_rate, values=VALID_AUDIO_SAMPLE_RATES, state=['readonly'])
-      sampling_rate.grid(column=2, row=3, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
+      sampling_rate = ttk.Combobox(prompt_area, textvariable=phase.audio_sampling_rate, values=VALID_AUDIO_SAMPLE_RATES, state=['disabled'] if phase.use_opus_encoding.get() else ['readonly'])
+      sampling_rate.grid(column=2, row=4, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
       sampling_rate.bind('<<ComboboxSelected>>', partial(sample_rate_changed, self))
-      ttk.Label(prompt_area, text='Audio Clip Length (s):   ').grid(column=0, row=4, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Entry(prompt_area, textvariable=phase.audio_clip_length, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.audio_clip_length, 1, 3600)), '%d', '%P')).grid(column=2, row=4, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Label(prompt_area, text='Silence Threshold (% of max):   ').grid(column=0, row=5, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Entry(prompt_area, textvariable=phase.silence_threshold, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.silence_threshold, 0, 100)), '%d', '%P')).grid(column=2, row=5, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Label(prompt_area, text='Frequencies of Interest (Hz):   ').grid(column=0, row=6, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Entry(prompt_area, textvariable=phase.min_frequency, width=8, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.min_frequency, 0, int(phase.audio_sampling_rate.get()) // 4)), '%d', '%P')).grid(column=2, row=6, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Label(prompt_area, text=' - ').grid(column=3, row=6, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Entry(prompt_area, textvariable=phase.max_frequency, width=8, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.max_frequency, int(phase.audio_sampling_rate.get()) // 4, int(phase.audio_sampling_rate.get()) // 2)), '%d', '%P')).grid(column=4, row=6, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Checkbutton(prompt_area, text='Extend Clip if Continuous Audio Detected', variable=phase.extend_clip_if_continuous_audio).grid(column=0, row=7, columnspan=5, pady=(10,0), sticky=tk.W+tk.N+tk.S)
-      ttk.Separator(prompt_area, orient='horizontal').grid(column=0, row=8, pady=20, columnspan=5, sticky=tk.W+tk.E+tk.N+tk.S)
+      def opus_enable_changed(self):
+         sample_rate_label.configure(state=['disabled'] if phase.use_opus_encoding.get() else ['enabled'])
+         sampling_rate.configure(state=['disabled'] if phase.use_opus_encoding.get() else ['readonly'])
+         if phase.use_opus_encoding.get():
+            sampling_rate.set('48000')
+         for child in prompt_area.winfo_children():
+            if isinstance(child, ttk.Entry) and child.cget('textvariable') == str(phase.opus_bitrate):
+               child.configure(state=['enabled'] if phase.use_opus_encoding.get() else ['disabled'])
+            if isinstance(child, ttk.Label) and child.cget('text') == 'Bitrate (bps): ':
+               child.configure(state=['enabled'] if phase.use_opus_encoding.get() else ['disabled'])
+      ttk.Label(prompt_area, text='Audio Clip Length (s):   ').grid(column=0, row=5, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Entry(prompt_area, textvariable=phase.audio_clip_length, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.audio_clip_length, 1, 3600)), '%d', '%P')).grid(column=2, row=5, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Label(prompt_area, text='Silence Threshold (% of max):   ').grid(column=0, row=6, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Entry(prompt_area, textvariable=phase.silence_threshold, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.silence_threshold, 0, 100)), '%d', '%P')).grid(column=2, row=6, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Label(prompt_area, text='Frequencies of Interest (Hz):   ').grid(column=0, row=7, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Entry(prompt_area, textvariable=phase.min_frequency, width=8, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.min_frequency, 0, int(phase.audio_sampling_rate.get()) // 4)), '%d', '%P')).grid(column=2, row=7, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Label(prompt_area, text=' - ').grid(column=3, row=7, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Entry(prompt_area, textvariable=phase.max_frequency, width=8, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.max_frequency, int(phase.audio_sampling_rate.get()) // 4, int(phase.audio_sampling_rate.get()) // 2)), '%d', '%P')).grid(column=4, row=7, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Checkbutton(prompt_area, text='Extend Clip if Continuous Audio Detected', variable=phase.extend_clip_if_continuous_audio).grid(column=0, row=8, columnspan=5, pady=(5,0), sticky=tk.W+tk.N+tk.S)
+      ttk.Checkbutton(prompt_area, text='Enable Opus Encoding of Audio Clips', variable=phase.use_opus_encoding, command=partial(opus_enable_changed, self)).grid(column=0, row=3, columnspan=3, pady=(0,5), sticky=tk.W+tk.N+tk.S)
+      ttk.Label(prompt_area, text='Bitrate (bps): ', state=['disabled']).grid(column=3, row=3, pady=(0,5), sticky=tk.E+tk.N+tk.S)
+      bitrate = ttk.Entry(prompt_area, textvariable=phase.opus_bitrate, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.opus_bitrate, 5000, 128000)), '%d', '%P'), state=['enabled'] if phase.use_opus_encoding.get() else ['disabled'])
+      bitrate.grid(column=4, row=3, pady=(0,5), sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Separator(prompt_area, orient='horizontal').grid(column=0, row=9, pady=20, columnspan=5, sticky=tk.W+tk.E+tk.N+tk.S)
       def show_threshold_options(self):
          for field in self.audio_detail_fields:
             field.destroy()
          field1 = ttk.Label(prompt_area, text='Threshold Trigger Level (dB):   ')
-         field1.grid(column=0, row=11, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
+         field1.grid(column=0, row=15, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
          field2 = ttk.Entry(prompt_area, textvariable=phase.audio_trigger_threshold)
-         field2.grid(column=2, row=11, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
+         field2.grid(column=2, row=15, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
          field3 = ttk.Label(prompt_area, text='Max Number of Audio Clips:   ')
-         field3.grid(column=0, row=12, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
+         field3.grid(column=0, row=16, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
          field4 = ttk.Entry(prompt_area, textvariable=phase.max_audio_clips, width=5, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.max_audio_clips, 0, 100000)), '%d', '%P'))
-         field4.grid(column=2, row=12, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+         field4.grid(column=2, row=16, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
          field5 = ttk.Label(prompt_area, text=' per ')
-         field5.grid(column=3, row=12, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+         field5.grid(column=3, row=16, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
          field6 = ttk.Combobox(prompt_area, textvariable=phase.max_clips_time_scale, width=7, values=list(VALID_TIME_SCALES.keys()), state=['readonly'])
-         field6.grid(column=4, row=12, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+         field6.grid(column=4, row=16, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
          self.audio_detail_fields = [field1, field2, field3, field4, field5, field6]
       def show_interval_options(self):
          for field in self.audio_detail_fields:
             field.destroy()
          field1 = ttk.Label(prompt_area, text='Record New Clip Every:   ')
-         field1.grid(column=0, row=13, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
+         field1.grid(column=0, row=17, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
          field2 = ttk.Entry(prompt_area, textvariable=phase.audio_trigger_interval, width=5, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.audio_trigger_interval, 1, 60)), '%d', '%P'))
-         field2.grid(column=2, row=13, columnspan=3, sticky=tk.W+tk.N+tk.S)
+         field2.grid(column=2, row=17, columnspan=3, sticky=tk.W+tk.N+tk.S)
          field3 = ttk.Combobox(prompt_area, textvariable=phase.audio_trigger_interval_time_scale, width=7, values=list(VALID_TIME_SCALES.keys()), state=['readonly'])
-         field3.grid(column=3, row=13, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
+         field3.grid(column=3, row=17, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
          self.audio_detail_fields = [field1, field2, field3]
       def show_schedule_options(self):
          for field in self.audio_detail_fields:
@@ -672,7 +689,7 @@ class A3EMGui(ttk.Frame):
             del phase.audio_trigger_times[self.periods.index(row)]
             self.periods.remove(row)
             for idx in range(len(self.periods)):
-               self.periods[idx].grid(row=15+idx, column=0, columnspan=5, sticky=tk.W+tk.E)
+               self.periods[idx].grid(row=19+idx, column=0, columnspan=5, sticky=tk.W+tk.E)
          def add_period(self, trigger_times=None):
             if len(self.periods) < MAX_AUDIO_TRIGGER_TIMES:
                row = ttk.Frame(prompt_area)
@@ -681,7 +698,7 @@ class A3EMGui(ttk.Frame):
                else:
                   period_start, period_end = tk.StringVar(self.master, '00:00'), tk.StringVar(self.master, '00:00')
                   phase.audio_trigger_times.append((period_start, period_end))
-               row.grid(row=15+len(self.periods), column=0, columnspan=5, sticky=tk.W+tk.E)
+               row.grid(row=19+len(self.periods), column=0, columnspan=5, sticky=tk.W+tk.E)
                ttk.Label(row, text='Start Time:').pack(side=tk.LEFT, expand=False)
                ttk.Entry(row, textvariable=period_start, width=5, validate='all', validatecommand=(row.register(partial(validate_time, period_start)), '%d', '%P')).pack(side=tk.LEFT, fill=tk.X, expand=True)
                ttk.Label(row, text=' End Time:').pack(side=tk.LEFT, expand=False)
@@ -691,9 +708,9 @@ class A3EMGui(ttk.Frame):
                self.audio_detail_fields.append(row)
                self.periods.append(row)
          field1 = ttk.Label(prompt_area, text='Active Listening Periods:')
-         field1.grid(column=0, row=14, columnspan=4, sticky=tk.W+tk.E+tk.N+tk.S)
+         field1.grid(column=0, row=18, columnspan=4, sticky=tk.W+tk.E+tk.N+tk.S)
          field2 = ttk.Button(prompt_area, text='Add', command=partial(add_period, self))
-         field2.grid(column=4, row=14, sticky=tk.E)
+         field2.grid(column=4, row=18, sticky=tk.E)
          self.audio_detail_fields = [field1, field2]
          for trigger_times in phase.audio_trigger_times:
             add_period(self, trigger_times)
@@ -707,9 +724,9 @@ class A3EMGui(ttk.Frame):
          else:
             for field in self.audio_detail_fields:
                field.destroy()
-      ttk.Label(prompt_area, text='Audio Recording Mode:   ').grid(column=0, row=9, columnspan=2, pady=(0,10), sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Label(prompt_area, text='Audio Recording Mode:   ').grid(column=0, row=13, columnspan=2, pady=(0,10), sticky=tk.W+tk.E+tk.N+tk.S)
       mode_selector = ttk.Combobox(prompt_area, textvariable=phase.audio_recording_mode, width=18, values=list(VALID_AUDIO_MODES.keys()), state=['readonly'])
-      mode_selector.grid(column=2, row=9, columnspan=3, pady=(0,10), sticky=tk.W+tk.E+tk.N+tk.S)
+      mode_selector.grid(column=2, row=13, columnspan=3, pady=(0,10), sticky=tk.W+tk.E+tk.N+tk.S)
       mode_selector.bind('<<ComboboxSelected>>', partial(audio_mode_changed, self))
       audio_mode_changed(self, None)
 

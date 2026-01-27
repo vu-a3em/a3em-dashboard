@@ -87,3 +87,5 @@ def write_config(self, filename):
          print('SILENCE_THRESHOLD = "{}"'.format(phase.silence_threshold.get() / 100.0), file=file)
          print('MIN_FREQUENCY = "{}"'.format(phase.min_frequency.get()), file=file)
          print('MAX_FREQUENCY = "{}"'.format(phase.max_frequency.get()), file=file)
+         print('USE_OPUS = "{}"'.format(phase.use_opus_encoding.get()), file=file)
+         print('OPUS_BITRATE = "{}"'.format(phase.opus_bitrate.get()), file=file)
