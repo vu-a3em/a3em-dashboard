@@ -16,7 +16,7 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 import glob, os, psutil, re, sys, threading
-import pytz, tzlocal
+import pytz, tzlocal, itertools
 import tkinter as tk
 import asyncio
 
@@ -758,7 +758,7 @@ class A3EMGui(ttk.Frame):
       self._imu_mode_changed(phase)
 
    def _post_deployment_tools(self):
-      files_list = sorted(glob.glob(os.path.join(self.target_selection.get(), '**', '*.wav'), recursive=True))
+      files_list = sorted(itertools.chain.from_iterable(Path(self.target_selection.get()).rglob(pattern) for pattern in ['*.wav', '*.ogg', '*.opus']))
       first_datetime, last_datetime = None, None
       while not first_datetime:
          for file in files_list:
