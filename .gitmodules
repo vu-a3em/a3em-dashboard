@@ -1,0 +1,3 @@
+[submodule "a3em-firmware"]
+	path = a3em-firmware
+	url = https://github.com/vu-a3em/a3em-firmware.git
