@@ -40,7 +40,7 @@ VALID_AUDIO_MODES = {'Threshold-Based': 'AMPLITUDE',
 VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO', 'None': 'NONE'}
 VALID_TIME_SCALES = {'Second': 'SECONDS', 'Minute': 'MINUTES', 'Hour': 'HOURS', 'Day': 'DAYS'}
 VALID_VHF_MODES = {'Never': 'NEVER', 'End of Deployment': 'END', 'Scheduled': 'SCHEDULED'}
-VALID_IMU_SAMPLE_RATES = ['3', '6', '12', '25', '50', '100', '200', '400', '800']
+VALID_IMU_SAMPLE_RATES = ['3', '6', '25', '50', '100', '200', '400', '800']
 VALID_AUDIO_SAMPLE_RATES = ['8000', '16000', '24000', '32000', '48000']
 VALID_MIC_TYPES = {'Analog': 'ANALOG', 'Digital': 'DIGITAL'}
 VALID_DOFS = ['3']
@@ -690,7 +690,8 @@ class A3EMGui(ttk.Frame):
          filter_high.configure(state=['enabled'] if chosen in ('Low-pass', 'Band-pass') else ['disabled'])
       filter_selector.bind('<<ComboboxSelected>>', filter_type_changed)
       filter_type_changed()
-      ttk.Checkbutton(prompt_area, text='Extend Clip if Continuous Audio Detected', variable=phase.extend_clip_if_continuous_audio).grid(column=0, row=10, columnspan=5, pady=(5,0), sticky=tk.W+tk.N+tk.S)
+      extend_clip_check = ttk.Checkbutton(prompt_area, text='Extend Clip if Continuous Audio Detected', variable=phase.extend_clip_if_continuous_audio)
+      extend_clip_check.grid(column=0, row=10, columnspan=5, pady=(5,0), sticky=tk.W+tk.N+tk.S)
       ttk.Separator(prompt_area, orient='horizontal').grid(column=0, row=11, pady=20, columnspan=5, sticky=tk.W+tk.E+tk.N+tk.S)
       def show_threshold_options(self):
          for field in self.audio_detail_fields:
@@ -762,6 +763,7 @@ class A3EMGui(ttk.Frame):
          else:
             for field in self.audio_detail_fields:
                field.destroy()
+         extend_clip_check.configure(state=['enabled'] if phase.audio_recording_mode.get() == 'Threshold-Based' else ['disabled'])
       ttk.Label(prompt_area, text='Audio Recording Mode:   ').grid(column=0, row=13, columnspan=2, pady=(0,10), sticky=tk.W+tk.E+tk.N+tk.S)
       mode_selector = ttk.Combobox(prompt_area, textvariable=phase.audio_recording_mode, width=18, values=list(VALID_AUDIO_MODES.keys()), state=['readonly'])
       mode_selector.grid(column=2, row=13, columnspan=3, pady=(0,10), sticky=tk.W+tk.E+tk.N+tk.S)
