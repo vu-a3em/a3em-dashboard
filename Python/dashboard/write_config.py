@@ -17,6 +17,15 @@ VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO', 'None': 
 VALID_TIME_SCALES = {'Second': 'SECONDS', 'Minute': 'MINUTES', 'Hour': 'HOURS', 'Day': 'DAYS'}
 VALID_VHF_MODES = {'Never': 'NEVER', 'End of Deployment': 'END', 'Scheduled': 'SCHEDULED'}
 VALID_MIC_TYPES = {'Analog': 'ANALOG', 'Digital': 'DIGITAL'}
+VALID_FILTER_TYPES = {'No filtering': 'NONE', 'High-pass': 'HIGH', 'Low-pass': 'LOW', 'Band-pass': 'BAND'}
+
+
+# HELPERS -------------------------------------------------------------------------------------------------------------
+
+def _number(value):
+   if isinstance(value, float) and value == int(value):
+      return str(int(value))
+   return str(value)
 
 
 # PARSER FUNCTION -----------------------------------------------------------------------------------------------------
@@ -31,12 +40,12 @@ def write_config(self, filename):
       write_order = [item[1] for item in sorted(start_times, key=lambda x: x[0])]
    with open(os.path.join(self.save_directory.get(), filename), 'w') as file:
       time_zone = self.device_timezone.get()
-      utc_offset = int(datetime.now(pytz.timezone(time_zone)).utcoffset().total_seconds())
-      hour_utc_offset = utc_offset // 3600
+      deployment_start_local = pytz.timezone(time_zone).localize(
+         datetime.strptime(self.deployment_start_date.get() + ' ' + self.deployment_start_time.get(), '%Y-%m-%d %H:%M'))
+      utc_offset = int(deployment_start_local.utcoffset().total_seconds())
       print('DEVICE_LABEL = "{}"'.format(self.device_label.get()), file=file)
       print('DEVICE_TIMEZONE = "{}"'.format(time_zone), file=file)
       print('DEVICE_UTC_OFFSET = "{}"'.format(utc_offset), file=file)
-      print('DEVICE_UTC_OFFSET_HOUR = "{}"'.format(hour_utc_offset), file=file)
       print('SET_RTC_AT_MAGNET_DETECT = "{}"'.format(self.set_rtc_at_magnet_detect.get()), file=file)
       utc_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.deployment_start_date.get() + ' ' + self.deployment_start_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
       print('DEPLOYMENT_START_TIME = "{}"'.format(int(utc_datetime.timestamp())), file=file)
@@ -45,15 +54,18 @@ def write_config(self, filename):
       print('GPS_AVAILABLE = "{}"'.format(self.gps_available.get()), file=file)
       print('AWAKE_ON_MAGNET = "{}"'.format(self.awake_on_magnet.get()), file=file)
       print('LEDS_ENABLED = "{}"'.format(self.leds_enabled.get()), file=file)
-      print('LEDS_ACTIVE_SECONDS = "{}"'.format(self.leds_active_seconds.get()), file=file)
+      if self.leds_enabled.get() in (True, 'True'):
+         print('LEDS_ACTIVE_SECONDS = "{}"'.format(self.leds_active_seconds.get()), file=file)
       print('MIC_TYPE = "{}"'.format(VALID_MIC_TYPES[self.microphone_type.get()]), file=file)
-      print('MIC_AMPLIFICATION = "{}"'.format(self.mic_amplification_level_db.get()), file=file)
+      print('MIC_AMPLIFICATION = "{:.1f}"'.format(float(self.mic_amplification_level_db.get())), file=file)
       print('BATTERY_LOW_MV = "{}"'.format(self.battery_low_mv.get()), file=file)
       print('MAGNET_FIELD_VALIDATION_MS = "{}"'.format(self.magnetic_field_validation_length_ms.get()), file=file)
       print('FORBID_DEACTIVATION_SECONDS = "{}"'.format(self.forbid_deactivation_seconds.get()), file=file)
-      utc_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.vhf_start_date.get() + ' ' + self.vhf_start_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
-      print('VHF_MODE = "{}"'.format(VALID_VHF_MODES[self.vhf_mode.get()]), file=file)
-      print('VHF_RADIO_START_TIME = "{}"'.format(int(utc_datetime.timestamp())), file=file)
+      vhf_mode = VALID_VHF_MODES[self.vhf_mode.get()]
+      print('VHF_MODE = "{}"'.format(vhf_mode), file=file)
+      if vhf_mode != 'NEVER':
+         utc_datetime = pytz.timezone(time_zone).localize(datetime.strptime(self.vhf_start_date.get() + ' ' + self.vhf_start_time.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
+         print('VHF_RADIO_START_TIME = "{}"'.format(int(utc_datetime.timestamp())), file=file)
       print('PHASED_DEPLOYMENT = "{}"'.format(self.deployment_is_split.get()), file=file)
       for idx in write_order:
          phase = self.deployment_phases[idx]
@@ -65,27 +77,44 @@ def write_config(self, filename):
             print('PHASE_START_TIME = "{}"'.format(int(utc_datetime.timestamp())), file=file)
             utc_datetime = pytz.timezone(time_zone).localize(datetime.strptime(date_end.get() + ' ' + time_end.get(), '%Y-%m-%d %H:%M')).astimezone(pytz.utc)
             print('PHASE_END_TIME = "{}"'.format(int(utc_datetime.timestamp())), file=file)
-         print('AUDIO_RECORDING_MODE = "{}"'.format(VALID_AUDIO_MODES[phase.audio_recording_mode.get()]), file=file)
-         print('AUDIO_EXTEND_CLIP = "{}"'.format(phase.extend_clip_if_continuous_audio.get()), file=file)
-         print('AUDIO_MAX_CLIPS_NUMBER = "{}"'.format(phase.max_audio_clips.get()), file=file)
-         print('AUDIO_MAX_CLIPS_TIME_SCALE = "{}"'.format(VALID_TIME_SCALES[phase.max_clips_time_scale.get()]), file=file)
-         print('AUDIO_TRIGGER_THRESHOLD = "{}"'.format(phase.audio_trigger_threshold.get()), file=file)
-         print('AUDIO_TRIGGER_INTERVAL = "{}"'.format(phase.audio_trigger_interval.get()), file=file)
-         print('AUDIO_TRIGGER_INTERVAL_TIME_SCALE = "{}"'.format(VALID_TIME_SCALES[phase.audio_trigger_interval_time_scale.get()]), file=file)
-         for trigger_time in phase.audio_trigger_times:
-            hours, minutes = trigger_time[0].get().split(':')
-            start_time = ((int(hours) * 3600) + (int(minutes) * 60))
-            hours, minutes = trigger_time[1].get().split(':')
-            end_time = ((int(hours) * 3600) + (int(minutes) * 60))
-            print('AUDIO_TRIGGER_SCHEDULE = "{}-{}"'.format(start_time, end_time), file=file)
+         audio_mode = VALID_AUDIO_MODES[phase.audio_recording_mode.get()]
+         print('AUDIO_RECORDING_MODE = "{}"'.format(audio_mode), file=file)
+         if audio_mode == 'AMPLITUDE':
+            print('AUDIO_EXTEND_CLIP = "{}"'.format(phase.extend_clip_if_continuous_audio.get()), file=file)
+            print('AUDIO_MAX_CLIPS_NUMBER = "{}"'.format(phase.max_audio_clips.get()), file=file)
+            print('AUDIO_MAX_CLIPS_TIME_SCALE = "{}"'.format(VALID_TIME_SCALES[phase.max_clips_time_scale.get()]), file=file)
+            print('AUDIO_TRIGGER_THRESHOLD = "{}"'.format(_number(phase.audio_trigger_threshold.get())), file=file)
+         if audio_mode == 'INTERVAL':
+            print('AUDIO_TRIGGER_INTERVAL = "{}"'.format(phase.audio_trigger_interval.get()), file=file)
+            print('AUDIO_TRIGGER_INTERVAL_TIME_SCALE = "{}"'.format(VALID_TIME_SCALES[phase.audio_trigger_interval_time_scale.get()]), file=file)
+         if audio_mode == 'SCHEDULED':
+            for trigger_time in phase.audio_trigger_times:
+               hours, minutes = trigger_time[0].get().split(':')
+               start_time = ((int(hours) * 3600) + (int(minutes) * 60))
+               hours, minutes = trigger_time[1].get().split(':')
+               end_time = ((int(hours) * 3600) + (int(minutes) * 60))
+               print('AUDIO_TRIGGER_SCHEDULE = "{}-{}"'.format(start_time, end_time), file=file)
          print('AUDIO_SAMPLING_RATE_HZ = "{}"'.format(phase.audio_sampling_rate.get()), file=file)
          print('AUDIO_CLIP_LENGTH_SECONDS = "{}"'.format(phase.audio_clip_length.get()), file=file)
-         print('IMU_RECORDING_MODE = "{}"'.format(VALID_IMU_MODES[phase.imu_recording_mode.get()]), file=file)
-         print('IMU_DEGREES_OF_FREEDOM = "{}"'.format(phase.imu_degrees_of_freedom.get()), file=file)
-         print('IMU_TRIGGER_THRESHOLD = "{}"'.format(phase.imu_trigger_threshold.get()), file=file)
-         print('IMU_SAMPLING_RATE_HZ = "{}"'.format(phase.imu_sampling_rate.get()), file=file)
-         print('SILENCE_THRESHOLD = "{}"'.format(phase.silence_threshold.get() / 100.0), file=file)
-         print('MIN_FREQUENCY = "{}"'.format(phase.min_frequency.get()), file=file)
-         print('MAX_FREQUENCY = "{}"'.format(phase.max_frequency.get()), file=file)
-         print('USE_OPUS = "{}"'.format(phase.use_opus_encoding.get()), file=file)
-         print('OPUS_BITRATE = "{}"'.format(phase.opus_bitrate.get()), file=file)
+         imu_mode = VALID_IMU_MODES[phase.imu_recording_mode.get()]
+         print('IMU_RECORDING_MODE = "{}"'.format(imu_mode), file=file)
+         if imu_mode != 'NONE':
+            print('IMU_DEGREES_OF_FREEDOM = "{}"'.format(phase.imu_degrees_of_freedom.get()), file=file)
+            if imu_mode == 'ACTIVITY':
+               print('IMU_TRIGGER_THRESHOLD = "{}"'.format(_number(phase.imu_trigger_threshold.get())), file=file)
+            print('IMU_SAMPLING_RATE_HZ = "{}"'.format(phase.imu_sampling_rate.get()), file=file)
+         filter_type = VALID_FILTER_TYPES[phase.audio_filter_type.get()]
+         print('FILTER_TYPE = "{}"'.format(filter_type), file=file)
+         if filter_type in ('HIGH', 'BAND'):
+            print('FILTER_LOW_FREQUENCY = "{}"'.format(phase.audio_filter_low.get()), file=file)
+         if filter_type in ('LOW', 'BAND'):
+            print('FILTER_HIGH_FREQUENCY = "{}"'.format(phase.audio_filter_high.get()), file=file)
+         silence_threshold = phase.silence_threshold.get() / 100.0
+         print('SILENCE_THRESHOLD = "{}"'.format(_number(silence_threshold)), file=file)
+         if silence_threshold > 0:
+            print('MIN_FREQUENCY = "{}"'.format(phase.min_frequency.get()), file=file)
+            print('MAX_FREQUENCY = "{}"'.format(phase.max_frequency.get()), file=file)
+         use_opus = phase.use_opus_encoding.get()
+         print('USE_OPUS = "{}"'.format(use_opus), file=file)
+         if use_opus in (True, 'True'):
+            print('OPUS_BITRATE = "{}"'.format(phase.opus_bitrate.get()), file=file)

@@ -130,6 +130,13 @@ def read_config(self, filename, SchedulePhase):
                self.deployment_phases[-1].imu_trigger_threshold.set(float(value))
             elif key == 'IMU_SAMPLING_RATE_HZ':
                self.deployment_phases[-1].imu_sampling_rate.set(int(value))
+            elif key == 'FILTER_TYPE':
+               self.deployment_phases[-1].audio_filter_type.set(
+                  {'NONE': 'No filtering', 'HIGH': 'High-pass', 'LOW': 'Low-pass', 'BAND': 'Band-pass'}.get(value, 'No filtering'))
+            elif key == 'FILTER_LOW_FREQUENCY':
+               self.deployment_phases[-1].audio_filter_low.set(int(value))
+            elif key == 'FILTER_HIGH_FREQUENCY':
+               self.deployment_phases[-1].audio_filter_high.set(int(value))
             elif key == 'SILENCE_THRESHOLD':
                self.deployment_phases[-1].silence_threshold.set(int(100.0 * float(value)))
             elif key == 'MIN_FREQUENCY':

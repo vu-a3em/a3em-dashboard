@@ -230,6 +230,9 @@ class SchedulePhase:
       self.imu_trigger_threshold = tk.DoubleVar(master, 0.25)
       self.silence_threshold = tk.IntVar(master, 0)
       self.opus_bitrate = tk.IntVar(master, 32000)
+      self.audio_filter_type = tk.StringVar(master, 'No filtering')
+      self.audio_filter_low = tk.IntVar(master, DEFAULT_MIN_FREQUENCY_OF_INTEREST)
+      self.audio_filter_high = tk.IntVar(master, DEFAULT_AUDIO_SAMPLE_RATE_HZ // 2)
       self.min_frequency = tk.IntVar(master, DEFAULT_MIN_FREQUENCY_OF_INTEREST)
       self.max_frequency = tk.IntVar(master, DEFAULT_AUDIO_SAMPLE_RATE_HZ // 2)
       self.audio_trigger_times = []
@@ -630,7 +633,18 @@ class A3EMGui(ttk.Frame):
       sample_rate_label = ttk.Label(prompt_area, text='Sampling Rate (Hz):   ')
       sample_rate_label.grid(column=0, row=4, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
       def sample_rate_changed(self, event):
-         phase.max_frequency.set(int(phase.audio_sampling_rate.get()) // 2)
+         nyquist = int(phase.audio_sampling_rate.get()) // 2
+         phase.max_frequency.set(nyquist)
+         for entry, variable, low, high in (
+               (min_freq_entry, phase.min_frequency, 0, nyquist // 2),
+               (max_freq_entry, phase.max_frequency, nyquist // 2, nyquist),
+               (filter_low, phase.audio_filter_low, 1, nyquist),
+               (filter_high, phase.audio_filter_high, 1, nyquist)):
+            try:
+               variable.set(min(max(variable.get(), low), high))
+            except tk.TclError:
+               pass
+            entry.configure(validatecommand=(prompt_area.register(partial(validate_number, variable, low, high)), '%d', '%P'))
       sampling_rate = ttk.Combobox(prompt_area, textvariable=phase.audio_sampling_rate, values=VALID_AUDIO_SAMPLE_RATES, state=['disabled'] if phase.use_opus_encoding.get() else ['readonly'])
       sampling_rate.grid(column=2, row=4, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
       sampling_rate.bind('<<ComboboxSelected>>', partial(sample_rate_changed, self))
@@ -649,15 +663,35 @@ class A3EMGui(ttk.Frame):
       ttk.Label(prompt_area, text='Silence Threshold (% of max):   ').grid(column=0, row=6, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
       ttk.Entry(prompt_area, textvariable=phase.silence_threshold, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.silence_threshold, 0, 100)), '%d', '%P')).grid(column=2, row=6, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
       ttk.Label(prompt_area, text='Frequencies of Interest (Hz):   ').grid(column=0, row=7, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Entry(prompt_area, textvariable=phase.min_frequency, width=8, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.min_frequency, 0, int(phase.audio_sampling_rate.get()) // 4)), '%d', '%P')).grid(column=2, row=7, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+      min_freq_entry = ttk.Entry(prompt_area, textvariable=phase.min_frequency, width=8, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.min_frequency, 0, int(phase.audio_sampling_rate.get()) // 4)), '%d', '%P'))
+      min_freq_entry.grid(column=2, row=7, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
       ttk.Label(prompt_area, text=' - ').grid(column=3, row=7, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Entry(prompt_area, textvariable=phase.max_frequency, width=8, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.max_frequency, int(phase.audio_sampling_rate.get()) // 4, int(phase.audio_sampling_rate.get()) // 2)), '%d', '%P')).grid(column=4, row=7, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Checkbutton(prompt_area, text='Extend Clip if Continuous Audio Detected', variable=phase.extend_clip_if_continuous_audio).grid(column=0, row=8, columnspan=5, pady=(5,0), sticky=tk.W+tk.N+tk.S)
+      max_freq_entry = ttk.Entry(prompt_area, textvariable=phase.max_frequency, width=8, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.max_frequency, int(phase.audio_sampling_rate.get()) // 4, int(phase.audio_sampling_rate.get()) // 2)), '%d', '%P'))
+      max_freq_entry.grid(column=4, row=7, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
       ttk.Checkbutton(prompt_area, text='Enable Opus Encoding of Audio Clips', variable=phase.use_opus_encoding, command=partial(opus_enable_changed, self)).grid(column=0, row=3, columnspan=3, pady=(0,5), sticky=tk.W+tk.N+tk.S)
       ttk.Label(prompt_area, text='Bitrate (bps): ', state=['disabled']).grid(column=3, row=3, pady=(0,5), sticky=tk.E+tk.N+tk.S)
       bitrate = ttk.Entry(prompt_area, textvariable=phase.opus_bitrate, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.opus_bitrate, 5000, 128000)), '%d', '%P'), state=['enabled'] if phase.use_opus_encoding.get() else ['disabled'])
       bitrate.grid(column=4, row=3, pady=(0,5), sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Separator(prompt_area, orient='horizontal').grid(column=0, row=9, pady=20, columnspan=5, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Label(prompt_area, text='Audio Filter:   ').grid(column=0, row=8, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
+      filter_selector = ttk.Combobox(prompt_area, textvariable=phase.audio_filter_type, state=['readonly'],
+                                     values=['No filtering', 'High-pass', 'Low-pass', 'Band-pass'])
+      filter_selector.grid(column=2, row=8, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Label(prompt_area, text='Filter Corners (Hz):   ').grid(column=0, row=9, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
+      filter_low = ttk.Entry(prompt_area, textvariable=phase.audio_filter_low, width=8, validate='all',
+                             validatecommand=(prompt_area.register(partial(validate_number, phase.audio_filter_low, 1, int(phase.audio_sampling_rate.get()) // 2)), '%d', '%P'))
+      filter_low.grid(column=2, row=9, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Label(prompt_area, text=' - ').grid(column=3, row=9, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+      filter_high = ttk.Entry(prompt_area, textvariable=phase.audio_filter_high, width=8, validate='all',
+                              validatecommand=(prompt_area.register(partial(validate_number, phase.audio_filter_high, 1, int(phase.audio_sampling_rate.get()) // 2)), '%d', '%P'))
+      filter_high.grid(column=4, row=9, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
+      def filter_type_changed(*_args):
+         chosen = phase.audio_filter_type.get()
+         filter_low.configure(state=['enabled'] if chosen in ('High-pass', 'Band-pass') else ['disabled'])
+         filter_high.configure(state=['enabled'] if chosen in ('Low-pass', 'Band-pass') else ['disabled'])
+      filter_selector.bind('<<ComboboxSelected>>', filter_type_changed)
+      filter_type_changed()
+      ttk.Checkbutton(prompt_area, text='Extend Clip if Continuous Audio Detected', variable=phase.extend_clip_if_continuous_audio).grid(column=0, row=10, columnspan=5, pady=(5,0), sticky=tk.W+tk.N+tk.S)
+      ttk.Separator(prompt_area, orient='horizontal').grid(column=0, row=11, pady=20, columnspan=5, sticky=tk.W+tk.E+tk.N+tk.S)
       def show_threshold_options(self):
          for field in self.audio_detail_fields:
             field.destroy()
