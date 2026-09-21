@@ -1,0 +1,60 @@
+
+INFO: System hardware initialized, UID = C3:1A:5A:B9:0C:04
+INFO: Fetching runtime configuration...SUCCESS
+INFO: LEDs are ENABLED
+INFO: Device is NOT ACTIVATED
+INFO: Waiting for magnetic activation...
+WARNING: Powering off. Will awake on: [ Magnet ]...
+INFO: Device woke up!
+INFO: Device activated!
+INFO: Setting RTC to the deployment start time: 1770368400
+
+INFO: System hardware initialized, UID = C3:1A:5A:B9:0C:04
+INFO: Fetching runtime configuration...SUCCESS
+INFO: LEDs are ENABLED
+INFO: Device is ACTIVATED
+INFO: Current activation is #1
+INFO: Current RTC timestamp = 1770368400
+INFO: Starting main deployment activity for Phase #1
+INFO: Validating existence of SD card storage directory...SUCCESS
+INFO: Current Device Details:
+   UTC Timestamp: 1770368400
+   Battery Voltage (mV): 3538
+   Temperature (C): 22.68
+   Location: [0.000000, 0.000000, 0.00]
+   LEDs Active: True
+   VHF Active: False
+INFO: Calculating analog microphone DC offset...
+INFO: Analog microphone DC offset calculated: 32320
+INFO: LEDs are DISABLED
+INFO: Current Device Details:
+   UTC Timestamp: 1770368460
+   Battery Voltage (mV): 3623
+   Temperature (C): 22.68
+   Location: [0.000000, 0.000000, 0.00]
+   LEDs Active: False
+   VHF Active: False
+INFO: Leaving main deployment activity for Phase #1
+INFO: Device was magnetically deactivated!
+
+INFO: System hardware initialized, UID = C3:1A:5A:B9:0C:04
+INFO: Fetching runtime configuration...SUCCESS
+INFO: LEDs are ENABLED
+INFO: Device is NOT ACTIVATED
+INFO: Waiting for magnetic activation...
+WARNING: Powering off. Will awake on: [ Magnet ]...
+
+INFO: System hardware initialized, UID = C3:1A:5A:B9:0C:04
+INFO: Fetching runtime configuration...SUCCESS
+INFO: LEDs are ENABLED
+INFO: Device is ACTIVATED
+INFO: Current activation is #1
+INFO: Current RTC timestamp = 1770368868
+INFO: Starting main deployment activity for Phase #1
+INFO: Validating existence of SD card storage directory...SUCCESS
+INFO: LEDs are DISABLED
+INFO: Current Device Details:
+   UTC Timestamp: 1770368868
+   Battery Voltage (mV): 3518
+   Temperature (C): 23.69
+   Location: [0.000000, 0.000000, 0.00]
