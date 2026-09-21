@@ -7,24 +7,24 @@ __pycache__/
 *.so
 
 # Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+Python/.Python
+Python/build/
+Python/develop-eggs/
+Python/dist/
+Python/downloads/
+Python/eggs/
+Python/.eggs/
+Python/lib/
+Python/lib64/
+Python/parts/
+Python/sdist/
+Python/var/
+Python/wheels/
+Python/share/python-wheels/
+Python/*.egg-info/
+Python/.installed.cfg
+Python/*.egg
+Python/MANIFEST
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
