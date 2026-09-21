@@ -1,0 +1,35 @@
+{
+  "name": "@a3em/config-schema",
+  "version": "0.1.0",
+  "description": "Authoritative _a3em.cfg schema, serializer, validators, and deployment forecast model for A3EM. Shared by the web dashboard and any server-side tooling.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "test": "npm run build && node --test \"dist/**/*.test.js\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "sync:firmware": "python3 ../../tools/extract_firmware_constants.py",
+    "sync:planner": "python3 ../../tools/extract_power_measurements.py",
+    "sync": "npm run sync:firmware && npm run sync:planner && npm run sync:desktop",
+    "sync:check": "python3 ../../tools/extract_firmware_constants.py --check && python3 ../../tools/extract_power_measurements.py --check && python3 ../../tools/extract_desktop_parity.py --check",
+    "ci": "npm run sync:check && npm test",
+    "open-items": "npm run build && node ../../tools/open_items.mjs",
+    "sync:desktop": "python3 ../../tools/extract_desktop_parity.py"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

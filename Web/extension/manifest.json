@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "A3EM Card Helper",
+  "version": "0.1.0",
+  "description": "Lets the A3EM dashboard mount, inspect, format, and recover SD cards through a local native helper.",
+  "minimum_chrome_version": "102",
+  "permissions": [
+    "nativeMessaging"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "externally_connectable": {
+    "matches": [
+      "https://config.a3em.com/*",
+      "http://localhost/*",
+      "http://127.0.0.1/*"
+    ]
+  },
+  "icons": {
+    "128": "icon128.png"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArGBhF+R/osaujy/58mgnsDAo2ON+xN/qyudty+jeErI9TeIOIdYzXZPZoR23uuLX1+W4VDxH1ASvo1C9FScwI0X3f+6QjmLsWEOCqzhW5q8Yo1j4d3SP8aj0Q2DaBivWRON8NxcJo52LMJoOk7N7nrKSr8a86t5zFVco8lpvEhKFetN+sTva6uEBc4fWl0XLYGd089uiGkzWPDwEGhJ2FsV8CAOCtM9fOkW48g1CyGZ50cBtYlx2TTVM72+yRhXVrJARkEXAiwlSlNzK4jOH2edkQu1QU90ELsjTfy55VyzHc8bY8pkRgpK1IX+8vf84B2fUILhzZiydj0GMF5XtVwIDAQAB"
+}

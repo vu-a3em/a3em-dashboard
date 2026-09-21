@@ -1,0 +1,22 @@
+{
+  "$comment": [
+    "Where the dashboard is served from, and the extension that may talk to it.",
+    "",
+    "THIS IS THE ONLY PLACE THESE VALUES ARE WRITTEN BY HAND. The extension manifest and",
+    "the app both derive from this file \u2014 run `npm run sync:extension` after editing it,",
+    "and `npm run ci` fails if the two have drifted or if the placeholder below is still",
+    "in place. Same arrangement as the firmware and planner snapshots: one source, a sync",
+    "step, and a check that makes forgetting it impossible rather than merely unlikely.",
+    "",
+    "localhost is always present and is not configurable. It is what makes `npm run dev`",
+    "work against a locally loaded extension. It is also reachable by any other page",
+    "served from this machine, which is a real if small exposure: running a local web",
+    "server already implies code execution here, and every destructive operation still",
+    "requires a native confirmation the page cannot fake. Remove it from",
+    "tools/sync-extension-manifest.mjs for a hardened build."
+  ],
+  "dashboardOrigin": "https://config.a3em.com",
+  "extensionId": "felbcgjkphldokgcjildnmnclokfngnh",
+  "extensionPublicKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArGBhF+R/osaujy/58mgnsDAo2ON+xN/qyudty+jeErI9TeIOIdYzXZPZoR23uuLX1+W4VDxH1ASvo1C9FScwI0X3f+6QjmLsWEOCqzhW5q8Yo1j4d3SP8aj0Q2DaBivWRON8NxcJo52LMJoOk7N7nrKSr8a86t5zFVco8lpvEhKFetN+sTva6uEBc4fWl0XLYGd089uiGkzWPDwEGhJ2FsV8CAOCtM9fOkW48g1CyGZ50cBtYlx2TTVM72+yRhXVrJARkEXAiwlSlNzK4jOH2edkQu1QU90ELsjTfy55VyzHc8bY8pkRgpK1IX+8vf84B2fUILhzZiydj0GMF5XtVwIDAQAB",
+  "helperDownloadUrl": null
+}
