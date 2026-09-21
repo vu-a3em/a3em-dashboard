@@ -330,13 +330,22 @@ def build_snapshot(firmware: Path) -> dict:
     # Every function the firmware defines, so prose and comments naming one can be checked
     # against reality. A sentence that describes device behaviour goes stale silently: no
     # constant moves, no grammar changes, and the claim just stops being true.
-    # FatFs is vendored but it IS the firmware's filesystem, and comments cite f_open,
-    # f_mkdir and friends as the authority for how the card behaves. The Ambiq SDK is
-    # excluded: nothing here reasons about its internals.
+    # FatFs, Opus and SEGGER RTT are vendored but comments cite their functions (f_open,
+    # f_mkdir, opus_encode, SEGGER_RTT_Init, ...) as the authority for how the device
+    # behaves, so those stay in scope. The Ambiq SDK and the ML support libraries
+    # (flatbuffers/gemmlowp/ruy/tflite-micro) are excluded: nothing here reasons about
+    # their internals, and their generic, thousands-strong symbol tables would swamp the
+    # firmware's own functions in this contract.
+    EXCLUDED_EXTERNAL_DIRS = {"flatbuffers", "gemmlowp", "ruy", "tflite-micro"}
     symbols: set[str] = set()
     for path in sorted((firmware / "src").rglob("*.[ch]")):
-        if "AmbiqSDK" in path.parts:
+        parts = path.parts
+        if "AmbiqSDK" in parts:
             continue
+        if "external" in parts:
+            external_idx = parts.index("external")
+            if external_idx + 1 < len(parts) and parts[external_idx + 1] in EXCLUDED_EXTERNAL_DIRS:
+                continue
         text = path.read_text(encoding="utf-8", errors="replace")
         symbols.update(re.findall(r"^[A-Za-z_][\w \t*]*?\b(\w+)\s*\([^;]*?\)\s*\{", text, re.MULTILINE))
 
