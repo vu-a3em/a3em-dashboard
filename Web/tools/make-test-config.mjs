@@ -29,8 +29,8 @@ const flag = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
-if (!['quick', 'soak', 'gaps', 'wd'].includes(kind)) {
-  console.error('usage: make-test-config.mjs <quick|soak|gaps|wd> [--start ISO] [--tz ZONE] [--card GB] [--battery MAH]');
+if (!['quick', 'soak', 'gaps', 'wd', 'wdfast'].includes(kind)) {
+  console.error('usage: make-test-config.mjs <quick|soak|gaps|wd|wdfast> [--start ISO] [--tz ZONE] [--card GB] [--battery MAH]');
   process.exit(2);
 }
 
@@ -39,7 +39,8 @@ const cardGb = Number(flag('card', 128));
 const batteryMah = Number(flag('battery', 2400));
 
 // Default to the next clean boundary far enough out to write the card and swipe the magnet.
-const LEAD_MINUTES = kind === 'soak' ? 30 : 10;
+// wdfast exists to be re-run over and over, so it does not make you wait ten minutes to start.
+const LEAD_MINUTES = kind === 'soak' ? 30 : kind === 'wdfast' ? 5 : 10;
 const defaultStart = new Date(Math.ceil((Date.now() + LEAD_MINUTES * 60_000) / 300_000) * 300_000);
 const start = new Date(flag('start', defaultStart.toISOString()));
 const iso = (d) => new Date(d).toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -118,6 +119,26 @@ const SPECS = {
   // cleared a soak that then collapsed. This one exists to sleep PAST the timeout, on both of the
   // two distinct wait paths -- the interval branch and the scheduled branch arm the timer
   // differently -- so that a fix to the feed is proven before a week is committed to it.
+  // Four minutes that re-check only the clip-start work, for iterating on it without paying
+  // for `wd` every time. It proves nothing about the watchdog: its longest sleep is about 40 s,
+  // far inside the 480 s timeout. Use it only while the sleep paths are untouched, and run the
+  // full `wd` before committing to a deployment.
+  //
+  // 8 kHz is the point. The DMA period is `48000 / sample_rate`, so the buffer is SIX seconds
+  // here against three at 16 kHz, and a mis-set clip start shows up as a six-second difference
+  // between a clip and the IMU file beside it. Against an 18 s clip that is impossible to miss.
+  wdfast: [
+    { name: 'X1 fresh starts', hours: 175 / 3600,
+      purpose: 'Every clip restarts the front end, so every clip pays the settling delay.',
+      p: { audioRecordingMode: 'INTERVAL', audioTriggerInterval: 60, audioTriggerIntervalTimeScale: 'SECONDS',
+           audioSampleRateHz: 8000, audioClipLengthSeconds: 18,
+           imuRecordingMode: 'AUDIO', imuSampleRateHz: 800 } },
+    { name: 'X2 back to back', hours: 90 / 3600,
+      purpose: 'One window, two clips: the first settles, the second must not wait again.',
+      p: { audioRecordingMode: 'SCHEDULED', audioSampleRateHz: 8000, audioClipLengthSeconds: 18,
+           imuRecordingMode: 'AUDIO', imuSampleRateHz: 400 },
+      windows: [[20, 56]] },
+  ],
   wd: [
     { name: 'W1 interval sleep', hours: 35 / 60,
       purpose: 'Sleeps 870 s per cycle, past the 480 s watchdog. Expect 3 clips, 3 full .imu.',
@@ -194,7 +215,7 @@ config.phases = specs.map((spec, index) => {
   return phase;
 });
 config.endTime = iso(plus(start, offsets[specs.length]));
-config.deviceLabel = { quick: 'A3EM_QUICK', soak: 'A3EM_SOAK', gaps: 'A3EM_GAPS', wd: 'A3EM_WD' }[kind];
+config.deviceLabel = { quick: 'A3EM_QUICK', soak: 'A3EM_SOAK', gaps: 'A3EM_GAPS', wd: 'A3EM_WD', wdfast: 'A3EM_WDFAST' }[kind];
 config.vhfMode = 'END'; // beacon fires at the end of the deployment, exercising the VHF path
 config.vhfStartTime = config.endTime;
 config.ledsActiveSeconds = kind === 'soak' ? 600 : 1800;
