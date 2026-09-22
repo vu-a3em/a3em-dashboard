@@ -28,6 +28,15 @@ import { Pane } from '../components/Pane';
 type Card = ReturnType<typeof useCard>;
 
 /**
+ * How many lifecycle events one page of the log shows.
+ *
+ * A run that goes wrong writes far more of these than one that goes right: a soak whose
+ * watchdog was resetting it every few minutes produced hundreds. Cutting the list off at
+ * forty hid exactly the part worth reading, so the tail is paged rather than dropped.
+ */
+const EVENTS_PER_PAGE = 40;
+
+/**
  * What a card says about the deployment it just came back from.
  *
  * Ordered by the questions actually asked on retrieval: did the hardware work, did it
@@ -122,6 +131,10 @@ export function CardOverview({
    * as a glitch. A run holding most of a long deployment's log takes seconds, and there
    * silence reads as a dead click — so the notice waits before appearing.
    */
+  // Reset to the first page whenever a different log is in front of the reader, so that
+  // picking another activation does not land them deep inside a list they have not seen.
+  const [eventPage, setEventPage] = useState(0);
+  useEffect(() => setEventPage(0), [log]);
   const [slowRescope, setSlowRescope] = useState(false);
   useEffect(() => {
     if (!rescoping) {
@@ -287,6 +300,12 @@ export function CardOverview({
   // Whether ANY lifecycle event carries a time. Current firmware writes no timestamp
   // prefix on log lines, which would otherwise render a column of nothing but dashes.
   const lifecycleDated = lifecycle.some((event) => event.timestamp);
+  const eventPageCount = Math.max(1, Math.ceil(lifecycle.length / EVENTS_PER_PAGE));
+  // Clamped rather than trusted: a shorter log can arrive in the same render that resets
+  // the page, and a stale index would otherwise page past the end of the new list.
+  const eventPageIndex = Math.min(eventPage, eventPageCount - 1);
+  const eventPageStart = eventPageIndex * EVENTS_PER_PAGE;
+  const visibleEvents = lifecycle.slice(eventPageStart, eventPageStart + EVENTS_PER_PAGE);
   // The zone the schedule was written in, so the axes read the way the deployment did.
   const chartTimezone = card.existingConfig?.timezone ?? 'UTC';
   const latestDiagnostics = [...telemetry].reverse().find((sample) => sample.sdWriteFailures !== null) ?? null;
@@ -604,8 +623,8 @@ export function CardOverview({
                 </tr>
               </thead>
               <tbody>
-                {lifecycle.slice(0, 40).map((event, index) => (
-                  <tr key={`${event.timestamp}:${index}`}>
+                {visibleEvents.map((event, index) => (
+                  <tr key={`${event.timestamp}:${eventPageStart + index}`}>
                     {lifecycleDated ? (
                       <td className="mono" style={{ whiteSpace: 'nowrap' }}>
                         {deviceTime(event.timestamp, correction, chartTimezone)}
@@ -617,8 +636,50 @@ export function CardOverview({
               </tbody>
             </table>
           </div>
-          {lifecycle.length > 40 ? (
-            <p className="stat-note">Showing the first 40 of {lifecycle.length.toLocaleString()}.</p>
+          {lifecycle.length > EVENTS_PER_PAGE ? (
+            <div className="pager">
+              <button
+                type="button"
+                className="btn small ghost"
+                onClick={() => setEventPage(0)}
+                disabled={eventPageIndex === 0}
+              >
+                First
+              </button>
+              <button
+                type="button"
+                className="btn small ghost"
+                onClick={() => setEventPage(eventPageIndex - 1)}
+                disabled={eventPageIndex === 0}
+              >
+                Previous
+              </button>
+              {/*
+                The range, not just the page number: "events 441-480 of 686" answers where you
+                are in the run, which a bare "page 12 of 18" does not.
+              */}
+              <p className="stat-note">
+                Events {(eventPageStart + 1).toLocaleString()}-
+                {(eventPageStart + visibleEvents.length).toLocaleString()} of{' '}
+                {lifecycle.length.toLocaleString()}, page {eventPageIndex + 1} of {eventPageCount}
+              </p>
+              <button
+                type="button"
+                className="btn small ghost"
+                onClick={() => setEventPage(eventPageIndex + 1)}
+                disabled={eventPageIndex >= eventPageCount - 1}
+              >
+                Next
+              </button>
+              <button
+                type="button"
+                className="btn small ghost"
+                onClick={() => setEventPage(eventPageCount - 1)}
+                disabled={eventPageIndex >= eventPageCount - 1}
+              >
+                Last
+              </button>
+            </div>
           ) : null}
         </Pane>
       ) : null}

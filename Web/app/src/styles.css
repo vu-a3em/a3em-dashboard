@@ -520,6 +520,22 @@ details.card > summary + .field {
   margin-bottom: 0;
 }
 
+/* Paging controls under a truncated table. The count sits between the two pairs of
+   buttons rather than after them, so the eye lands on where it is before what to press,
+   and it wraps to its own line on a narrow window instead of squeezing the buttons. */
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 10px;
+}
+.pager .stat-note {
+  margin: 0 8px;
+  white-space: nowrap;
+}
+
 /* ---------- forms ---------- */
 
 .field {
