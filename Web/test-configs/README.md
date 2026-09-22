@@ -1,12 +1,13 @@
-# Hardware validation: quick check, then a seven-day soak
+# Hardware validation: pre-flight checks, then a seven-day soak
 
-Two configurations that between them exercise as much of the firmware as a **digital**
-microphone allows. Run the quick one first — it takes half an hour and catches the
-mistakes that would otherwise waste a week.
+Configurations that between them exercise as much of the firmware as a **digital**
+microphone allows. Run the short ones first — they take about ninety minutes together and
+catch the mistakes that would otherwise waste a week.
 
 Generate them immediately before use:
 
 ```bash
+node tools/make-test-config.mjs wd    --tz America/New_York
 node tools/make-test-config.mjs quick --tz America/New_York --card 128 --battery 2400
 node tools/make-test-config.mjs soak  --tz America/New_York --card 128 --battery 2400
 ```
@@ -36,6 +37,36 @@ analog comparator with no PDM equivalent. That leaves these untested, and they a
 The extend-clip feature is the one that matters here: it was written this cycle, it is
 amplitude-only by design, and **this test will not exercise a single line of it**. It needs a
 separate run on the analog hardware you have already tested with.
+
+## Watchdog pre-flight — 55 minutes, run this first
+
+The first soak lost three of its six phases to a watchdog that fired before the device's own
+heartbeat could feed it, and **the quick check below cleared it beforehand**. That is not bad
+luck: the longest sleep anywhere in the quick check is Q3's one-minute interval, and the
+watchdog was 120 seconds. No short test had ever slept long enough to see the bug.
+
+This configuration exists to sleep past the timeout, which is now 480 seconds. It covers both
+wait paths, because the interval branch and the scheduled branch arm the timer differently:
+
+| Phase | Sleep per cycle | Expect |
+| --- | --- | --- |
+| W1 interval sleep | 870 s | 3 clips, 3 `.imu` of about 940 kB each at 800 Hz |
+| W2 scheduled sleep | 600 s then 480 s | 2 clips of 60 s, 2 `.imu` at 400 Hz |
+
+```bash
+node tools/make-test-config.mjs wd --tz America/New_York
+```
+
+**Pass is all three of these, and any one failing means stop:**
+
+1. **No `Watch Dog Timer Reset`** anywhere in `a3em.log`, and no `ERROR: Previous run was
+   terminated by the watchdog`. Under the old firmware W1 would reset roughly every 182 s.
+2. **No zero-byte `.imu` files.** All five should carry real data. A zero-byte file means the
+   directory entry was never updated, which is the second defect the soak exposed.
+3. **A continuous log.** Timestamps should run unbroken from start to finish. Under the old
+   firmware the log froze at its last synced size and each boot overwrote the same region.
+
+Fifty-five minutes here is worth a week. If all three hold, the fixes are real.
 
 ## Quick check — 30 minutes, six phases of five
 
@@ -83,35 +114,44 @@ G2 is the one that matters for the soak: **`M4 dawn/dusk` is 28 hours resting on
 SCHEDULED + silence, which has never executed.** G1 is the same shared code reached by the
 other branch, and is cheap insurance.
 
-## Seven-day soak — six phases of 28 hours
+## Seven-day soak — reordered and rebalanced
 
-Twenty-eight rather than twenty-four so that phase boundaries land at a different hour each
-time, which puts phase changes, four-hour directory rollovers, and midnight in each other's way
-instead of neatly aligned.
+The first run ended at day 5.56 with its last phase never executed, and the phases that did run
+were wrecked by the watchdog. So the week is no longer split evenly. M1 and M2 are the paths a
+previous run already proved — 56 hours, 1674 valid clips, zero resets — and are cut to a sanity
+check. The time goes to the four that have never completed, and the order puts them first.
 
-| Phase | Proves |
-| --- | --- |
-| M1 continuous | The longest simple path: rollover, naming, IMU pairing, clock drift over a day |
-| M2 silence gate | Whether the gate actually reduces what is stored, over a realistic span |
-| M3 opus+motion | Opus across many files; the mostly-asleep power baseline |
-| M4 dawn/dusk | The full **12** listening windows — the exact capacity of the array |
-| M5 imu volume | 300-second clips at 8 kHz with the IMU at its fastest: throughput stress |
-| M6 inexact rate | Achieved-rate labelling held for a full day |
+| Phase | Hours | Starts | Proves |
+| --- | --- | --- | --- |
+| M1 continuous | 8 | day 0 | Sanity check: rollover, naming, IMU pairing |
+| M2 silence gate | 8 | day 0.33 | The suppression control — a quiet room should store almost nothing |
+| M3 inexact rate | 24 | day 0.67 | **Never once executed.** Achieved-rate labelling for a full day |
+| M4 imu volume | 40 | day 1.67 | The best test of both fixes: 1800 s sleeps, 300 s clips, 800 Hz IMU |
+| M5 dawn/dusk | 48 | day 3.33 | The full **12** listening windows, across two whole days |
+| M6 opus+motion | 40 | day 5.33 | Opus over many files, plus the ACTIVITY IMU path |
+
+Phases are renumbered by execution order so the card's directories read in the order they were
+written. Mapping to the previous run: **M3 = old M6, M4 = old M5, M5 = old M4, M6 = old M3.**
 
 Procedure is the same, except the LEDs go dark after 10 minutes (`LEDS_ACTIVE_SECONDS = 600`)
 so they are not an attractant, and deactivation is refused for the first hour
 (`FORBID_DEACTIVATION_SECONDS = 3600`) so a stray magnet cannot end the run early.
 
-Leave it somewhere with **some** ambient sound. A silent room makes the silence-gated phases
-(M2, M4, M6) indistinguishable from a device that simply failed to record.
+A deliberate choice this time: thresholds and placement are unchanged from the first run, so
+the silence-gated phases (M2, M5, M6) will mostly prove correct **suppression** rather than
+pass-through, and M6's ACTIVITY path will log no motion at all — 150 mg is a firm tap, and a
+still room is single-digit mg. That keeps the before/after comparison clean, at the cost of
+leaving the gate's positive case to the `gaps` configuration, which is what it is for.
 
-## What the soak measures beyond pass/fail
+## What the soak does not measure
 
-The log writes a `TELEM` line every five minutes carrying `batt_mv`. Seven days of that is the
-first real check of the power model, which currently rates itself `extrapolated` and forecasts
-2.05 mA average. Four of its constants have never been measured. Comparing the actual drain
-against the forecast is worth as much as the functional result — bring the card back and the
-comparison is mechanical.
+It does **not** measure power. The first run read a flat 3301-3321 mV for 5.56 days because it
+was on external supply, but a battery would not have settled it either: the chemistry holds a
+nearly flat voltage until it is almost exhausted, so `batt_mv` against time is the wrong
+instrument for validating the 2.05 mA forecast. That measurement needs its own deliberate test
+and is not a reason to lengthen or repeat this one.
+
+It also cannot reach amplitude-triggered recording or extend-clip at all — see the table above.
 
 ## When the run finishes
 
@@ -128,9 +168,18 @@ Then hand me the mounted path. What I will check, in order:
    problems that were corrected`.
 2. File counts per phase against the generator's expected table, and directory structure
    `LABEL/Activation_NNNN/<day>/<4h-bucket>/<epoch>.wav`.
-3. WAV headers: sample rate per phase, and specifically **31914 Hz** in M6.
+3. WAV headers: sample rate per phase, and specifically **31914 Hz** in M3.
 4. `.imu` headers: the rate in each file against the phase, and no rate the sensor cannot
    produce — this is the fix from finding 14.
 5. Silence-gated phases storing measurably less than their ungated equivalents — finding 11.
 6. `MIC_HEALTH` verdicts, dropped-buffer and write-failure counters in `TELEM`.
-7. Battery curve against the forecast.
+
+And the three the first soak forced, which are now the headline checks:
+
+7. **Zero watchdog resets.** `grep -c 'Watch Dog Timer Reset'` across every log should be 0.
+   The first run had at least 686, and that number was a floor. Finding 17.
+8. **Zero zero-byte `.imu` files.** The first run lost 168 of 169 in one phase — about 21 hours
+   of 800 Hz data — because the file was never closed. M4 is the phase that would show it
+   again. Finding 18.
+9. **Unbroken logs.** Each four-hour bucket's `a3em.log` should span the whole bucket. The first
+   run kept roughly 17.8 minutes of each and silently overwrote the rest. Finding 19.

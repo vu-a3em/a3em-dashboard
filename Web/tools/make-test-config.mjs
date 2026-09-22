@@ -29,8 +29,8 @@ const flag = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
-if (kind !== 'quick' && kind !== 'soak' && kind !== 'gaps') {
-  console.error('usage: make-test-config.mjs <quick|soak|gaps> [--start ISO] [--tz ZONE] [--card GB] [--battery MAH]');
+if (!['quick', 'soak', 'gaps', 'wd'].includes(kind)) {
+  console.error('usage: make-test-config.mjs <quick|soak|gaps|wd> [--start ISO] [--tz ZONE] [--card GB] [--battery MAH]');
   process.exit(2);
 }
 
@@ -59,7 +59,10 @@ config.startTime = iso(start);
 
 /** Phase specs: every field that differs from the default, plus why the phase exists. */
 const QUICK_MINUTES = 5;
-const SOAK_HOURS = 28; // a day plus four, so phase edges land at a different hour each time
+// The soak no longer splits its week evenly. M1 and M2 are the paths a previous run already
+// proved -- 56 hours, 1674 valid clips, zero resets -- so they are cut to a sanity check, and
+// the time goes to the four phases that have never completed. Each spec carries its own hours.
+const SOAK_HOURS = 28;
 
 const SPECS = {
   quick: [
@@ -111,45 +114,73 @@ const SPECS = {
            imuRecordingMode: 'AUDIO', imuSampleRateHz: 50 },
       windows: [[0, 300]] },
   ],
+  // Every sleep in the quick test is shorter than the watchdog timeout, which is exactly why it
+  // cleared a soak that then collapsed. This one exists to sleep PAST the timeout, on both of the
+  // two distinct wait paths -- the interval branch and the scheduled branch arm the timer
+  // differently -- so that a fix to the feed is proven before a week is committed to it.
+  wd: [
+    { name: 'W1 interval sleep', hours: 35 / 60,
+      purpose: 'Sleeps 870 s per cycle, past the 480 s watchdog. Expect 3 clips, 3 full .imu.',
+      p: { audioRecordingMode: 'INTERVAL', audioTriggerInterval: 15, audioTriggerIntervalTimeScale: 'MINUTES',
+           audioSampleRateHz: 16000, audioClipLengthSeconds: 30,
+           imuRecordingMode: 'AUDIO', imuSampleRateHz: 800 } },
+    { name: 'W2 scheduled sleep', hours: 20 / 60,
+      purpose: 'The other wait path: 600 s asleep before the window, 480 s after it.',
+      p: { audioRecordingMode: 'SCHEDULED', audioSampleRateHz: 16000, audioClipLengthSeconds: 60,
+           imuRecordingMode: 'AUDIO', imuSampleRateHz: 400 },
+      windows: [[600, 720]] },
+  ],
+  // Reordered so that the four phases which have never completed run first, and renumbered by
+  // execution order so the card's directories read in the order they were written. The mapping to
+  // the previous run is M3=old M6, M4=old M5, M5=old M4, M6=old M3.
   soak: [
-    { name: 'M1 continuous', purpose: 'Longest simple path: rollover, naming, IMU pairing, drift.',
+    { name: 'M1 continuous', hours: 8,
+      purpose: 'Sanity check on the one path already proven: rollover, naming, IMU pairing.',
       p: { audioRecordingMode: 'CONTINUOUS', audioSampleRateHz: 16000, audioClipLengthSeconds: 60,
            imuRecordingMode: 'AUDIO', imuSampleRateHz: 50 } },
-    { name: 'M2 silence gate', purpose: 'Does the silence gate actually reduce what is stored?',
+    { name: 'M2 silence gate', hours: 8,
+      purpose: 'The suppression control: a quiet room should store almost nothing here.',
       p: { audioRecordingMode: 'CONTINUOUS', audioSampleRateHz: 24000, audioClipLengthSeconds: 30,
            silenceThreshold: 0.03, minFrequencyHz: 1000, maxFrequencyHz: 10000,
            audioFilterType: 'BAND', audioFilterLowHz: 800, audioFilterHighHz: 11000,
            imuRecordingMode: 'NONE' } },
-    { name: 'M3 opus+motion', purpose: 'Opus over many files; mostly-asleep power baseline.',
-      p: { audioRecordingMode: 'INTERVAL', audioTriggerInterval: 10, audioTriggerIntervalTimeScale: 'MINUTES',
-           audioSampleRateHz: 48000, audioClipLengthSeconds: 60, useOpusEncoding: true, opusBitrate: 24000,
-           imuRecordingMode: 'ACTIVITY', imuSampleRateHz: 25, imuTriggerThresholdMg: 150 } },
-    { name: 'M4 dawn/dusk', purpose: 'The full 12 listening windows at the highest rate.',
+    { name: 'M3 inexact rate', hours: 24,
+      purpose: 'Never once executed. Achieved-rate labelling held for a full day.',
+      p: { audioRecordingMode: 'CONTINUOUS', audioSampleRateHz: 32000, audioClipLengthSeconds: 120,
+           silenceThreshold: 0.01, minFrequencyHz: 500, maxFrequencyHz: 15000,
+           imuRecordingMode: 'AUDIO', imuSampleRateHz: 400 } },
+    { name: 'M4 imu volume', hours: 40,
+      purpose: 'The best test of both fixes: 1800 s sleeps, 300 s clips, 800 Hz IMU.',
+      p: { audioRecordingMode: 'INTERVAL', audioTriggerInterval: 30, audioTriggerIntervalTimeScale: 'MINUTES',
+           audioSampleRateHz: 8000, audioClipLengthSeconds: 300,
+           audioFilterType: 'LOW', audioFilterHighHz: 3500,
+           minFrequencyHz: 250, maxFrequencyHz: 3800,
+           imuRecordingMode: 'AUDIO', imuSampleRateHz: 800 } },
+    { name: 'M5 dawn/dusk', hours: 48,
+      purpose: 'The full 12 listening windows at the highest rate, over two whole days.',
       p: { audioRecordingMode: 'SCHEDULED', audioSampleRateHz: 48000, audioClipLengthSeconds: 30,
            audioFilterType: 'HIGH', audioFilterLowHz: 2000,
            silenceThreshold: 0.02, minFrequencyHz: 2000, maxFrequencyHz: 20000,
            imuRecordingMode: 'AUDIO', imuSampleRateHz: 100 },
       // 12 windows of 10 min, the array's exact capacity, spread across the day.
       windows: Array.from({ length: 12 }, (_, i) => [i * 7200, i * 7200 + 600]) },
-    { name: 'M5 imu volume', purpose: 'Long clips, slowest audio, fastest IMU — throughput stress.',
-      p: { audioRecordingMode: 'INTERVAL', audioTriggerInterval: 30, audioTriggerIntervalTimeScale: 'MINUTES',
-           audioSampleRateHz: 8000, audioClipLengthSeconds: 300,
-           audioFilterType: 'LOW', audioFilterHighHz: 3500,
-           minFrequencyHz: 250, maxFrequencyHz: 3800,
-           imuRecordingMode: 'AUDIO', imuSampleRateHz: 800 } },
-    { name: 'M6 inexact rate', purpose: 'Achieved-rate labelling held for a full day.',
-      p: { audioRecordingMode: 'CONTINUOUS', audioSampleRateHz: 32000, audioClipLengthSeconds: 120,
-           silenceThreshold: 0.01, minFrequencyHz: 500, maxFrequencyHz: 15000,
-           imuRecordingMode: 'AUDIO', imuSampleRateHz: 400 } },
+    { name: 'M6 opus+motion', hours: 40,
+      purpose: 'Opus over many files, plus the ACTIVITY IMU path. Needs 150 mg to log motion.',
+      p: { audioRecordingMode: 'INTERVAL', audioTriggerInterval: 10, audioTriggerIntervalTimeScale: 'MINUTES',
+           audioSampleRateHz: 48000, audioClipLengthSeconds: 60, useOpusEncoding: true, opusBitrate: 24000,
+           imuRecordingMode: 'ACTIVITY', imuSampleRateHz: 25, imuTriggerThresholdMg: 150 } },
   ],
 };
 
 const specs = SPECS[kind];
 const phaseSeconds = kind === 'soak' ? SOAK_HOURS * 3600 : QUICK_MINUTES * 60;
+// Phases are laid end to end rather than on a fixed grid, so a spec can state its own length.
+const lengths = specs.map((spec) => Math.round(spec.hours ? spec.hours * 3600 : phaseSeconds));
+const offsets = lengths.reduce((acc, len) => [...acc, acc[acc.length - 1] + len], [0]);
 
 config.phases = specs.map((spec, index) => {
-  const phaseStart = plus(start, index * phaseSeconds);
-  const phaseEnd = plus(start, (index + 1) * phaseSeconds);
+  const phaseStart = plus(start, offsets[index]);
+  const phaseEnd = plus(start, offsets[index + 1]);
   const phase = { ...defaultPhase(spec.name), startTime: iso(phaseStart), endTime: iso(phaseEnd), ...spec.p };
   if (spec.windows) {
     // Windows are seconds past LOCAL midnight and repeat daily. For the short test they have to
@@ -162,8 +193,8 @@ config.phases = specs.map((spec, index) => {
   }
   return phase;
 });
-config.endTime = iso(plus(start, specs.length * phaseSeconds));
-config.deviceLabel = { quick: 'A3EM_QUICK', soak: 'A3EM_SOAK', gaps: 'A3EM_GAPS' }[kind];
+config.endTime = iso(plus(start, offsets[specs.length]));
+config.deviceLabel = { quick: 'A3EM_QUICK', soak: 'A3EM_SOAK', gaps: 'A3EM_GAPS', wd: 'A3EM_WD' }[kind];
 config.vhfMode = 'END'; // beacon fires at the end of the deployment, exercising the VHF path
 config.vhfStartTime = config.endTime;
 config.ledsActiveSeconds = kind === 'soak' ? 600 : 1800;
@@ -181,7 +212,7 @@ fs.writeFileSync(outFile, text);
 
 const f = forecast({ config, sdCardCapacityGb: cardGb, batteryCapacityMah: batteryMah,
                      microphone: 'DIGITAL', firmware: FIRMWARE_CURRENT });
-const hours = (specs.length * phaseSeconds) / 3600;
+const hours = offsets[specs.length] / 3600;
 const gb = (bytes) => (bytes / 1024 ** 3).toFixed(2);
 
 console.log(`\n${kind.toUpperCase()} TEST  —  ${config.deviceLabel}`);
