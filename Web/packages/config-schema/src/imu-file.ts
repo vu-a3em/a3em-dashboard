@@ -34,7 +34,17 @@ export interface ImuSample {
 
 export interface ImuFile {
   sampleRateHz: number;
-  /** ISO instant of the first sample. */
+  /**
+   * ISO instant of the first sample, which is not always the instant the file is named
+   * after.
+   *
+   * A clip is named for where its AUDIO begins. In continuous, interval and scheduled
+   * recording the sensor is started alongside the microphone, so the two agree. In
+   * amplitude mode they cannot: the clip is opened by the buffer that triggered it, and
+   * that buffer's audio was already captured by the time anything could start the sensor.
+   * There the header runs one DMA buffer later than the name, and the difference between
+   * them is exactly how far into the clip the IMU trace begins.
+   */
   startTime: string;
   sampleCount: number;
   headerBytes: number;

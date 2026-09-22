@@ -432,8 +432,11 @@ export const FILE_TIMESTAMP_FORMAT = 'YYYY-MM-DD HH-mm-ss';
  * IMU file header, storage.c `storage_open_imu_file()`:
  *
  *   offset 0  uint32   sample rate, Hz
- *   offset 4  time_t   start timestamp, UTC epoch seconds
+ *   offset 4  time_t   first-sample timestamp, UTC epoch seconds
  *   offset 12 float32[3] repeating, x/y/z in milli-g
+ *
+ * The timestamp is when the first sample was taken, which the file name only matches when
+ * the sensor could be started with the microphone — see `ImuFile.startTime`.
  *
  * The header writes `sizeof(time_t)`, and on this toolchain that is EIGHT bytes,
  * making the header 12 bytes rather than 8.

@@ -244,6 +244,33 @@ describe('activation attribution', () => {
     assert.equal(parsed.telemetry.length, 1);
   });
 
+  it('keeps a copied run whole, against the number written inside it', () => {
+    /*
+      A directory copied by hand carries the original's prose and markers, which still name
+      the run it was copied FROM. Letting that override the path split the copy in half at
+      its first marker: the duplicate read short and the original absorbed what it lost.
+    */
+    const body = [telem(1770368400, 3100), 'INFO: Current activation is #1', telem(1770368460, 3110)].join('\n');
+    const files = [
+      { name: 'SAM/Activation_0001/0000086400/0000003600/a3em.log', text: body },
+      { name: 'SAM/Activation_0002/0000086400/0000003600/a3em.log', text: body },
+    ];
+    assert.deepEqual(parseLogs(files, { activation: 1 }).telemetry.map((s) => s.batteryMv), [3100, 3110]);
+    assert.deepEqual(parseLogs(files, { activation: 2 }).telemetry.map((s) => s.batteryMv), [3100, 3110]);
+  });
+
+  it('still lets a pooled log name its own runs when the path cannot', () => {
+    // The override only yields to a path that places the file; a root log has none.
+    const files = [
+      {
+        name: '_a3em.boot.txt',
+        text: ['EVT|ACTIVATED|activation=1', telem(1770368400, 3100)].join('\n'),
+      },
+    ];
+    assert.deepEqual(parseLogs(files, { activation: 1 }).telemetry.map((s) => s.batteryMv), [3100]);
+    assert.deepEqual(parseLogs(files, { activation: 2 }).telemetry, []);
+  });
+
   it('attributes the ACTIVATED line to the run it opens', () => {
     const files = [
       { name: 'a3em.log', text: ['EVT|ACTIVATED|activation=1', 'EVT|ACTIVATED|activation=2'].join('\n') },

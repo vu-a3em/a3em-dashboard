@@ -389,7 +389,19 @@ export function parseLogs(
 
   for (const file of files) {
     let lastTimestamp: string | null = null;
-    let activation = activationFromPath(file.name);
+    /**
+     * Where this log physically sits, which outranks anything written inside it.
+     *
+     * The firmware passes one number both to the directory namer and to the prose it
+     * prints on every boot, so on a card it wrote itself the two always agree. When they
+     * disagree the card has been rearranged since — a directory copied or renamed by
+     * hand — and the path is the fact while the prose is a stale copy of one. Trusting
+     * the prose there splits a duplicated run in half: the lines before the first marker
+     * stay with the directory, everything after is handed to the run it names, so one
+     * activation reads short and the other double-counts.
+     */
+    const pathActivation = activationFromPath(file.name);
+    let activation = pathActivation;
     if (activation !== null) activationsAttributed.add(activation);
     /**
      * Whether this log's firmware stamps its events with a time at all.
@@ -422,9 +434,11 @@ export function parseLogs(
 
       // Read the boundary marker BEFORE deciding whether to skip, so the line that opens
       // a run is attributed to the run it opens rather than to the one before it.
+      // Markers only decide attribution for a log the path cannot place: the root log, or a
+      // card that pools every run into one file. Inside `Activation_NNNN` they are ignored.
       if (body.startsWith('EVT|ACTIVATED|')) {
         const marked = Number(parseFields(body.split('|')[2] ?? '').activation ?? NaN);
-        if (Number.isFinite(marked)) {
+        if (Number.isFinite(marked) && pathActivation === null) {
           activation = marked;
           activationsAttributed.add(marked);
         }
@@ -434,7 +448,7 @@ export function parseLogs(
         // which is the same value the firmware passes to the directory namer — so it lines
         // up with `Activation_NNNN` on the card with no adjustment.
         const legacy = LEGACY_ACTIVATION.exec(body);
-        if (legacy) {
+        if (legacy && pathActivation === null) {
           activation = Number(legacy[1]);
           activationsAttributed.add(activation);
         }
