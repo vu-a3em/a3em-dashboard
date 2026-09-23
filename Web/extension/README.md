@@ -38,6 +38,24 @@ keeps its own). What to enter in each tab of the listing is in
 [`STORE-LISTING.md`](STORE-LISTING.md); the privacy policy it links to is
 [`PRIVACY.md`](PRIVACY.md).
 
+### A new version
+
+The version is `version` in [`manifest.json`](manifest.json), and the store refuses an upload
+that is not higher than the one it has. So:
+
+```sh
+npm run package:extension -- patch    # 0.1.0 → 0.1.1, then packages; or minor, major
+```
+
+Commit the changed `manifest.json`, then in the Developer Dashboard open the item, choose
+Package, upload the new zip, and submit it for review. Chrome updates installed copies by
+itself once the review passes.
+
+That should be rare. The extension only relays messages, so almost every change belongs in the
+helper, which ships without a store review. A new extension version is needed only to change
+`background.js`, the manifest (its permissions, or the dashboard origin in
+`externally_connectable`), or the icons.
+
 ## Loading it for development
 
 1. `chrome://extensions` → enable Developer mode → **Load unpacked** → this folder.
@@ -74,9 +92,17 @@ keeps its own). What to enter in each tab of the listing is in
 
 ## Browser support
 
-Chrome and Edge are the targets. Opera reads Chrome's native-messaging directories, so
-the host side works unchanged — but Opera will not install from the Chrome Web Store
-without its "Install Chrome Extensions" add-on, which is a manual step for the operator.
+It works in Chromium browsers that install from the Chrome Web Store: Chrome, Edge, Brave,
+Vivaldi, Arc, and Chromium itself (not the Linux snap, which cannot start native helpers).
+Opera reads Chrome's native-messaging locations, so the helper works unchanged, but Opera installs
+from the Chrome Web Store only after its own "Install Chrome Extensions" add-on. Brave runs the
+extension and helper as they are, but turns off the File System Access API the rest of the
+dashboard reads cards with; `brave://flags/#file-system-access-api` turns it on, and the
+dashboard says so.
+
+Firefox and Safari cannot run it. Firefox has native messaging, but no `externally_connectable`,
+so a page cannot talk to an extension directly; Safari extensions must ship inside a Mac app.
+Neither has the File System Access API either, so the dashboard falls back to downloads there.
 
 Firefox is not supported: it has never implemented `externally_connectable` for web pages
 (bug 1319168). Safari is not supported: its native messaging requires a signed, notarized

@@ -28,7 +28,17 @@ function run(program, programArgs, cwd) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-run('go', ['build', '-o', binary, './cmd/a3em-card-helper'], root);
+/*
+  Named after the release it was built from, and how far past it: "0.2.0" on the tag itself,
+  "0.2.0-3-gab12cd3" three commits later, with "-dirty" for uncommitted changes. So `doctor`
+  and the dashboard say exactly what is installed.
+*/
+function version() {
+  const result = spawnSync('git', ['describe', '--tags', '--match', 'card-helper-v*', '--dirty'], { cwd: root, encoding: 'utf8' });
+  return result.status === 0 ? result.stdout.trim().replace(/^card-helper-v/, '') : '0.0.0-dev';
+}
+
+run('go', ['build', '-ldflags', `-X main.version=${version()}`, '-o', binary, './cmd/a3em-card-helper'], root);
 if (command === 'build') {
   console.log(`✓ built ${binary}`);
 } else {

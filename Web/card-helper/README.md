@@ -132,8 +132,17 @@ platform, then check it in a recorder.
 
 ## Releasing
 
-Push a tag `card-helper-v<version>`. The
-[release workflow](../../.github/workflows/card-helper-release.yml) builds:
+Commit and push to `main`, then from `Web/`:
+
+```sh
+npm run release:helper              # the next patch version, 0.2.0 → 0.2.1
+npm run release:helper -- minor     # 0.2.0 → 0.3.0; or major, or an exact version like 0.4.2
+```
+
+It checks that `main` is committed and the same as GitHub's, shows what has changed in the helper
+since the last release, and asks before tagging the commit `card-helper-v<version>` and pushing
+the tag. The [release workflow](../../.github/workflows/card-helper-release.yml) then runs the
+unit tests and builds:
 
 | Asset | |
 | --- | --- |
@@ -144,7 +153,25 @@ Push a tag `card-helper-v<version>`. The
 
 and publishes them as a GitHub release. Asset names carry no version, so the dashboard's install
 guide links to `releases/latest/download/<name>`. A manual run of the workflow from any branch
-makes the same builds, unsigned, without publishing.
+makes the same builds, unsigned, without publishing. Once SignPath signing is set up, each
+release waits for its two signing requests to be approved in SignPath.
+
+### Version numbers
+
+The version exists only in the tag: the workflow builds it into the executable, the installers'
+metadata and the release's name, so there is no file to edit. A local build
+(`npm run helper:build`) names itself from `git describe`, such as `0.2.0-3-gab12cd3-dirty` for
+three commits after 0.2.0 with uncommitted changes, and `a3em-card-helper version` or `doctor`
+says which build is installed.
+
+Patch for fixes, minor for new operations, major for anything that breaks an installed
+dashboard. Separately, `ProtocolVersion` in [`internal/dispatch`](internal/dispatch/dispatch.go)
+and `HELPER_PROTOCOL` in [`app/src/lib/helper.ts`](../app/src/lib/helper.ts) change together
+whenever a request or reply changes shape. A dashboard that expects a newer protocol than the
+installed helper speaks shows "Card tools: Update…" instead of calling it, so release the helper
+before deploying a dashboard that needs it.
+
+Installed helpers do not update themselves: people install the new release over the old one.
 
 ### Signing credentials
 

@@ -100,7 +100,7 @@ export function installGuide(os: HostOs = detectOs()): InstallGuide {
             title: 'Install the card helper',
             detail:
               'Open the downloaded installer and follow it. It is signed and notarized by Apple, and ' +
-              'registers the helper with Chrome, Edge, Chromium, Brave, and Vivaldi. The helper asks ' +
+              'registers the helper with Chrome, Edge, Chromium, Brave, Vivaldi, Opera, and Arc. The helper asks ' +
               'for your password each time it writes to a card.',
             link: { label: 'Download for macOS', href: download('A3EM-Card-Helper-macOS.pkg') },
           },

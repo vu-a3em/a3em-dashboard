@@ -1,3 +1,4 @@
+import { IS_BRAVE } from '../lib/card';
 import type { useCard } from '../lib/useCard';
 
 type Card = ReturnType<typeof useCard>;
@@ -10,6 +11,18 @@ type Card = ReturnType<typeof useCard>;
  * about at six in the morning before heading to a site.
  */
 export function CardStatus({ card }: Readonly<{ card: Card }>) {
+  if (card.status === 'unsupported' && IS_BRAVE) {
+    return (
+      <span
+        className="chip warn"
+        title="Brave turns off the folder access this needs. Open brave://flags/#file-system-access-api, set it to Enabled, and restart Brave."
+      >
+        <span className="dot" />
+        Card access is off in Brave: enable brave://flags/#file-system-access-api
+      </span>
+    );
+  }
+
   if (card.status === 'unsupported') {
     return (
       <span className="chip warn" title="Chromium-based browsers only">

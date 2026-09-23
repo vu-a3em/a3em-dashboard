@@ -2,7 +2,12 @@
 /**
  * Packages the extension for the Chrome Web Store.
  *
- *   npm run package:extension   → dist/a3em-card-helper-extension-<version>.zip
+ *   npm run package:extension            → dist/a3em-card-helper-extension-<version>.zip
+ *   npm run package:extension -- patch   raise the version first: 0.1.0 → 0.1.1 (or minor, major)
+ *
+ * The version is the manifest's. The store refuses an upload that is not higher than what it
+ * already has, so a new upload always needs one of patch, minor or major; packaging the same
+ * version again is only for looking inside the zip.
  *
  * The zip holds only what the extension runs: the manifest, the service worker, and its icons.
  * The manifest's `key` is left out. The store holds the key for a published item and does not
@@ -24,7 +29,27 @@ const extension = join(root, 'extension');
 
 execFileSync(process.execPath, [join(here, 'sync-extension-manifest.mjs'), '--check'], { stdio: 'inherit' });
 
-const manifest = JSON.parse(readFileSync(join(extension, 'manifest.json'), 'utf8'));
+const manifestPath = join(extension, 'manifest.json');
+const bump = process.argv[2];
+if (bump) {
+  const current = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const parts = current.version.split('.').map(Number);
+  while (parts.length < 3) parts.push(0);
+  const index = { major: 0, minor: 1, patch: 2 }[bump];
+  if (index === undefined) {
+    console.error(`✗ "${bump}" is not patch, minor or major.`);
+    process.exit(1);
+  }
+  parts[index] += 1;
+  parts.fill(0, index + 1);
+  const version = parts.slice(0, 3).join('.');
+  // Rewritten as text, so the rest of the file keeps its exact form for the sync check.
+  const text = readFileSync(manifestPath, 'utf8');
+  writeFileSync(manifestPath, text.replace(/("version":\s*")[^"]+(")/, `$1${version}$2`), 'utf8');
+  console.log(`Extension version ${current.version} → ${version}. Commit extension/manifest.json with the upload.`);
+}
+
+const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 delete manifest.key;
 const files = [
   ['manifest.json', Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`)],

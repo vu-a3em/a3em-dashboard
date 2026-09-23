@@ -236,7 +236,7 @@ function unavailable(): HelperError {
   return isChromium()
     ? new HelperError('The A3EM card helper extension is not installed.', 'helper-not-installed')
     : new HelperError(
-        'This browser cannot use the card helper. Chrome, Edge, or Opera is required.',
+        'This browser cannot use the card helper. It needs a Chromium browser: Chrome, Edge, Brave, Vivaldi, Arc, or Opera.',
         'no-extension',
       );
 }

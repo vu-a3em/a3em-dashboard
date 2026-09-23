@@ -28,8 +28,9 @@ import (
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/protocol"
 )
 
-// version is set at build time with -ldflags "-X main.version=…".
-var version = "0.2.0-dev"
+// version is set at build time with -ldflags "-X main.version=…": by the release workflow from
+// the tag, and by tools/helper.mjs from `git describe`. A plain `go build` says it is a dev build.
+var version = "0.0.0-dev"
 
 func main() {
 	args := os.Args[1:]

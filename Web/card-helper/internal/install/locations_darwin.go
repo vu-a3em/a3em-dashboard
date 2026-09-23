@@ -27,5 +27,8 @@ func locations(system bool) []Location {
 		user("Edge", "Microsoft Edge"),
 		user("Brave", "BraveSoftware/Brave-Browser"),
 		user("Vivaldi", "Vivaldi"),
+		// Arc keeps its profile a level deeper than the others. Opera needs no entry of its
+		// own: it reads Chrome's location, which is always written.
+		user("Arc", "Arc/User Data"),
 	}
 }

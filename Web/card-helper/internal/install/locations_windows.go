@@ -8,7 +8,7 @@ import (
 )
 
 // On Windows a browser finds the manifest through a registry key whose default value is the
-// manifest's path. The file itself sits beside the executable. HKCU needs no administrator
+// manifest's path. Opera and Vivaldi read Chrome's key, which is always written. The file itself sits beside the executable. HKCU needs no administrator
 // rights, which is why the installer is per-user.
 func locations(system bool) []Location {
 	hive := `HKCU`

@@ -23,6 +23,12 @@ import {
 export const CARD_ACCESS_SUPPORTED =
   typeof window !== 'undefined' && 'showDirectoryPicker' in window;
 
+/**
+ * Brave is Chromium, but turns the File System Access API off by default. It is one flag away,
+ * which is worth saying rather than lumping Brave in with Safari and Firefox.
+ */
+export const IS_BRAVE = typeof navigator !== 'undefined' && 'brave' in navigator;
+
 const DB_NAME = 'a3em';
 const STORE_NAME = 'handles';
 const HANDLE_KEY = 'card-directory';

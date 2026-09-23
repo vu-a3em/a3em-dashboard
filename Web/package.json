@@ -17,6 +17,7 @@
     "helper:build": "node tools/helper.mjs build",
     "install-helper": "node tools/helper.mjs install",
     "helper-doctor": "node tools/helper.mjs doctor",
+    "release:helper": "node tools/release-helper.mjs",
     "sync:extension": "node tools/sync-extension-manifest.mjs",
     "package:extension": "node tools/package-extension.mjs",
     "lint": "eslint .",
