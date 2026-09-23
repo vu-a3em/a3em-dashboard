@@ -6,6 +6,7 @@ import {
   buildTrack,
   cardSlack,
   formatAllocationUnit,
+  formatList,
   DEACTIVATION_REASON_LABELS,
   UNPLANNED_STOP_REASONS,
   describeCorrection,
@@ -199,12 +200,36 @@ export function CardOverview({
     if (log?.clockRecovery) findings.push('The clock was lost and rebuilt from the card, so subsequent times may show internal discrepancies.');
     if (log?.configResult === 'CORRECTED') findings.push('The device had to correct the configuration file, so it ran with settings nobody chose.');
     else if (log?.configResult === 'FAIL') findings.push('The device could not read the configuration file.');
+    // FIRMWARE: logged as SOLAR_REVERSED on each day a solar window ended before it started.
+    const reversed = log?.solarSchedule?.reversedDays ?? 0;
+    if (reversed) {
+      findings.push(
+        `On ${reversed.toLocaleString()} day${reversed === 1 ? '' : 's'} a solar recording period ended before it started, so the device skipped it.`,
+      );
+    }
     if (coverage.gaps.length) findings.push(`${coverage.gaps.length.toLocaleString()} scheduled hour${coverage.gaps.length === 1 ? '' : 's'} recorded nothing.`);
 
     const bad = (selfTest && !selfTest.passed) || restartInfo?.hadFault || log?.configResult === 'FAIL';
     if (bad) return { tone: 'crit', headline: 'This deployment needs looking at', detail: 'Something failed outright. The panels below have the detail.', findings };
     if (findings.length) return { tone: 'warn', headline: 'The deployment was successful, but some caveats are worth mentioning', detail: '', findings };
-    return { tone: 'ok', headline: 'Nothing on this card needs attention', detail: 'The hardware passed its checks, the device ran without restarting, and every scheduled hour recorded.', findings };
+    /*
+      Only what this card can actually show.
+
+      An original-firmware card carries no self-test and no restart record, so saying "the
+      hardware passed its checks and the device ran without restarting" asserted two things
+      nobody could know. Each claim is made only when its evidence is on the card, and what
+      could not be checked is named.
+    */
+    const shown: string[] = [];
+    const unchecked: string[] = [];
+    (selfTest ? shown : unchecked).push(selfTest ? 'the hardware passed its checks' : 'hardware self-tests');
+    (restartInfo ? shown : unchecked).push(restartInfo ? 'the device ran without restarting' : 'restarts');
+    (coverage.expectationsUnknown ? unchecked : shown).push(
+      coverage.expectationsUnknown ? 'recording coverage' : 'every scheduled hour recorded',
+    );
+    const sentence = shown.length ? `${formatList(shown).replace(/^./, (c) => c.toUpperCase())}.` : '';
+    const caveat = unchecked.length ? ` This card does not record ${formatList(unchecked)}, so those could not be checked.` : '';
+    return { tone: 'ok', headline: 'Nothing on this card needs attention', detail: `${sentence}${caveat}`.trim(), findings };
   }, [card.selfTest, log, coverage]);
 
   /** The self-test capture, paired back up with the handle needed to read it. */
@@ -390,10 +415,10 @@ export function CardOverview({
         <p className="hint">
           {layout.deviceLabel ?? 'Unlabelled device'} ·{' '}
           {activation !== null
-            ? `Activation ${activation} of ${layout.activations.join(', ')}`
+            ? `Activation ${activation} of ${formatList(layout.activations.map(String))}`
             : layout.activations.length === 1
               ? `Activation ${layout.activations[0]}`
-              : `Activations ${layout.activations.join(', ')} shown together`}
+              : `Activations ${formatList(layout.activations.map(String))} shown together`}
         </p>
         {/*
           Every time on this page comes from one clock or the other, and which one is not

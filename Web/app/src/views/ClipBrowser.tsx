@@ -175,23 +175,35 @@ export function ClipBrowser({
       if (!entry) throw new Error('This recording is no longer on the card.');
 
       const bytes = new Uint8Array(await (await entry.handle.getFile()).arrayBuffer());
-      const format = readWavFormat(bytes);
-      if (!format) throw new Error('This file is not a readable WAV recording.');
+      /*
+        Opus recordings, which the editor offers and the device writes as Ogg.
 
-      const samples = readSamples(bytes, format);
+        Every one of them used to fail here as "not a readable WAV recording", because this
+        only ever parsed WAV. The browser decodes Ogg Opus itself, so the samples come from
+        its decoder and playback uses the file as it is.
+      */
+      const opus = isOgg(bytes);
+      const decoded = opus ? await decodeOpus(bytes) : null;
+      const format = decoded?.format ?? readWavFormat(bytes);
+      if (!format) throw new Error('This file is not a readable WAV or Opus recording.');
+
+      const samples = decoded?.samples ?? readSamples(bytes, format);
       const levels = measureLevels(samples);
       const verdict = judgeClip(levels);
 
       // A corrected copy in memory, never on the card, so legacy and interrupted clips
       // both play at their true length.
-      const playable = buildPlayableWav(bytes);
+      const playable = opus ? null : buildPlayableWav(bytes);
       if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
-      audioUrl.current = playable
-        ? URL.createObjectURL(new Blob([playable as BlobPart], { type: 'audio/wav' }))
-        : null;
+      audioUrl.current = opus
+        ? URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'audio/ogg; codecs=opus' }))
+        : playable
+          ? URL.createObjectURL(new Blob([playable as BlobPart], { type: 'audio/wav' }))
+          : null;
 
       setLoaded({
         path,
+        codec: opus ? 'opus' : 'wav',
         format,
         levels,
         verdict,
@@ -233,7 +245,7 @@ export function ClipBrowser({
     <>
       {!correction ? (
         <div className="banner">
-          <strong>Times below are according the device's own clock</strong>
+          <strong>Times below are according to the device's own clock</strong>
           Configure a clock correction on the Review card tab to correct these for the real deployment time.
         </div>
       ) : null}
@@ -309,6 +321,8 @@ export function ClipBrowser({
 
 interface LoadedClip {
   path: string;
+  /** Opus levels come from a lossy decode, so bit depth and header checks do not apply. */
+  codec: 'wav' | 'opus';
   format: NonNullable<ReturnType<typeof readWavFormat>>;
   levels: ClipLevels;
   verdict: ClipVerdict;
@@ -469,6 +483,7 @@ function ClipDetail({
         <strong>{clip.format.sampleRateHz.toLocaleString()} Hz</strong> ·{' '}
         {clip.format.channels === 1 ? 'mono' : `${clip.format.channels} channels`} ·{' '}
         {clip.format.durationSeconds.toFixed(1)} seconds
+        {clip.codec === 'opus' ? ' · Opus, decoded for display' : ''}
       </p>
       {rateNote(clip.format.sampleRateHz, measuredHz, nominalHz)}
 
@@ -564,12 +579,12 @@ function ClipDetail({
         <Stat label="Offset" value={clip.levels.dcOffset.toFixed(0)} note="0 is centred" />
         <Stat
           label="Resolution"
-          value={clip.levels.effectiveBits ? `${clip.levels.effectiveBits} bits` : '—'}
-          note="originally recorded with 12 bits"
+          value={clip.codec === 'opus' ? '—' : clip.levels.effectiveBits ? `${clip.levels.effectiveBits} bits` : '—'}
+          note={clip.codec === 'opus' ? 'not measurable after Opus compression' : 'originally recorded with 12 bits'}
         />
       </div>
 
-      {clip.format.declaredDataBytes !== clip.format.actualDataBytes ? (
+      {clip.codec === 'wav' && clip.format.declaredDataBytes !== clip.format.actualDataBytes ? (
         <p className="help">
           The header claims {clip.format.declaredDataBytes.toLocaleString()} bytes of audio but the file
           holds {clip.format.actualDataBytes.toLocaleString()}. Playback above uses the true length; the
@@ -845,4 +860,42 @@ function Stat({ label, value, note }: Readonly<{ label: string; value: string; n
       {note ? <div className="stat-note">{note}</div> : null}
     </div>
   );
+}
+
+/** Ogg pages begin "OggS", which is how the device's Opus files are told from WAV. */
+function isOgg(bytes: Uint8Array): boolean {
+  return bytes.length > 4 && bytes[0] === 0x4f && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53;
+}
+
+/**
+ * Decodes an Ogg Opus file to 16-bit samples with the browser's own decoder.
+ *
+ * Opus always decodes at 48 kHz, which is the rate the context is created at, so nothing is
+ * resampled on the way. Only the first channel is kept; the device records mono.
+ */
+async function decodeOpus(
+  bytes: Uint8Array,
+): Promise<{ samples: Int16Array; format: NonNullable<ReturnType<typeof readWavFormat>> }> {
+  const context = new OfflineAudioContext(1, 1, 48000);
+  let buffer: AudioBuffer;
+  try {
+    buffer = await context.decodeAudioData(bytes.slice().buffer);
+  } catch {
+    throw new Error('This Opus recording could not be decoded. It may have been cut off before the device closed it.');
+  }
+  const channel = buffer.getChannelData(0);
+  const samples = new Int16Array(channel.length);
+  for (let i = 0; i < channel.length; i++) samples[i] = Math.max(-32768, Math.min(32767, Math.round(channel[i] * 32767)));
+  return {
+    samples,
+    format: {
+      channels: buffer.numberOfChannels,
+      sampleRateHz: buffer.sampleRate,
+      bitsPerSample: 16,
+      dataOffset: 0,
+      declaredDataBytes: samples.length * 2,
+      actualDataBytes: samples.length * 2,
+      durationSeconds: buffer.duration,
+    },
+  };
 }

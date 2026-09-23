@@ -6,6 +6,7 @@ import {
 } from './firmware-constants.js';
 import type { DeploymentConfig, PhaseConfig } from './types.js';
 import { utcOffsetSecondsAt } from './timezone.js';
+import { dstAdjustmentApplies, dstSegments, firmwareTriggerTimes, shiftPeriods } from './schedule.js';
 
 /**
  * Renders a DeploymentConfig to the exact `_a3em.cfg` text the firmware parses.
@@ -50,6 +51,15 @@ export function serializeConfig(config: DeploymentConfig): string {
   kv('DEVICE_LABEL', config.deviceLabel);
   kv('DEVICE_TIMEZONE', config.timezone); // firmware ignores; kept for round-tripping
   kv('DEVICE_UTC_OFFSET', utcOffset);
+  /*
+    Daylight saving, which the firmware cannot follow on its own: it holds the one offset
+    above for the whole deployment. Where that would move a clock-time period, each affected
+    phase is written as one [PHASE] per side of the change, the later side's periods shifted
+    to fire at the same local time. DST_ADJUSTED is the dashboard's own key — the firmware
+    ignores keys it does not know — so the parser can undo the shift and rejoin the pieces.
+  */
+  const adjustForDst = dstAdjustmentApplies(config);
+  if (adjustForDst) kv('DST_ADJUSTED', true);
   // DEVICE_UTC_OFFSET_HOUR is deliberately NOT written. It existed so recording filenames
   // could carry a "_+10" suffix; epoch naming dropped the suffix and the firmware has read
   // nothing from it since. No whole number of hours is correct for a half-hour zone anyway,
@@ -79,13 +89,24 @@ export function serializeConfig(config: DeploymentConfig): string {
   // FIRMWARE: main.c gates the beacon on `vhf_enable_timestamp && now >= vhf_enable_timestamp`,
   // and the default is zero, so an omitted start time is exactly a disabled beacon.
   if (config.vhfMode !== 'NEVER') kv('VHF_RADIO_START_TIME', resolveVhfEpoch(config, endEpoch));
-  kv('PHASED_DEPLOYMENT', config.isPhased);
+  // A split deployment is phased on the card even when it is one phase in the editor.
+  const phased = config.isPhased || adjustForDst;
+  kv('PHASED_DEPLOYMENT', phased);
 
-  for (const phase of orderPhases(config)) {
+  const written: PhaseConfig[] = adjustForDst
+    ? dstSegments(config).map((segment) => ({
+        ...segment.phase,
+        startTime: segment.startTime,
+        endTime: segment.endTime,
+        audioTriggerTimes: shiftPeriods(segment.phase.audioTriggerTimes, segment.shiftSeconds),
+      }))
+    : orderPhases(config);
+
+  for (const phase of written) {
     lines.push('');
     lines.push('[PHASE]'); // must contain no quote character to be recognized
     kv('PHASE_NAME', phase.name); // firmware ignores; dashboard metadata
-    if (config.isPhased) {
+    if (phased) {
       kv('PHASE_START_TIME', toEpochSeconds(requirePhaseTime(phase, 'startTime')));
       kv('PHASE_END_TIME', toEpochSeconds(requirePhaseTime(phase, 'endTime')));
     }
@@ -115,7 +136,9 @@ export function serializeConfig(config: DeploymentConfig): string {
         is not a rare corner: above the Arctic circle it is most of the summer, and a caribou
         deployment with no fallback would simply stop recording.
       */
-      for (const window of phase.audioTriggerTimes) {
+      // Split at midnight and sorted: the firmware can express neither an overnight entry
+      // nor an out-of-order one, and an evening entry ahead of a morning one hides it.
+      for (const window of firmwareTriggerTimes(phase.audioTriggerTimes)) {
         kv('AUDIO_TRIGGER_SCHEDULE', `${window.startSecond}-${window.endSecond}`);
       }
       if (phase.audioScheduleType === 'SOLAR') {

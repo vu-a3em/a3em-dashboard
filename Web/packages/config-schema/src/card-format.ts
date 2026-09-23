@@ -1,5 +1,6 @@
 import { SD_CARD_ALLOCATION_UNIT_BYTES } from './firmware-constants.js';
 import { ALLOCATION_UNIT_CHOICES_BYTES, formatAllocationUnit } from './allocation-unit.js';
+import { formatList } from './summaries.js';
 
 /**
  * What the firmware requires of a card's filesystem, and how to judge a real one.
@@ -234,7 +235,7 @@ export function validateFormatRequest(request: FormatRequest): string[] {
 
   if (!ALLOCATION_UNIT_CHOICES_BYTES.includes(request.allocationUnitBytes as never)) {
     errors.push(
-      `Allocation unit must be one of ${ALLOCATION_UNIT_CHOICES_BYTES.map(formatAllocationUnit).join(', ')}.`,
+      `Allocation unit must be one of ${formatList(ALLOCATION_UNIT_CHOICES_BYTES.map(formatAllocationUnit), 'or')}.`,
     );
   }
 

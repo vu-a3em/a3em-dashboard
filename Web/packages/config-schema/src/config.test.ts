@@ -318,7 +318,9 @@ describe('validateConfig', () => {
       endTime: new Date(Date.parse(config.startTime) + (i + 1) * 86400_000).toISOString(),
     }));
     assert.ok(
-      validateConfig(config).some((i) => i.severity === 'error' && /at most 6 phases/.test(i.message)),
+      validateConfig(config).some(
+        (i) => i.severity === 'error' && new RegExp(`at most ${MAX_DEPLOYMENT_PHASES} phases`).test(i.message),
+      ),
     );
   });
 
@@ -328,7 +330,7 @@ describe('validateConfig', () => {
     config.phases[0].audioClipLengthSeconds = 120;
     config.phases[0].audioTriggerInterval = 1;
     config.phases[0].audioTriggerIntervalTimeScale = 'MINUTES';
-    assert.ok(validateConfig(config).some((i) => i.severity === 'error' && /does not fit/.test(i.message)));
+    assert.ok(validateConfig(config).some((i) => i.severity === 'error' && /do not fit/.test(i.message)));
   });
 
   it('accepts a motion threshold, which current firmware applies', () => {

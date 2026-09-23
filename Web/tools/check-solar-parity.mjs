@@ -67,7 +67,7 @@ int main(void) {
       solar_day_t d;
       solar_compute(lat, lon, (uint32_t)ts, off, &d);
       for (int a = 0; a < SOLAR_NUM_ANCHORS; ++a)
-         printf("%s%d:%d", a ? "," : "", d.available[a], d.available[a] ? d.seconds_of_day[a] : -1);
+         printf("%s%d:%d:%d", a ? "," : "", d.available[a], d.available[a] ? d.seconds_of_day[a] : -1, d.available[a] ? d.seconds_from_midnight[a] : -1);
       printf(",%d,%d\\n", d.polar_day, d.polar_night);
    }
    return 0;
@@ -121,7 +121,10 @@ int main(void) {
     const [latitude, longitude, ts, offset] = line.split(/\s+/).map(Number);
     const day = solarDay(ts, { latitude, longitude }, offset);
     const mine =
-      ANCHORS.map((a) => `${day.available[a] ? 1 : 0}:${day.available[a] ? day.secondsOfDay[a] : -1}`).join(',') +
+      ANCHORS.map(
+        (a) =>
+          `${day.available[a] ? 1 : 0}:${day.available[a] ? day.secondsOfDay[a] : -1}:${day.available[a] ? day.secondsFromMidnight[a] : -1}`,
+      ).join(',') +
       `,${day.polarDay ? 1 : 0},${day.polarNight ? 1 : 0}`;
     if (mine !== fromC[index]) {
       mismatches.push(`  ${line}\n    firmware: ${fromC[index]}\n    dashboard: ${mine}`);

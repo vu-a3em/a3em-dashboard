@@ -149,7 +149,7 @@ function InstallGuideDialog({ onClose }: Readonly<{ onClose: () => void }>) {
       ) : null}
 
       <p className="stat-label" style={{ marginTop: 16 }}>
-        Two parts, on {guide.osLabel}
+        Setting up on {guide.osLabel}
       </p>
 
       <ol className="install-steps">

@@ -281,7 +281,7 @@ function summaryFor(
 ): string {
   const rec = formatAllocationUnit(recommended.bytes);
   if (actualBytes === null || actualBytes <= 0) {
-    return `Format as exFAT with a ${rec} block size using the following command:`;
+    return `Format the card as exFAT with ${rec} clusters:`;
   }
   const act = formatAllocationUnit(actualBytes);
   const verdict = verdictFor(recommended.bytes, actualBytes);
@@ -365,3 +365,56 @@ export function formatCommandFor(unitBytes: number, devicePath = '/dev/diskNsM')
 
 /** Whether a deployment written now would be formatted this way by the device itself. */
 export const DEVICE_DEFAULT_ALLOCATION_UNIT_BYTES = SD_CARD_ALLOCATION_UNIT_BYTES;
+
+/** The operating systems a format can be described for. */
+export type FormatHostOs = 'macos' | 'windows' | 'linux' | 'unknown';
+
+export interface FormatStep {
+  detail: string;
+  command?: string;
+}
+
+/**
+ * How to format a card at `unitBytes` by hand, on the machine the dashboard is open on.
+ *
+ * Every platform names the card differently and formats it with a different tool, so a
+ * single command was only ever right for one of them. Each sequence finds the card first,
+ * because the one step that cannot be undone is formatting the wrong disk.
+ */
+export function formatStepsFor(unitBytes: number, os: FormatHostOs): FormatStep[] {
+  const size = unitBytes >= 1024 ? `${unitBytes / 1024}K` : String(unitBytes);
+  switch (os) {
+    case 'macos':
+      return [
+        { detail: "Find the card's disk number, N, in the list of external disks:", command: 'diskutil list external physical' },
+        { detail: 'Unmount it:', command: 'sudo diskutil unmountDisk /dev/diskN' },
+        {
+          detail: 'Format it. This erases everything on the card:',
+          command: `sudo ${formatCommandFor(unitBytes, '/dev/diskNs1')}`,
+        },
+      ];
+    case 'windows':
+      return [
+        { detail: "Find the card's drive letter in File Explorer — E: in the command below." },
+        {
+          detail: 'In a Command Prompt opened as administrator, format it. This erases everything on the card:',
+          command: `format E: /FS:exFAT /A:${size} /Q /V:A3EM`,
+        },
+      ];
+    case 'linux':
+      return [
+        { detail: "Find the card's partition — sdX1 or mmcblk0p1 below:", command: 'lsblk -o NAME,SIZE,MODEL,MOUNTPOINT' },
+        { detail: 'Unmount it:', command: 'sudo umount /dev/sdX1' },
+        {
+          detail: 'Format it with mkfs.exfat from the exfatprogs package. This erases everything on the card:',
+          command: `sudo mkfs.exfat -c ${size} -L A3EM /dev/sdX1`,
+        },
+      ];
+    default:
+      return [
+        {
+          detail: `Format the card as exFAT with an allocation unit (cluster size) of ${formatAllocationUnit(unitBytes)}, using your system's disk formatting tool.`,
+        },
+      ];
+  }
+}

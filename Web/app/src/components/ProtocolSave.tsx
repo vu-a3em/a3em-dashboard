@@ -29,16 +29,24 @@ export function ProtocolSave({
 }>) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
+  /*
+    Required, not optional. The library shows a protocol by its description when someone
+    is choosing between them, and a saved one without it read "No description." forever —
+    since saving was the only moment it could be written.
+  */
+  const [description, setDescription] = useState('');
+  const canSave = Boolean(name.trim() && description.trim());
   const [saved, setSaved] = useState<string | null>(null);
 
   const current = basedOn ? protocols.find((protocol) => protocol.id === basedOn.protocolId) : undefined;
   const drifted = current ? !matchesProtocol(config, current) : false;
 
   const save = () => {
-    if (!name.trim()) return;
-    onSaveNew(name, '');
+    if (!canSave) return;
+    onSaveNew(name, description);
     setSaved(name.trim());
     setName('');
+    setDescription('');
     setOpen(false);
   };
 
@@ -79,11 +87,22 @@ export function ProtocolSave({
               autoFocus
               placeholder="Dawn chorus — Bear Hollow"
               onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => event.key === 'Enter' && save()}
             />
           </div>
+          <div className="field" style={{ marginBottom: 8 }}>
+            <label htmlFor="save-protocol-description">What it is for</label>
+            <textarea
+              id="save-protocol-description"
+              rows={3}
+              value={description}
+              placeholder="Two hours around first light for the dawn chorus, 48 kHz, high-pass at 200 Hz."
+              onChange={(event) => setDescription(event.target.value)}
+              onKeyDown={(event) => event.key === 'Enter' && (event.metaKey || event.ctrlKey) && save()}
+            />
+            <p className="help">Shown in the protocol list, so say what it records and what for.</p>
+          </div>
           <div className="row">
-            <button className="btn primary" style={{ flex: 1, justifyContent: 'center' }} disabled={!name.trim()} onClick={save}>
+            <button className="btn primary" style={{ flex: 1, justifyContent: 'center' }} disabled={!canSave} onClick={save}>
               Save
             </button>
             <button className="btn ghost" onClick={() => setOpen(false)}>

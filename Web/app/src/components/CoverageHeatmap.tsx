@@ -169,7 +169,7 @@ function describe(cell: CoverageHour): string {
     case 'idle':
       return `${when} — not scheduled to record`;
     case 'unpredictable':
-      return `${when} — amplitude triggered, so nothing can be expected either way`;
+      return `${when} — recording depended on what the device heard (a sound trigger or silence detection), so an empty hour is not a gap`;
     default:
       return `${when} — outside the deployment`;
   }

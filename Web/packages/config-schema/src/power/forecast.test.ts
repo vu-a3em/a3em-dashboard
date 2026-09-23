@@ -21,6 +21,9 @@ const SHEET_INPUTS = {
   sdSpeedClass: SNAPSHOT.plannerInputs.sdSpeedClass,
   microphone: SNAPSHOT.plannerInputs.microphone,
   imuSampleRateHz: SNAPSHOT.plannerInputs.imuSampleRateHz,
+  // The spreadsheet's own storage model: GB x 1024^3 of pure bytes, with no filesystem.
+  // The dashboard's default charges clusters, directories, and logs; parity is with the sheet.
+  storageModel: 'raw' as const,
 };
 
 const CLIP_LENGTH_S = SNAPSHOT.plannerInputs.storedClipLengthSeconds;
@@ -264,5 +267,77 @@ describe('phased deployments', () => {
     assert.equal(result.totalClips, Math.round(loud.clipsPerDay * 10 + quiet.clipsPerDay * 5));
     // Fifteen recording days spread over twenty, so the average day is lighter.
     assert.ok(Math.abs(result.bytesPerDay - (loud.bytesPerDay * 10 + quiet.bytesPerDay * 5) / 20) < 1e-6);
+  });
+});
+
+describe('what the dashboard shows, beyond the spreadsheet', () => {
+  function dawnDusk(latitude: number | null): ReturnType<typeof defaultConfig> {
+    const config = defaultConfig('America/Chicago');
+    config.startTime = '2026-04-01T05:00:00.000Z';
+    config.endTime = '2026-07-01T05:00:00.000Z';
+    config.latitude = latitude;
+    config.longitude = latitude === null ? null : -86.78;
+    config.phases = [
+      continuousPhase({
+        audioRecordingMode: 'SCHEDULED',
+        audioScheduleType: 'SOLAR',
+        audioSolarWindows: [{ startAnchor: 'DAWN', startOffsetSeconds: 0, endAnchor: 'SUNRISE', endOffsetSeconds: 4 * 3600 }],
+        audioTriggerTimes: [{ startSecond: 5 * 3600, endSecond: 6 * 3600 }],
+      }),
+    ];
+    return config;
+  }
+
+  it('forecasts a solar schedule from the sun, not from its fallback', () => {
+    const solar = forecast({ config: dawnDusk(36.16) });
+    // Dawn to four hours after sunrise is roughly four and a half hours; the fallback is one.
+    const hours = solar.perPhase[0].dutyCycle * 24;
+    assert.ok(hours > 4 && hours < 5, `recorded ${hours} h a day`);
+  });
+
+  it('uses the fallback every day when the deployment has no position', () => {
+    const fallback = forecast({ config: dawnDusk(null) });
+    assert.ok(Math.abs(fallback.perPhase[0].dutyCycle * 24 - 1) < 1e-9);
+    assert.ok(fallback.caveats.some((caveat) => caveat.includes('no position')));
+  });
+
+  it('forecasts continuous recording for a schedule with nothing to schedule by', () => {
+    const config = defaultConfig('UTC');
+    config.phases = [continuousPhase({ audioRecordingMode: 'SCHEDULED', audioTriggerTimes: [] })];
+    assert.equal(forecast({ config }).perPhase[0].dutyCycle, 1);
+  });
+
+  it('charges the card whole clusters, so it holds less than the raw byte count suggests', () => {
+    const config = defaultConfig('UTC');
+    config.phases = [continuousPhase()];
+    const exfat = forecast({ config });
+    const raw = forecast({ config, storageModel: 'raw' });
+    assert.ok(exfat.cardBytesPerDay > exfat.bytesPerDay);
+    assert.ok(exfat.cardUsableBytes < raw.cardUsableBytes);
+    assert.ok(exfat.allocationUnitBytes !== null);
+  });
+
+  it('stops counting clips where the battery runs out, as it does where the card fills', () => {
+    const config = defaultConfig('UTC');
+    config.startTime = '2026-01-01T00:00:00.000Z';
+    config.endTime = '2026-03-02T00:00:00.000Z';
+    config.phases = [continuousPhase()];
+    const plenty = forecast({ config, sdCardCapacityGb: 4096, batteryCapacityMah: 1_000_000 });
+    const small = forecast({ config, sdCardCapacityGb: 4096, batteryCapacityMah: 1000 });
+    assert.equal(small.stopsEarlyBecause, 'battery');
+    assert.ok(small.batteryDeadAt !== null);
+    assert.ok(Math.abs(small.recordingDays - small.batteryDays) < 1e-9);
+    assert.ok(Math.abs(small.totalClips - plenty.clipsPerDay * small.batteryDays) <= 1);
+  });
+});
+
+describe('the VHF beacon', () => {
+  it('draws nothing from the A3EM battery, since it has its own', () => {
+    const config = defaultConfig('UTC');
+    config.phases = [continuousPhase()];
+    const without = forecast({ config: { ...config, vhfMode: 'NEVER' } });
+    const withBeacon = forecast({ config: { ...config, vhfMode: 'SCHEDULED', vhfStartTime: config.startTime } });
+    assert.equal(withBeacon.averageCurrentMa, without.averageCurrentMa);
+    assert.ok(!withBeacon.caveats.some((caveat) => caveat.includes('VHF')));
   });
 });

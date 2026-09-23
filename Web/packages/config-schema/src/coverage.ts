@@ -1,4 +1,5 @@
-import { secondsPastLocalMidnight, utcOffsetSecondsAt } from './timezone.js';
+import { utcOffsetSecondsAt } from './timezone.js';
+import { periodSegments, scheduleOnDay, SECONDS_PER_DAY } from './schedule.js';
 import type { DeploymentConfig, PhaseConfig } from './types.js';
 
 /**
@@ -218,7 +219,7 @@ export function buildCoverage(input: CoverageInput): CoverageGrid {
 /**
  * Whether recordings should exist in the hour beginning at this instant.
  *
- * Amplitude-triggered recording is deliberately reported as unpredictable rather than
+ * Amplitude-triggered recording, and any phase with silence detection, is deliberately reported as unpredictable rather than
  * guessed at. Whether a clip exists depends on what the microphone heard, so calling a
  * quiet hour a gap would raise an alarm about a device behaving exactly as configured.
  */
@@ -235,21 +236,65 @@ export function expectationFor(
   const phase = phaseAt(config, instant);
   if (!phase) return 'unknown';
 
+  /*
+    Silence detection makes an empty hour correct behaviour, not a loss.
+
+    FIRMWARE: a clip is only opened once the band of interest is louder than the threshold,
+    so a quiet night under a silence gate writes nothing at all — exactly as configured. Real
+    soak data showed every one of its 33 "missing" hours inside the two gated phases. Where
+    the device WOULD be listening, recordings now depend on what it heard, the same as an
+    amplitude trigger.
+  */
+  const gated = phase.silenceThreshold > 0;
   switch (phase.audioRecordingMode) {
     case 'CONTINUOUS':
     case 'INTERVAL':
-      return 'scheduled';
+      return gated ? 'unpredictable' : 'scheduled';
     case 'AMPLITUDE':
       return 'unpredictable';
     case 'SCHEDULED': {
-      if (phase.audioTriggerTimes.length === 0) return 'idle';
-      // Windows are seconds past LOCAL midnight, so the comparison has to be too.
-      const hourStart = secondsPastLocalMidnight(timezone, startsAt);
+      /*
+        The day as the DEVICE schedules it: solar periods resolved against that day's sun,
+        the fallback where the sun gives none, and around the clock where there is nothing
+        to schedule by at all. Judged on the device's own seconds-of-day, which run on the
+        single offset it was given — after a daylight-saving change that is an hour away
+        from the wall clock, and the recordings follow the device, not the wall.
+      */
+      let offset = 0;
+      try {
+        offset = utcOffsetSecondsAt(timezone, config.startTime);
+      } catch {
+        offset = 0;
+      }
+      const seconds = Math.floor(instant / 1000);
+      const day = scheduleOnDay(phase, config, seconds, offset);
+      if (day.continuous) return gated ? 'unpredictable' : 'scheduled';
+      /*
+        Clock periods on a card adjusted for daylight saving were written to follow the wall
+        clock, so they are judged on it; the sun's periods are always in the device's frame.
+      */
+      const fromSun = phase.audioScheduleType === 'SOLAR' && phase.audioSolarWindows.length > 0 && !day.usedFallback;
+      let frame = offset;
+      if (!fromSun && config.adjustForDst !== false) {
+        try {
+          frame = utcOffsetSecondsAt(timezone, startsAt);
+        } catch {
+          frame = offset;
+        }
+      }
+      const hourStart = (((seconds + frame) % SECONDS_PER_DAY) + SECONDS_PER_DAY) % SECONDS_PER_DAY;
       const hourEnd = hourStart + 3600;
-      return phase.audioTriggerTimes.some(
-        (window) => window.startSecond < hourEnd && window.endSecond > hourStart,
-      )
-        ? 'scheduled'
+      return day.periods
+        .flatMap(periodSegments)
+        .some(
+          (segment) =>
+            (segment.startSecond < hourEnd && segment.endSecond > hourStart) ||
+            // An hour that itself runs over midnight also meets the start of the next day.
+            (hourEnd > SECONDS_PER_DAY && segment.startSecond < hourEnd - SECONDS_PER_DAY),
+        )
+        ? gated
+          ? 'unpredictable'
+          : 'scheduled'
         : 'idle';
     }
     default:

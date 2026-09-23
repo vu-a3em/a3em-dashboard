@@ -32,3 +32,13 @@ describe('datetime-local fields in the deployment zone', () => {
     assert.equal(fromZonedInput('2026-03-08T03:30', 'America/Chicago'), '2026-03-08T08:30:00.000Z');
   });
 })
+
+describe('years below 100', () => {
+  it('stay the year typed, rather than becoming 19xx', () => {
+    // The first digit typed into a date field's year arrives as year 0002. Date.UTC reads
+    // that as 1902, which is how typing "2027" used to land on the year 3796.
+    const iso = fromZonedInput('0002-10-15T00:00', 'America/Chicago');
+    assert.match(iso, /^0002-10-15/);
+    assert.equal(toZonedInput(iso, 'America/Chicago'), '0002-10-15T00:00');
+  });
+});

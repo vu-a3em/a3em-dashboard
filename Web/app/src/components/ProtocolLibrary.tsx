@@ -52,6 +52,13 @@ export function ProtocolLibrary({
   const drifted = current ? !matchesProtocol(config, current) : false;
 
   const [open, setOpen] = useState(!basedOn);
+  /**
+   * The protocol a delete has been asked for but not yet confirmed.
+   *
+   * Saved protocols live only in this browser, so a deleted one is gone for good; the
+   * button asks once, in place, rather than acting on the first click.
+   */
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
   /**
    * Collapse when a protocol is applied from elsewhere.
@@ -150,18 +157,35 @@ export function ProtocolLibrary({
                     <button className="btn small" onClick={() => choose(() => onApply(protocol))}>
                       {isCurrent ? 'Re-apply' : 'Use this'}
                     </button>
-                    {!protocol.builtIn ? (
+                    {!protocol.builtIn && confirmingDelete !== protocol.id ? (
                       <button
                         className="btn small ghost"
-                        // Deleting is not choosing: the pane stays open, because the next
-                        // thing you do is almost certainly pick a different one.
-                        onClick={() => onRemove(protocol.id)}
+                        onClick={() => setConfirmingDelete(protocol.id)}
                         aria-label={`Delete ${protocol.name}`}
                       >
                         Delete
                       </button>
                     ) : null}
                   </div>
+                  {confirmingDelete === protocol.id ? (
+                    <div className="protocol-confirm" role="alert">
+                      <span>Delete {protocol.name}? This cannot be undone.</span>
+                      <button
+                        className="btn small danger"
+                        // Deleting is not choosing: the pane stays open, because the next
+                        // thing you do is almost certainly pick a different one.
+                        onClick={() => {
+                          setConfirmingDelete(null);
+                          onRemove(protocol.id);
+                        }}
+                      >
+                        Delete
+                      </button>
+                      <button className="btn small ghost" onClick={() => setConfirmingDelete(null)}>
+                        Keep it
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}

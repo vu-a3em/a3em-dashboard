@@ -57,7 +57,7 @@ wait paths, because the interval branch and the scheduled branch arm the timer d
 node tools/make-test-config.mjs wd --tz America/New_York
 ```
 
-**Pass is all three of these, and any one failing means stop:**
+**Pass is all four of these, and any one failing means stop:**
 
 1. **No `Watch Dog Timer Reset`** anywhere in `a3em.log`, and no `ERROR: Previous run was
    terminated by the watchdog`. Under the old firmware W1 would reset roughly every 182 s.
@@ -65,8 +65,59 @@ node tools/make-test-config.mjs wd --tz America/New_York
    directory entry was never updated, which is the second defect the soak exposed.
 3. **A continuous log.** Timestamps should run unbroken from start to finish. Under the old
    firmware the log froze at its last synced size and each boot overwrote the same region.
+4. **Each `.imu` lasts as long as the `.wav` beside it**, and its header timestamp equals the
+   file name. Thirty seconds against thirty, not 27.5 and not 33.5 — this one number catches
+   both directions of the clip-start bug at once, and it is the check that caught the first
+   attempt at fixing it. The comparison is worth scripting rather than eyeballing:
+
+   ```
+   sample rate and timestamp are the first two uint32 of a .imu;
+   duration = (size - 8) / 12 / rate
+   ```
 
 Fifty-five minutes here is worth a week. If all three hold, the fixes are real.
+
+### Iterating on the clip start: `wdfast`, four and a half minutes
+
+The duration check above is the one that keeps catching things, and paying 55 minutes to
+re-check it is not worth it while the sleep paths are untouched. This config checks only
+that, and nothing else.
+
+```bash
+node tools/make-test-config.mjs wdfast --tz America/New_York
+```
+
+**It proves nothing about the watchdog.** Its longest sleep is about 40 s, far inside the
+480 s timeout. Run the full `wd` before committing to a deployment.
+
+It runs at 8 kHz on purpose. The DMA period is `AUDIO_BUFFER_MAX_SAMPLES / sample_rate`, so
+the buffer is **six** seconds here against three at 16 kHz — a mis-set clip start shows up as
+a six-second difference against an 18 s clip, which no one can misread.
+
+| Phase | Length | What it isolates |
+| --- | --- | --- |
+| X1 fresh starts | 175 s | Three clips, each restarting the front end, so each pays the settling delay |
+| X2 back to back | 90 s | One window, two clips: the first settles, the second must not wait again |
+
+Expect five recordings, every one of them:
+
+| | `.wav` | `.imu` |
+| --- | --- | --- |
+| X1, 800 Hz | 288044 B, 18.00 s | 172808 B, **18.0 s** |
+| X2, 400 Hz | 288044 B, 18.00 s | 86408 B, **18.0 s** |
+
+An IMU file may run a fraction of a second long, because it is closed just after the last
+audio buffer is written. Anything more than that is a fault, and the size names which one:
+
+- **~24 s** (230408 B at 800 Hz) — the sensor is starting with the microphone again, before
+  the front end has settled.
+- **~12 s** (115208 B at 800 Hz) — the sensor is starting when the file opens, the original
+  gap.
+- **X2's second clip differing from its first** — the back-to-back path is waiting out a
+  settling delay it never incurred.
+
+Note that the first phase carries about 31 s of boot and self-test before it records, so X1's
+clips land roughly 31 s, 91 s and 151 s into it rather than at 0, 60 and 120.
 
 ## Quick check — 30 minutes, six phases of five
 

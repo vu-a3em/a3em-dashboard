@@ -19,9 +19,10 @@ export {
   ConfigLineTooLongError,
 } from './serialize.js';
 export { parseConfig, KEY_ORDER, type ParseResult } from './parse.js';
-export { validateConfig, isWritable } from './validate.js';
+export { validateConfig, isWritable, deviceLabelProblems, type ValidateOptions } from './validate.js';
 export {
   forecast,
+  forecastIssues,
   dutyCycle,
   recordingCurrentMa,
   audioProcessingIntervalSeconds,
@@ -30,6 +31,8 @@ export {
   type Forecast,
   type ForecastInputs,
   type PhaseForecast,
+  type EarlyStop,
+  type ScheduleContext,
 } from './power/forecast.js';
 export * from './power/measurements.js';
 export * from './integrity.js';
@@ -44,3 +47,5 @@ export * from './silence-band.js';
 export * from './solar.js';
 export * from './allocation-unit.js';
 export * from './card-format.js';
+export * from './schedule.js';
+export * from './card-capacity.js';

@@ -1,7 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  fromZonedInput,
-  toZonedInput,
   applyProtocol,
   defaultConfig,
   AUDIO_MAX_CLIP_LENGTH_SECONDS,
@@ -34,7 +32,13 @@ import {
   wiperToStoredFraction,
   forecast,
   formatAllocationUnit,
-  formatCommandFor,
+  formatStepsFor,
+  formatZonedDate,
+  forecastIssues,
+  formatList,
+  dstChangesAffectingSchedule,
+  summariseSchedule as summariseScheduleLine,
+  BYTES_PER_MARKETED_GB,
   recommendAllocationUnit,
   serializeConfig,
   summariseAudio,
@@ -46,6 +50,7 @@ import {
   type DeploymentConfig,
   type PhaseConfig,
   type ValidationIssue,
+  type OffsetChange,
 } from '@a3em/config-schema';
 import { downloadConfig, writeConfig, CARD_ACCESS_SUPPORTED } from '../lib/card';
 import { RecordingPeriods, SolarRecordingPeriods } from '../components/RecordingPeriods';
@@ -58,6 +63,9 @@ import type { useProtocols } from '../lib/useProtocols';
 import { ProtocolLibrary } from '../components/ProtocolLibrary';
 import { ProtocolSave } from '../components/ProtocolSave';
 import { Pane } from '../components/Pane';
+import { ZonedDateTimeInput } from '../components/ZonedDateTimeInput';
+import { cardChecks as checkCard, type CardCheck } from '../lib/cardChecks';
+import { detectOs } from '../lib/helperInstall';
 
 type Card = ReturnType<typeof useCard>;
 
@@ -92,7 +100,20 @@ export function DeploymentEditor({
 
   const phaseIndex = Math.min(selectedPhase, config.phases.length - 1);
   const phase = config.phases[phaseIndex];
-  const issues = useMemo(() => validateConfig(config, card.targetFirmware), [config, card.targetFirmware]);
+  /*
+    The present, to minute resolution, for the checks that judge a deployment against it —
+    an end date already behind us, a start that will stamp every recording in the past.
+    Refreshed on a timer so a page left open overnight does not go on judging by yesterday.
+  */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  const issues = useMemo(
+    () => validateConfig(config, card.targetFirmware, { now }),
+    [config, card.targetFirmware, now],
+  );
   /*
     The card and battery the forecast is run against.
 
@@ -103,6 +124,26 @@ export function DeploymentEditor({
   const [sdCardCapacityGb, setSdCardCapacityGb] = useState(128);
   const [customCard, setCustomCard] = useState(false);
   const [batteryCapacityMah, setBatteryCapacityMah] = useState(7000);
+  /*
+    A connected card that reports its size selects the nearest standard one, once per card.
+
+    Adjusted during render rather than in an effect, so the forecast never draws a frame
+    for the wrong card. Only when the reported size changes: choosing another size by hand
+    afterwards is respected.
+  */
+  const connectedCapacity = card.deviceInfo?.cardCapacityBytes ?? null;
+  const [seenCapacity, setSeenCapacity] = useState<number | null>(null);
+  if (connectedCapacity !== seenCapacity) {
+    setSeenCapacity(connectedCapacity);
+    if (connectedCapacity) {
+      const gb = connectedCapacity / BYTES_PER_MARKETED_GB;
+      const nearest = SD_CARD_SIZES_GB.reduce((best, size) =>
+        Math.abs(Math.log(size / gb)) < Math.abs(Math.log(best / gb)) ? size : best,
+      );
+      setCustomCard(false);
+      setSdCardCapacityGb(nearest);
+    }
+  }
   const plan = useMemo(
     () => forecast({ config, firmware: card.targetFirmware, sdCardCapacityGb, batteryCapacityMah }),
     [config, card.targetFirmware, sdCardCapacityGb, batteryCapacityMah],
@@ -118,13 +159,24 @@ export function DeploymentEditor({
     () =>
       recommendAllocationUnit({
         config,
-        clipsPerPhase: plan.perPhase.map((phase) => phase.clipsPerDay),
-        cardCapacityBytes: card.deviceInfo?.cardCapacityBytes ?? 128 * 1024 ** 3,
+        clipsPerPhase: plan.clipWeights,
+        cardCapacityBytes: sdCardCapacityGb * BYTES_PER_MARKETED_GB,
         actualUnitBytes: card.deviceInfo?.cardAllocationUnitBytes ?? null,
       }),
-    [config, plan, card.deviceInfo],
+    [config, plan, sdCardCapacityGb, card.deviceInfo],
   );
   const blocking = issues.filter((issue) => issue.severity === 'error');
+  /*
+    Everything Readiness lists: the configuration's own problems, then what the forecast
+    says about the card and battery. Errors lead, because only they stop a write.
+  */
+  const dstChanges = useMemo(() => dstChangesAffectingSchedule(config), [config]);
+  const readiness = useMemo(() => {
+    const all = [...issues, ...forecastIssues(plan, config.timezone)];
+    return [...all.filter((issue) => issue.severity === 'error'), ...all.filter((issue) => issue.severity === 'warning')];
+  }, [issues, plan, config.timezone]);
+  // The label box is not painted red before anyone has had a chance to type in it.
+  const [labelTouched, setLabelTouched] = useState(false);
 
   // Recomputed per render because it depends on the microphone as well as the rate.
   const clock = achievableSampleRate(phase.audioSampleRateHz, config.micType);
@@ -152,15 +204,28 @@ export function DeploymentEditor({
     if (card.existingConfig) setConfig(card.existingConfig);
   };
 
+  /*
+    Which card a write goes to, stated rather than implied.
+
+    Only a card scanned in this session is written to. A handle remembered from an earlier
+    session made the button read "Write to card" with nothing connected, and would have
+    written into whatever that folder is now.
+  */
+  const cardReady = card.status === 'ready' && Boolean(card.handle);
+  const checks = useMemo(() => (cardReady ? checkCard(card.contents) : []), [cardReady, card.contents]);
+  const [writtenSummary, setWrittenSummary] = useState<string | null>(null);
+
   const write = async () => {
     setWriteState('writing');
     setWriteError(null);
     try {
       const text = serializeConfig(config);
-      if (card.handle) {
+      if (cardReady && card.handle) {
         await writeConfig(card.handle, text);
+        setWrittenSummary(`Wrote ${config.deviceLabel} · ${summariseScheduleLine(config)} to ${card.name}.`);
       } else {
         downloadConfig(text);
+        setWrittenSummary(null);
       }
       setWriteState('written');
     } catch (error) {
@@ -222,7 +287,11 @@ export function DeploymentEditor({
               id="label"
               value={config.deviceLabel}
               maxLength={DEVICE_LABEL_MAX_LEN}
-              aria-invalid={issues.some((issue) => issue.path === 'deviceLabel' && issue.severity === 'error')}
+              aria-invalid={
+                (labelTouched || config.deviceLabel !== '') &&
+                issues.some((issue) => issue.path === 'deviceLabel' && issue.severity === 'error')
+              }
+              onBlur={() => setLabelTouched(true)}
               onChange={(event) => update({ deviceLabel: event.target.value })}
             />
             <p className="help">Up to {DEVICE_LABEL_MAX_LEN} characters with no slashes or colons.</p>
@@ -347,26 +416,79 @@ export function DeploymentEditor({
             <TimezoneField value={config.timezone} onChange={(timezone) => update({ timezone })} />
             <div className="field">
               <label htmlFor="start">Start</label>
-              <input
+              <ZonedDateTimeInput
                 id="start"
-                type="datetime-local"
-                value={toZonedInput(config.startTime, config.timezone)}
-                onChange={(event) => update({ startTime: fromZonedInput(event.target.value, config.timezone) })}
+                value={config.startTime}
+                timezone={config.timezone}
+                aria-invalid={issues.some((issue) => issue.path === 'startTime' && issue.severity === 'error')}
+                onChange={(startTime) => update({ startTime })}
               />
-              <p className="help">Deployment local time.</p>
+              <p className="help">
+                {config.setRtcAtMagnetDetect
+                  ? 'Deployment local time. The device sets its clock to this time when it is activated.'
+                  : "Deployment local time. Recording begins at this time by the device's own clock."}
+              </p>
             </div>
             <div className="field">
               <label htmlFor="end">End</label>
-              <input
+              <ZonedDateTimeInput
                 id="end"
-                type="datetime-local"
-                value={toZonedInput(config.endTime, config.timezone)}
+                value={config.endTime}
+                timezone={config.timezone}
                 aria-invalid={issues.some((issue) => issue.path === 'endTime' && issue.severity === 'error')}
-                onChange={(event) => update({ endTime: fromZonedInput(event.target.value, config.timezone) })}
+                onChange={(endTime) => update({ endTime })}
               />
               <p className="help">Deployment local time.</p>
             </div>
           </div>
+
+          {/*
+            SET_RTC_AT_MAGNET_DETECT, surfaced because it decides what the start time MEANS.
+
+            FIRMWARE: main.c seeds the RTC from DEPLOYMENT_START_TIME the moment the magnet
+            activates the device, so with this on the start is not when recording begins — it
+            is what the clock is set to, and recording begins at activation. With it off the
+            device keeps whatever clock it has and waits for the start by that clock.
+          */}
+          <div className="field inline">
+            <input
+              id="rtc-at-activation"
+              type="checkbox"
+              checked={config.setRtcAtMagnetDetect}
+              style={{ width: 'auto' }}
+              onChange={(event) => update({ setRtcAtMagnetDetect: event.target.checked })}
+            />
+            <label htmlFor="rtc-at-activation">Set the device clock to the start time at activation</label>
+            <p className="help">
+              {config.setRtcAtMagnetDetect
+                ? 'When the magnet activates the device, its clock is set to the start time above. Every recorded ' +
+                  'time is off by however early or late it was activated. Note the exact time each device is ' +
+                  'activated, and you can correct the times in the "Review Card" tab afterwards.'
+                : 'The device keeps the clock it already has. After activation, it records one minute for voice ' +
+                  'notes, then waits for the start time before recording. Use this only when the clock is already ' +
+                  'set, such as on a unit with GPS.'}
+            </p>
+          </div>
+
+          {/*
+            Offered only when it would change something: a clock-time recording period in a
+            phase that runs across (or after) a change of UTC offset. Everything else — solar
+            periods, intervals, continuous recording — is unaffected, so the question would
+            only be noise.
+          */}
+          {dstChanges.length ? (
+            <div className="field inline">
+              <input
+                id="adjust-dst"
+                type="checkbox"
+                checked={config.adjustForDst !== false}
+                style={{ width: 'auto' }}
+                onChange={(event) => update({ adjustForDst: event.target.checked })}
+              />
+              <label htmlFor="adjust-dst">Adjust the schedule for Daylight Saving Time</label>
+              <p className="help">{describeDst(dstChanges, config)}</p>
+            </div>
+          ) : null}
 
           <div className="field">
             <label htmlFor="vhf">VHF beacon</label>
@@ -388,13 +510,11 @@ export function DeploymentEditor({
           {config.vhfMode === 'SCHEDULED' ? (
             <div className="field">
               <label htmlFor="vhf-start">Beacon starts at</label>
-              <input
+              <ZonedDateTimeInput
                 id="vhf-start"
-                type="datetime-local"
-                value={toZonedInput(config.vhfStartTime, config.timezone)}
-                onChange={(event) =>
-                  update({ vhfStartTime: fromZonedInput(event.target.value, config.timezone) })
-                }
+                value={config.vhfStartTime}
+                timezone={config.timezone}
+                onChange={(vhfStartTime) => update({ vhfStartTime })}
               />
               <p className="help">Deployment local time.</p>
             </div>
@@ -542,12 +662,12 @@ export function DeploymentEditor({
                 <input
                   id="cap"
                   type="number"
-                  min={0}
+                  min={1}
                   value={phase.maxAudioClips}
                   aria-invalid={issueFor('maxAudioClips')}
                   onChange={(event) => updatePhase({ maxAudioClips: Number(event.target.value) })}
                 />
-                <p className="help">Per hour. Zero means no limit.</p>
+                <p className="help">Per hour, at least 1. The device treats zero as one.</p>
               </div>
             </div>
           ) : null}
@@ -617,7 +737,7 @@ export function DeploymentEditor({
                 </select>
                 <p className="help">
                   {phase.audioScheduleType === 'SOLAR'
-                    ? 'The device recomputes sunrise and sunset every day from its position, so the windows follow the season.'
+                    ? 'The device recomputes sunrise and sunset every day from its position, so the recording periods follow the season.'
                     : 'Records at fixed times of day every day.'}
                 </p>
               </div>
@@ -632,8 +752,14 @@ export function DeploymentEditor({
                   timezone={config.timezone}
                   startTime={config.startTime}
                   endTime={config.endTime}
-                  invalidLatitude={issues.some((issue) => issue.path === 'latitude')}
-                  invalidLongitude={issues.some((issue) => issue.path === 'longitude')}
+                  // Errors only, as everywhere else: a warning is advice about a value that may
+                  // well be right, and painting the box red made the example coordinates look
+                  // malformed when the actual problem was the timezone beside them.
+                  invalidLatitude={issues.some((issue) => issue.path === 'latitude' && issue.severity === 'error')}
+                  invalidLongitude={issues.some((issue) => issue.path === 'longitude' && issue.severity === 'error')}
+                  positionWarning={
+                    issues.find((issue) => issue.path === 'longitude' && issue.severity === 'warning')?.message ?? null
+                  }
                 />
               ) : null}
 
@@ -644,12 +770,12 @@ export function DeploymentEditor({
                 label={phase.audioScheduleType === 'SOLAR' ? 'Fallback recording periods' : 'Recording periods'}
                 help={
                   phase.audioScheduleType === 'SOLAR'
-                    ? `Used only on days the sun gives no usable window, such as an Arctic summer. At most ${MAX_AUDIO_TRIGGER_TIMES}.`
+                    ? `Used only on days the sun gives no usable period, such as an Arctic summer. At most ${MAX_AUDIO_TRIGGER_TIMES}.`
                     : undefined
                 }
                 emptyMessage={
                   phase.audioScheduleType === 'SOLAR'
-                    ? 'No fallback recording periods scheduled.'
+                    ? 'No fallback recording periods. On a day the sun gives no usable period, the device would record continuously.'
                     : undefined
                 }
                 onChange={(audioTriggerTimes) => updatePhase({ audioTriggerTimes })}
@@ -773,12 +899,17 @@ export function DeploymentEditor({
         onCustomCardChange={setCustomCard}
         batteryCapacityMah={batteryCapacityMah}
         onBatteryCapacityChange={setBatteryCapacityMah}
-        issues={issues}
+        issues={readiness}
         blocking={blocking.length}
         onWrite={write}
         writeState={writeState}
         writeError={writeError}
-        hasCard={Boolean(card.handle)}
+        cardTarget={cardReady ? 'ready' : card.status === 'reconnectable' ? 'reconnectable' : 'none'}
+        cardName={card.name}
+        onReconnect={() => void card.reconnect()}
+        cardChecks={checks}
+        writtenSummary={writtenSummary}
+        timezone={config.timezone}
         protocolPanel={
           <ProtocolSave
             config={config}
@@ -788,6 +919,12 @@ export function DeploymentEditor({
             onSaveOver={(protocol) => draft.noteBasis(library.update(protocol, config))}
           />
         }
+      />
+      <ForecastDock
+        plan={plan}
+        sdCardCapacityGb={sdCardCapacityGb}
+        errors={readiness.filter((issue) => issue.severity === 'error').length}
+        warnings={readiness.filter((issue) => issue.severity === 'warning').length}
       />
     </div>
   );
@@ -803,21 +940,22 @@ const IMU_MODE_HELP: Record<string, string> = {
  * Both halves of "used / total" in the same unit.
  *
  * The numerator was always rendered in GB, so a 1 TB card read "337 / 1 TB" — two numbers
- * that cannot be compared by eye, which is the entire job of that line.
+ * that cannot be compared by eye, which is the entire job of that line. Decimal, like the
+ * sizes printed on cards: a 1 TB card is a thousand gigabytes, not 1024.
  */
 function formatCapacity(gb: number): string {
-  return gb >= 1024 ? `${(gb / 1024).toFixed(gb % 1024 === 0 ? 0 : 1)} TB` : `${gb} GB`;
+  return gb >= 1000 ? `${(gb / 1000).toFixed(gb % 1000 === 0 ? 0 : 1)} TB` : `${gb} GB`;
 }
 
 function formatCapacityValue(usedGb: number, totalGb: number): string {
-  if (totalGb < 1024) return usedGb.toFixed(0);
-  const tb = usedGb / 1024;
+  if (totalGb < 1000) return usedGb.toFixed(0);
+  const tb = usedGb / 1000;
   // Below a tenth of a terabyte a single decimal reads as zero, so give it two.
   return tb.toFixed(tb < 0.1 ? 2 : 1);
 }
 
 /** Card sizes people actually deploy; anything else goes in the custom box. */
-const SD_CARD_SIZES_GB = [32, 64, 128, 256, 512, 1024];
+const SD_CARD_SIZES_GB = [32, 64, 128, 256, 512, 1000];
 
 /**
  * Says, in the user's own numbers, how long an extended recording can actually run.
@@ -881,7 +1019,12 @@ function Forecast({
   allocation,
   writeState,
   writeError,
-  hasCard,
+  cardTarget,
+  cardName,
+  onReconnect,
+  cardChecks,
+  writtenSummary,
+  timezone,
   protocolPanel,
 }: Readonly<{
   plan: ReturnType<typeof forecast>;
@@ -897,15 +1040,37 @@ function Forecast({
   onWrite: () => void;
   writeState: string;
   writeError: string | null;
-  hasCard: boolean;
+  /** A card scanned this session, one remembered from before, or nothing. */
+  cardTarget: 'ready' | 'reconnectable' | 'none';
+  cardName: string | null;
+  onReconnect: () => void;
+  cardChecks: CardCheck[];
+  writtenSummary: string | null;
+  /** The deployment's zone, so every date here is the one the device will experience. */
+  timezone: string;
   /** Saving lives here so it stays on screen beside the action that ends the task. */
   protocolPanel: React.ReactNode;
 }>) {
   const usedPercent = Math.min(100, plan.cardUsedFraction * 100);
   const fillsEarly = plan.cardFullAt !== null;
+  const diesEarly = plan.batteryDeadAt !== null;
+  // How much of the battery the deployment would draw, on the same scale as the card meter.
+  const batteryPercent = Number.isFinite(plan.batteryDays) && plan.batteryDays > 0
+    ? Math.min(100, (plan.deploymentDays / plan.batteryDays) * 100)
+    : 0;
+  const usedGb = plan.totalBytes / BYTES_PER_MARKETED_GB;
+  const formatSteps = formatStepsFor(allocation.recommendedBytes, detectOs());
+
+  let clipsNote = '';
+  if (plan.stopsEarlyBecause === 'card') clipsNote = ' · counted only up to the day the card fills';
+  if (plan.stopsEarlyBecause === 'battery') clipsNote = ' · counted only up to the day the battery runs out';
 
   return (
-    <div className="stack" style={{ position: 'sticky', top: 'calc(var(--topbar-h, 57px) + var(--content-top, 26px))' }}>
+    <div
+      id="forecast-column"
+      className="stack"
+      style={{ position: 'sticky', top: 'calc(var(--topbar-h, 57px) + var(--content-top, 26px))' }}
+    >
       <Pane
         id="forecast"
         title="Deployment forecast"
@@ -914,10 +1079,10 @@ function Forecast({
         note={
           <>
             <span className={fillsEarly ? 'warn' : undefined}>
-              {(plan.totalBytes / 1024 ** 3).toFixed(0)}/{sdCardCapacityGb} GB
+              {formatCapacityValue(usedGb, sdCardCapacityGb)}/{formatCapacity(sdCardCapacityGb)}
             </span>
             {' · '}
-            <span className={plan.batteryDays < plan.deploymentDays ? 'warn' : undefined}>
+            <span className={diesEarly ? 'warn' : undefined}>
               {Number.isFinite(plan.batteryDays) ? `${plan.batteryDays.toFixed(0)} d battery` : 'no drain'}
             </span>
           </>
@@ -938,7 +1103,7 @@ function Forecast({
             >
               {SD_CARD_SIZES_GB.map((size) => (
                 <option key={size} value={size}>
-                  {size >= 1024 ? `${size / 1024} TB` : `${size} GB`}
+                  {formatCapacity(size)}
                 </option>
               ))}
               <option value="custom">Custom…</option>
@@ -976,8 +1141,7 @@ function Forecast({
             With phases there is no such thing as a typical day, so the sentence says
             plainly that it is an average. Every figure here is weighted by how much of
             the deployment each phase covers, which is why a short heavy phase moves the
-            average only a little. The per-phase figures behind it are on `plan.perPhase`
-            if this ever wants to break them out. */}
+            average only a little. */}
         <p className="daily-summary">
           {plan.perPhase.length > 1 ? 'Averaged across all phases, each day produces ' : 'Each day produces '}
           <strong>{Math.round(plan.clipsPerDay).toLocaleString()}</strong> audio clips, totalling{' '}
@@ -987,7 +1151,7 @@ function Forecast({
 
         <div className="stat-label">Card usage</div>
         <div className="stat-value">
-          {formatCapacityValue(plan.totalBytes / 1024 ** 3, sdCardCapacityGb)}
+          {formatCapacityValue(usedGb, sdCardCapacityGb)}
           <span className="muted" style={{ fontSize: '0.6em' }}>
             {' '}
             / {formatCapacity(sdCardCapacityGb)}
@@ -996,10 +1160,19 @@ function Forecast({
         <div className="meter">
           <i style={{ width: `${usedPercent}%`, background: fillsEarly ? 'var(--warn)' : 'var(--ok)' }} />
         </div>
-        <div className="stat-note">
+        <div className={`stat-note${fillsEarly ? ' warn-text' : ''}`}>
           {fillsEarly
-            ? `Will fill on ${plan.cardFullAt!.slice(0, 10)}, before the end date`
-            : `Lasts the full ${plan.deploymentDays.toFixed(0)} days`}
+            ? `Fills on ${formatZonedDate(plan.cardFullAt!, timezone)}, before the end date`
+            : plan.stopsEarlyBecause === 'battery'
+              ? 'Holds everything recorded before the battery runs out'
+              : `Lasts the full ${plan.deploymentDays.toFixed(0)} days`}
+        </div>
+        <div className="stat-note">
+          {formatBytes(plan.cardUsableBytes)} usable once formatted
+          {plan.allocationUnitBytes ? ` with ${formatAllocationUnit(plan.allocationUnitBytes)} clusters` : ''}
+          {plan.bytesPerDay > 0
+            ? ` · each day uses ${formatBytes(plan.cardBytesPerDay)}`
+            : ''}
         </div>
 
         <div className="stat-label" style={{ marginTop: 16 }}>Battery</div>
@@ -1007,18 +1180,26 @@ function Forecast({
           {Number.isFinite(plan.batteryDays) ? plan.batteryDays.toFixed(0) : '—'}
           <span className="muted" style={{ fontSize: '0.6em' }}> days</span>
         </div>
-        <div className="stat-note">
-          Deployment is {plan.deploymentDays.toFixed(0)} days · {plan.averageCurrentMa.toFixed(2)} mA average
+        <div className="meter">
+          <i style={{ width: `${batteryPercent}%`, background: diesEarly ? 'var(--warn)' : 'var(--ok)' }} />
         </div>
+        <div className={`stat-note${diesEarly ? ' warn-text' : ''}`}>
+          {diesEarly
+            ? plan.stopsEarlyBecause === 'battery'
+              ? `Runs out on ${formatZonedDate(plan.batteryDeadAt!, timezone)}, before the end date`
+              : `Would run out on ${formatZonedDate(plan.batteryDeadAt!, timezone)} if recording continued`
+            : `Lasts the full ${plan.deploymentDays.toFixed(0)} days`}
+        </div>
+        <div className="stat-note">{plan.averageCurrentMa.toFixed(2)} mA average</div>
 
         <div className="stat-label" style={{ marginTop: 16 }}>Expected clips</div>
         <div className="stat-value">{plan.totalClips.toLocaleString()}</div>
         <div className="stat-note">
           ≈ {plan.totalAudioHours.toFixed(0)} hours of audio
           {plan.totalAudioHours >= 24 ? ` · about ${(plan.totalAudioHours / 24).toFixed(1)} days` : ''}
-          {/* Counted phase by phase, and stopped where the card does — otherwise this
-              total would describe more recording than the meter above says fits. */}
-          {fillsEarly ? ' · counted only up to the day the card fills' : ''}
+          {/* Counted phase by phase, and stopped where recording does — otherwise this
+              total would describe more recording than the meters above say will happen. */}
+          {clipsNote}
         </div>
 
         <div className="stat-label" style={{ marginTop: 16 }}>Recommended card format</div>
@@ -1026,10 +1207,15 @@ function Forecast({
         <div className="stat-note">
           {allocation.summary}
           {allocation.verdict === 'wasteful' || allocation.actualBytes === null ? (
-            // Its own line: a shell command run out of a sentence is easy to mis-copy.
-            <code style={{ display: 'block', marginTop: 6 }}>
-              {formatCommandFor(allocation.recommendedBytes)}
-            </code>
+            <ol className="format-steps">
+              {formatSteps.map((step) => (
+                <li key={step.detail}>
+                  {step.detail}
+                  {/* Its own line: a shell command run out of a sentence is easy to mis-copy. */}
+                  {step.command ? <code>{step.command}</code> : null}
+                </li>
+              ))}
+            </ol>
           ) : null}
         </div>
         <div className="stat-note" style={{ marginTop: 6 }}>
@@ -1039,11 +1225,22 @@ function Forecast({
             : null}
         </div>
 
-        {plan.confidence !== 'measured' ? (
-          <p className="stat-note" style={{ marginTop: 14, color: 'var(--warn)' }}>
-            These figures rest on values that have not been measured on hardware. Treat them as a guide, not
-            a guarantee.
-          </p>
+        {plan.confidence !== 'measured' || plan.caveats.length ? (
+          <div className="forecast-caveats">
+            {plan.confidence !== 'measured' ? (
+              <p className="stat-note warn-text">
+                These figures rest on values that have not been measured on hardware. Treat them as a guide,
+                not a guarantee.
+              </p>
+            ) : null}
+            {plan.caveats.length ? (
+              <ul className="stat-note">
+                {plan.caveats.map((caveat) => (
+                  <li key={caveat}>{caveat}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         ) : null}
       </Pane>
 
@@ -1085,8 +1282,36 @@ function Forecast({
       )}
 
       <div className="card">
-        <button className="btn primary" style={{ width: '100%', justifyContent: 'center' }} disabled={blocking > 0 || writeState === 'writing'} onClick={onWrite}>
-          {writeState === 'writing' ? 'Writing…' : hasCard ? 'Write to card' : 'Download configuration'}
+        {cardChecks.map((check) => (
+          <p
+            key={check.message}
+            className="stat-note"
+            style={{ marginBottom: 8, color: check.severity === 'error' ? 'var(--crit)' : 'var(--warn)' }}
+          >
+            {check.message}
+          </p>
+        ))}
+        {cardTarget === 'reconnectable' ? (
+          // The card is only known from an earlier session: reading it again comes first.
+          <button className="btn primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={onReconnect}>
+            Reconnect {cardName ?? 'the card'} to write to it
+          </button>
+        ) : null}
+        <button
+          className={`btn ${cardTarget === 'reconnectable' ? '' : 'primary'}`}
+          style={{ width: '100%', justifyContent: 'center' }}
+          disabled={
+            blocking > 0 ||
+            writeState === 'writing' ||
+            cardChecks.some((check) => check.severity === 'error')
+          }
+          onClick={onWrite}
+        >
+          {writeState === 'writing'
+            ? 'Writing…'
+            : cardTarget === 'ready'
+              ? `Write to ${cardName ?? 'the card'}`
+              : 'Download configuration'}
         </button>
         {blocking > 0 ? (
           <p className="stat-note" style={{ textAlign: 'center', marginTop: 7 }}>
@@ -1095,19 +1320,57 @@ function Forecast({
         ) : null}
         {writeState === 'written' ? (
           <p className="stat-note" style={{ textAlign: 'center', marginTop: 7, color: 'var(--ok)' }}>
-            {hasCard ? 'Written to the card.' : 'Downloaded — copy it to the card root.'}
+            {writtenSummary ?? 'Downloaded — copy _a3em.cfg to the top level of the card.'}
           </p>
         ) : null}
         {writeError ? (
           <p className="stat-note" style={{ textAlign: 'center', marginTop: 7, color: 'var(--crit)' }}>{writeError}</p>
         ) : null}
-        {!hasCard && CARD_ACCESS_SUPPORTED ? (
+        {cardTarget === 'none' && CARD_ACCESS_SUPPORTED ? (
           <p className="stat-note" style={{ textAlign: 'center', marginTop: 7 }}>
             Connect a card to write directly.
           </p>
         ) : null}
       </div>
 
+    </div>
+  );
+}
+
+/**
+ * The forecast's two headline figures and the readiness count, pinned to the bottom of a
+ * narrow window.
+ *
+ * Below the width where the forecast holds its own column it drops under the whole form —
+ * several screens away from the fields that change it. This keeps the answer in view while
+ * editing, and one tap takes you to the full panel and the write button.
+ */
+function ForecastDock({
+  plan,
+  sdCardCapacityGb,
+  errors,
+  warnings,
+}: Readonly<{ plan: ReturnType<typeof forecast>; sdCardCapacityGb: number; errors: number; warnings: number }>) {
+  const usedGb = plan.totalBytes / BYTES_PER_MARKETED_GB;
+  const readinessClass = errors ? 'crit' : warnings ? 'warn' : 'ok';
+  let readinessText = 'Ready to write';
+  if (errors) readinessText = `${errors} ${errors === 1 ? 'error' : 'errors'}`;
+  else if (warnings) readinessText = `${warnings} ${warnings === 1 ? 'warning' : 'warnings'}`;
+  return (
+    <div className="forecast-dock" role="region" aria-label="Forecast summary">
+      <span className={plan.cardFullAt ? 'warn' : undefined}>
+        Card {formatCapacityValue(usedGb, sdCardCapacityGb)}/{formatCapacity(sdCardCapacityGb)}
+      </span>
+      <span className={plan.batteryDeadAt ? 'warn' : undefined}>
+        Battery {Number.isFinite(plan.batteryDays) ? `${plan.batteryDays.toFixed(0)} d` : '—'}
+      </span>
+      <span className={readinessClass}>{readinessText}</span>
+      <button
+        className="btn small"
+        onClick={() => document.getElementById('forecast-column')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+      >
+        Review and write
+      </button>
     </div>
   );
 }
@@ -1128,10 +1391,32 @@ function blankConfig(config: DeploymentConfig): DeploymentConfig {
   };
 }
 
+/** Decimal units, the ones printed on the card, so the figures here can be compared with it. */
 function formatBytes(bytes: number): string {
-  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
-  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(0)} MB`;
-  return `${(bytes / 1024).toFixed(0)} kB`;
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(2)} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
+  return `${(bytes / 1e3).toFixed(0)} kB`;
 }
 
 /** ISO instant to the local wall-clock string a datetime-local input expects. */
+
+/**
+ * What daylight saving does to this schedule, either way the checkbox is set.
+ *
+ * Named by date, and by direction: after an autumn change the device's unadjusted clock runs
+ * an hour ahead of the local one, so its periods come an hour early; after a spring change,
+ * an hour late.
+ */
+function describeDst(changes: OffsetChange[], config: DeploymentConfig): string {
+  const dates = changes.map((change) => formatZonedDate(new Date(change.at).toISOString(), config.timezone));
+  const list = formatList(dates);
+  if (config.adjustForDst !== false) {
+    return (
+      `Recording periods keep their local times after the clock change on ${list}. The card carries a ` +
+      'separate phase for each side of a change.'
+    );
+  }
+  const first = changes[0];
+  const direction = first.offsetAfterSeconds < first.offsetBeforeSeconds ? 'early' : 'late';
+  return `The device stays on the clock in force at the start, so after ${list} its recording periods run an hour ${direction} by the local clock.`;
+}

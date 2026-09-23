@@ -1,12 +1,13 @@
 import {
   MAX_DEPLOYMENT_PHASES,
-  fromZonedInput,
+  formatZonedDisplay,
+  localMidnight,
   summarisePhases,
-  toZonedInput,
   type DeploymentConfig,
   type PhaseConfig,
 } from '@a3em/config-schema';
 import { Pane } from './Pane';
+import { ZonedDateTimeInput } from './ZonedDateTimeInput';
 
 /**
  * Deployment phases, drawn against the deployment span.
@@ -60,7 +61,7 @@ export function PhaseTimeline({
     const last = phases[phases.length - 1];
     const lastStart = Date.parse(last.startTime ?? config.startTime);
     const lastEnd = Date.parse(last.endTime ?? config.endTime);
-    const midpoint = new Date(lastStart + (lastEnd - lastStart) / 2).toISOString();
+    const midpoint = splitPoint(lastStart, lastEnd, config.timezone);
 
     phases[phases.length - 1] = { ...last, endTime: midpoint };
     phases.push({
@@ -71,6 +72,27 @@ export function PhaseTimeline({
     });
     onChange({ ...config, phases });
     onSelect(phases.length - 1);
+  };
+
+  /*
+    Whether the phases still cover the deployment, end to end.
+
+    They are absolute instants, so moving the deployment dates leaves them where they were —
+    outside the new window, or short of it. Rather than leave the user to retype every
+    boundary, the pane offers to stretch them onto the new dates in proportion.
+  */
+  const phaseStarts = config.phases.map((phase) => Date.parse(phase.startTime ?? config.startTime));
+  const phaseEnds = config.phases.map((phase) => Date.parse(phase.endTime ?? config.endTime));
+  const firstStart = Math.min(...phaseStarts);
+  const lastEnd = Math.max(...phaseEnds);
+  const offDates = config.isPhased && (firstStart !== start || lastEnd !== end) && lastEnd > firstStart;
+  const fitToDates = () => {
+    const scale = (end - start) / (lastEnd - firstStart);
+    const place = (ms: number) => new Date(start + (ms - firstStart) * scale).toISOString();
+    onChange({
+      ...config,
+      phases: config.phases.map((phase, i) => ({ ...phase, startTime: place(phaseStarts[i]), endTime: place(phaseEnds[i]) })),
+    });
   };
 
   const removePhase = (index: number) => {
@@ -84,6 +106,10 @@ export function PhaseTimeline({
       ...config,
       phases: config.phases.map((phase, i) => (i === index ? { ...phase, ...patch } : phase)),
     });
+
+  // Deployment local time, like the inputs below it. These were raw UTC, so the bar said
+  // 11:00 over a field reading 06:00.
+  const stamp = (iso: string) => formatZonedDisplay(iso, config.timezone);
 
   const position = (phase: PhaseConfig) => {
     const phaseStart = Date.parse(phase.startTime ?? config.startTime);
@@ -126,7 +152,7 @@ export function PhaseTimeline({
               <button
                 key={index}
                 onClick={() => onSelect(index)}
-                title={`${phase.name}: ${shortStamp(phase.startTime)} to ${shortStamp(phase.endTime)}`}
+                title={`${phase.name}: ${stamp(phase.startTime ?? config.startTime)} to ${stamp(phase.endTime ?? config.endTime)}`}
                 style={{
                   position: 'absolute',
                   top: 3,
@@ -148,12 +174,20 @@ export function PhaseTimeline({
               </button>
             ))}
           </div>
+          {offDates ? (
+            <div className="banner warn" style={{ marginBottom: 12 }}>
+              <strong>The phases no longer match the deployment dates</strong>
+              <button className="btn small" style={{ marginTop: 8 }} onClick={fitToDates}>
+                Fit the phases to the new dates
+              </button>
+            </div>
+          ) : null}
           <div
             style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}
             className="mono muted"
           >
-            <span>{shortStamp(config.startTime)}</span>
-            <span>{shortStamp(config.endTime)}</span>
+            <span>{stamp(config.startTime)}</span>
+            <span>{stamp(config.endTime)}</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -176,24 +210,25 @@ export function PhaseTimeline({
                       value={phase.name}
                       onChange={(event) => updatePhase(index, { name: event.target.value })}
                     />
+                    <p className="help">{phaseLength(phaseStarts[index], phaseEnds[index])}</p>
                   </div>
                   <div className="field" style={{ marginBottom: 0 }}>
                     <label htmlFor={`phase-start-${index}`}>Starts</label>
-                    <input
+                    <ZonedDateTimeInput
                       id={`phase-start-${index}`}
-                      type="datetime-local"
-                      value={toZonedInput(phase.startTime ?? config.startTime, config.timezone)}
-                      onChange={(event) => updatePhase(index, { startTime: fromZonedInput(event.target.value, config.timezone) })}
+                      value={phase.startTime ?? config.startTime}
+                      timezone={config.timezone}
+                      onChange={(startTime) => updatePhase(index, { startTime })}
                     />
                     <p className="help">Deployment local time.</p>
                   </div>
                   <div className="field" style={{ marginBottom: 0 }}>
                     <label htmlFor={`phase-end-${index}`}>Ends</label>
-                    <input
+                    <ZonedDateTimeInput
                       id={`phase-end-${index}`}
-                      type="datetime-local"
-                      value={toZonedInput(phase.endTime ?? config.endTime, config.timezone)}
-                      onChange={(event) => updatePhase(index, { endTime: fromZonedInput(event.target.value, config.timezone) })}
+                      value={phase.endTime ?? config.endTime}
+                      timezone={config.timezone}
+                      onChange={(endTime) => updatePhase(index, { endTime })}
                     />
                     <p className="help">Deployment local time.</p>
                   </div>
@@ -246,10 +281,40 @@ export function PhaseTimeline({
   );
 }
 
-const PHASE_COLORS = ['#2f6f5e', '#b4622f', '#4b5854', '#33765a', '#9c7220', '#1e4b3f'];
+/**
+ * Six hues that stay apart from one another, each dark enough for the white name on it.
+ *
+ * The previous set carried two near-identical greens, so phases one and four could not be
+ * told apart on the bar.
+ */
+const PHASE_COLORS = ['#2f6f5e', '#a4562a', '#4f5d9c', '#8a6a12', '#7a3f78', '#1f5f7a'];
 
-function shortStamp(iso: string | undefined): string {
-  if (!iso) return '—';
-  return iso.replace('T', ' ').slice(0, 16);
+/**
+ * Where a new phase divides the one it is split from: the local midnight nearest the middle.
+ *
+ * The exact midpoint produced boundaries like 09:52 that nobody would choose. A midnight is
+ * what someone would type, and the split falls back to the midpoint only when the phase is
+ * too short to hold one.
+ */
+function splitPoint(from: number, to: number, timezone: string): string {
+  const middle = from + (to - from) / 2;
+  const candidates: number[] = [];
+  for (const days of [0, 1]) {
+    try {
+      candidates.push(Date.parse(localMidnight(timezone, new Date(middle), days)));
+    } catch {
+      /* A zone that cannot be read leaves the midpoint. */
+    }
+  }
+  const inside = candidates.filter((ms) => ms > from && ms < to);
+  const best = inside.sort((a, b) => Math.abs(a - middle) - Math.abs(b - middle))[0];
+  return new Date(best ?? middle).toISOString();
 }
 
+function phaseLength(from: number, to: number): string {
+  const days = (to - from) / 86_400_000;
+  if (!Number.isFinite(days) || days <= 0) return 'No length';
+  if (days < 1) return `${Math.round(days * 24)} hours`;
+  const rounded = Math.round(days * 10) / 10;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)} ${rounded === 1 ? 'day' : 'days'}`;
+}

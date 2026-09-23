@@ -103,3 +103,13 @@ export function summariseReadiness(counts: { errors: number; warnings: number })
   if (counts.warnings) return plural(counts.warnings, 'warning');
   return 'Ready to write';
 }
+
+/**
+ * A list of items as prose, with the serial (Oxford) comma: "A, B, and C".
+ *
+ * English rules regardless of the browser's locale, since every other word on the page is
+ * English. `or` for alternatives, `and` for everything else.
+ */
+export function formatList(items: readonly string[], joiner: 'and' | 'or' = 'and'): string {
+  return new Intl.ListFormat('en', { style: 'long', type: joiner === 'or' ? 'disjunction' : 'conjunction' }).format(items);
+}

@@ -204,7 +204,7 @@ test('summaries say what to do and never promise capacity back for a fragmented 
   const forCard = (actualUnitBytes: number | null) =>
     recommendAllocationUnit({ config: configWith(REFERENCE), cardCapacityBytes: CARD_128GB, actualUnitBytes }).summary;
 
-  assert.match(forCard(null), /Format as exFAT with a 32 kB block size/);
+  assert.match(forCard(null), /Format the card as exFAT with 32 kB clusters/);
   assert.match(forCard(32_768), /suits this deployment/);
   assert.match(forCard(4096), /more card writes/);
   assert.doesNotMatch(forCard(4096), /wastes/);

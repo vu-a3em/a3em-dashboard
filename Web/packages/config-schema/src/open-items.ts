@@ -74,14 +74,13 @@ export const OPEN_ITEMS: OpenItem[] = [
     id: 'power.led-vhf',
     area: 'power',
     status: 'placeholder',
-    title: 'LED and VHF beacon current',
-    currentBehavior: 'LED 1.5 mA average during its active window; VHF 8.0 mA continuous once triggered.',
-    blocks:
-      'Battery estimates for deployments with LEDs left on, and any deployment where ' +
-      'the VHF beacon fires well before retrieval. The VHF figure especially — it runs ' +
-      'continuously from activation until the battery dies.',
-    needed: 'Bench measurement of both. From the firmware team.',
-    measurementKeys: ['LED.averageCurrentMa', 'VHF.activeCurrentMa'],
+    title: 'LED current',
+    currentBehavior:
+      'LED 1.5 mA average during its active window. The VHF beacon has its own battery, so it is ' +
+      'charged nothing against the A3EM pack.',
+    blocks: 'Battery estimates for deployments with LEDs left on for long.',
+    needed: 'Bench measurement. From the firmware team.',
+    measurementKeys: ['LED.averageCurrentMa'],
   },
   {
     id: 'power.microphone-currents',

@@ -2,7 +2,14 @@ import { useState } from 'react';
 import {
   MAX_AUDIO_TRIGGER_TIMES,
   SOLAR_ANCHORS,
+  firmwareEntryCount,
+  isOvernight,
+  formatList,
+  formatZonedDate,
   isValidPosition,
+  periodDuration,
+  periodEndFromClock,
+  periodSegments,
   solarDayAt,
   type SolarAnchor,
   type SolarWindow,
@@ -28,7 +35,8 @@ import {
  * on the schedule. Adding first and editing in place leaves one.
  *
  * Periods repeat every day and are stored as seconds past local midnight, which is what
- * the firmware reads.
+ * the firmware reads. A period may run past midnight — an end at or before its start is the
+ * next day — and is written to the card as the two entries either side of it.
  */
 export function RecordingPeriods({
   windows,
@@ -37,7 +45,7 @@ export function RecordingPeriods({
   timezone,
   label = 'Recording periods',
   help,
-  emptyMessage = 'No recording periods yet — the device would record nothing.',
+  emptyMessage = 'No recording periods yet. With none, the device ignores the schedule and records continuously.',
 }: Readonly<{
   windows: TriggerWindow[];
   onChange: (windows: TriggerWindow[]) => void;
@@ -56,31 +64,32 @@ export function RecordingPeriods({
    */
   emptyMessage?: string;
 }>) {
-  const atCapacity = windows.length >= MAX_AUDIO_TRIGGER_TIMES;
+  // Against the device's limit on ENTRIES: a period across midnight is written as two.
+  const atCapacity = firmwareEntryCount(windows) >= MAX_AUDIO_TRIGGER_TIMES;
   const ordered = [...windows].sort((a, b) => a.startSecond - b.startSecond);
-  const totalActive = windows.reduce((sum, w) => sum + Math.max(0, w.endSecond - w.startSecond), 0);
+  const totalActive = windows.reduce((sum, w) => sum + periodDuration(w), 0);
 
   const setWindow = (index: number, patch: Partial<TriggerWindow>) =>
     onChange(windows.map((window, i) => (i === index ? { ...window, ...patch } : window)));
 
   /*
-    A new period starts after the last one ends, not at a fixed time.
+    A new period goes in the first free stretch after an existing one ends, not at a fixed time.
 
     Appending a second 07:00-12:00 would land on top of the first and show an overlap error
     for a row the user had not typed anything into yet, which reads as the tool being broken
-    rather than as a period needing adjustment.
+    rather than as a period needing adjustment. Starting at "the latest end, but no later than
+    22:00" did exactly that whenever the last period ran past 22:00, so the search now walks
+    round the day, and a new period may itself run past midnight.
   */
-  const add = () => {
-    const latestEnd = windows.reduce((latest, window) => Math.max(latest, window.endSecond), 0);
-    const startSecond = Math.min(latestEnd || 7 * 3600, 22 * 3600);
-    onChange([...windows, { startSecond, endSecond: Math.min(startSecond + 2 * 3600, 86400) }]);
-  };
+  const add = () => onChange([...windows, freeSlot(windows)]);
 
   return (
     <div className="field">
       <label>{label}</label>
       <p className="help" style={{ marginTop: 0, marginBottom: 10 }}>
-        {help ?? `Repeats daily in ${timezone.replace(/_/g, ' ')} local time. At most ${MAX_AUDIO_TRIGGER_TIMES}.`}
+        {help ??
+          `Repeats daily in ${timezone.replace(/_/g, ' ')} local time. A period may run past midnight — ` +
+            `give it an end earlier than its start. At most ${MAX_AUDIO_TRIGGER_TIMES}, counting one that runs past midnight as two.`}
       </p>
 
       {/* The day at a glance — where the periods actually fall, and what they leave out */}
@@ -88,17 +97,19 @@ export function RecordingPeriods({
         {[6, 12, 18].map((hour) => (
           <div key={hour} className="day-divider" style={{ left: `${(hour / 24) * 100}%` }} />
         ))}
-        {ordered.map((window) => (
-          <div
-            key={`${window.startSecond}-${window.endSecond}`}
-            className="day-period"
-            style={{
-              left: `${(window.startSecond / 86400) * 100}%`,
-              width: `${Math.max(0.4, ((window.endSecond - window.startSecond) / 86400) * 100)}%`,
-            }}
-            title={`${toTimeOfDay(window.startSecond)} to ${toTimeOfDay(window.endSecond)}`}
-          />
-        ))}
+        {ordered.flatMap((window, index) =>
+          periodSegments(window).map((segment) => (
+            <div
+              key={`${index}-${segment.startSecond}`}
+              className="day-period"
+              style={{
+                left: `${(segment.startSecond / 86400) * 100}%`,
+                width: `${Math.max(0.4, ((segment.endSecond - segment.startSecond) / 86400) * 100)}%`,
+              }}
+              title={`${toTimeOfDay(window.startSecond)} to ${toTimeOfDay(window.endSecond)}`}
+            />
+          )),
+        )}
       </div>
       <div className="day-scale">
         {['00:00', '06:00', '12:00', '18:00', '24:00'].map((label) => (
@@ -135,22 +146,31 @@ export function RecordingPeriods({
                   type="time"
                   aria-label="Period start"
                   value={toTimeOfDay(window.startSecond)}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     // An empty value is what a time input reports mid-edit; taking it as
                     // 00:00 rewrote the row the moment the field was cleared.
-                    e.target.value && setWindow(index, { startSecond: fromTimeOfDay(e.target.value) })
-                  }
+                    if (!e.target.value) return;
+                    const startSecond = fromTimeOfDay(e.target.value);
+                    // The end keeps its clock time and moves to whichever day follows the start.
+                    setWindow(index, { startSecond, endSecond: periodEndFromClock(startSecond, window.endSecond % 86400) });
+                  }}
                 />
                 <span className="muted">to</span>
                 <input
                   type="time"
-                  aria-label="Period end"
-                  value={toTimeOfDay(window.endSecond)}
+                  aria-label={isOvernight(window) ? 'Period end, the next day' : 'Period end'}
+                  value={toTimeOfDay(window.endSecond % 86400)}
                   onChange={(e) =>
-                    e.target.value && setWindow(index, { endSecond: fromTimeOfDay(e.target.value) })
+                    e.target.value &&
+                    setWindow(index, { endSecond: periodEndFromClock(window.startSecond, fromTimeOfDay(e.target.value)) })
                   }
                 />
-                <span className="muted mono">{formatDuration(window.endSecond - window.startSecond)}</span>
+                {isOvernight(window) ? (
+                  <span className="chip" title="This period runs past midnight into the next day">
+                    next day
+                  </span>
+                ) : null}
+                <span className="muted mono">{formatDuration(periodDuration(window))}</span>
                 <button
                   className="btn"
                   style={{ marginLeft: 'auto', padding: '4px 10px' }}
@@ -192,9 +212,34 @@ export function RecordingPeriods({
 
 function describeSchedule(windows: TriggerWindow[]): string {
   if (!windows.length) return 'A 24-hour day with no recording periods set';
-  return `A 24-hour day with recording during ${windows
-    .map((w) => `${toTimeOfDay(w.startSecond)} to ${toTimeOfDay(w.endSecond)}`)
-    .join(', ')}`;
+  return `A 24-hour day with recording during ${formatList(
+    windows.map((w) => `${toTimeOfDay(w.startSecond)} to ${toTimeOfDay(w.endSecond % 86400)}${isOvernight(w) ? ' the next day' : ''}`),
+  )}`;
+}
+
+/**
+ * Where a new two-hour period can go without landing on an existing one.
+ *
+ * Tried from the end of each existing period, latest first, running up to the next one's
+ * start (round the day if need be). Falls back to 07:00 on an empty schedule, or when the day
+ * is too full to offer a quarter of an hour anywhere.
+ */
+function freeSlot(windows: TriggerWindow[]): TriggerWindow {
+  const fallback = { startSecond: 7 * 3600, endSecond: 9 * 3600 };
+  if (!windows.length) return fallback;
+  const segments = windows.flatMap(periodSegments);
+  const covered = (second: number) =>
+    segments.some((segment) => second >= segment.startSecond && second < segment.endSecond);
+  const ends = [...new Set(windows.map((window) => window.endSecond % 86400))].sort((a, b) => b - a);
+  for (const start of ends) {
+    if (covered(start)) continue;
+    const next = Math.min(
+      ...segments.map((segment) => (segment.startSecond > start ? segment.startSecond : segment.startSecond + 86400)),
+    );
+    const length = Math.min(2 * 3600, next - start);
+    if (length >= 15 * 60) return { startSecond: start, endSecond: start + length };
+  }
+  return fallback;
 }
 
 /** Seconds past midnight to the `HH:MM` a time input expects. */
@@ -239,6 +284,7 @@ export function SolarRecordingPeriods({
   endTime,
   invalidLatitude,
   invalidLongitude,
+  positionWarning = null,
 }: Readonly<{
   windows: SolarWindow[];
   onChange: (windows: SolarWindow[]) => void;
@@ -251,6 +297,8 @@ export function SolarRecordingPeriods({
   /** Judged per field. One flag for both marked a valid latitude invalid because the longitude was blank. */
   invalidLatitude: boolean;
   invalidLongitude: boolean;
+  /** Said beside the coordinates it is about, not only in the readiness list. */
+  positionWarning?: string | null;
 }>) {
   // Held as text, not numbers: a controlled number input cannot represent "-" or "36." on the
   // way to a real coordinate, so a negative latitude was impossible to type.
@@ -298,21 +346,48 @@ export function SolarRecordingPeriods({
     Date.parse(startTime) + (Date.parse(endTime) - Date.parse(startTime)) / 2,
   ).toISOString();
   const preview = havePosition ? solarDayAt(midpoint, position, timezone) : null;
+  const zoneName = shortZoneName(midpoint, timezone);
+
+  /*
+    A pasted pair — "36.16, -86.78", or with N/S/E/W — fills both boxes at once, since that
+    is the form coordinates are usually copied in from a map or a GPS unit.
+  */
+  const takePair = (text: string): boolean => {
+    const pair = parseCoordinatePair(text);
+    if (!pair) return false;
+    setLatText(String(pair.latitude));
+    setLonText(String(pair.longitude));
+    commitPosition(String(pair.latitude), String(pair.longitude));
+    return true;
+  };
 
   const atCapacity = windows.length >= MAX_AUDIO_TRIGGER_TIMES;
   const setWindow = (index: number, patch: Partial<SolarWindow>) =>
     onChange(windows.map((window, i) => (i === index ? { ...window, ...patch } : window)));
 
-  const previewWindow = (window: SolarWindow): string | null => {
+  /*
+    What the device will record for a period on the preview day, in deployment local time.
+
+    Worked in unfolded time, as the firmware now does, so the order of the two ends means
+    something: a period that runs past midnight is recorded either side of it, and one that
+    ends before it starts is skipped — which is said here rather than previewed as nothing.
+  */
+  const previewWindow = (window: SolarWindow): { text: string; problem: boolean } | null => {
     if (!preview) return null;
-    if (!preview.available[window.startAnchor] || !preview.available[window.endAnchor]) return null;
-    const from = wrap(preview.secondsOfDay[window.startAnchor] + window.startOffsetSeconds);
-    const to = wrap(preview.secondsOfDay[window.endAnchor] + window.endOffsetSeconds);
-    // The device drops a window that runs past midnight, because the schedule comparison is a
-    // single seconds-of-day value. Saying so is better than previewing a window it will skip.
-    if (to <= from) return 'skipped — runs past midnight';
-    return `${toTimeOfDay(from)} to ${toTimeOfDay(to)}`;
+    if (!preview.available[window.startAnchor] || !preview.available[window.endAnchor]) {
+      return { text: 'the sun does not reach one of its anchors that day, so it is not recorded', problem: false };
+    }
+    const from = preview.secondsFromMidnight[window.startAnchor] + window.startOffsetSeconds;
+    const to = preview.secondsFromMidnight[window.endAnchor] + window.endOffsetSeconds;
+    if (to <= from) return { text: 'ends before it starts — the device skips it', problem: true };
+    const start = wrap(from);
+    const finish = start + Math.min(86400, to - from);
+    return {
+      text: `${toTimeOfDay(start)} to ${toTimeOfDay(finish % 86400)}${finish > 86400 ? ' the next day' : ''} ${zoneName}`,
+      problem: false,
+    };
   };
+  const previewDate = preview ? formatZonedDate(midpoint, timezone) : null;
 
   return (
     <div className="field">
@@ -323,6 +398,10 @@ export function SolarRecordingPeriods({
         use a negative number for minutes before it. At most {MAX_AUDIO_TRIGGER_TIMES}.
       </p>
 
+      <p className="help" style={{ marginTop: 0, marginBottom: 6 }}>
+        <strong>Deployment site</strong> — shared by all phases. Decimal degrees; south and west are negative.
+        A pasted pair such as 36.16, -86.78 fills both.
+      </p>
       <div className="row">
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="site-lat">Latitude</label>
@@ -330,10 +409,11 @@ export function SolarRecordingPeriods({
             id="site-lat"
             type="text"
             inputMode="decimal"
-            placeholder="-1.2921"
+            placeholder="Ex: -1.2921"
             value={latText}
             aria-invalid={latBad}
             onChange={(event) => {
+              if (takePair(event.target.value)) return;
               setLatText(event.target.value);
               commitPosition(event.target.value, lonText);
             }}
@@ -345,16 +425,23 @@ export function SolarRecordingPeriods({
             id="site-lon"
             type="text"
             inputMode="decimal"
-            placeholder="36.8219"
+            placeholder="Ex: 36.8219"
             value={lonText}
             aria-invalid={lonBad}
             onChange={(event) => {
+              if (takePair(event.target.value)) return;
               setLonText(event.target.value);
               commitPosition(latText, event.target.value);
             }}
           />
         </div>
       </div>
+
+      {positionWarning ? (
+        <p className="help" style={{ color: 'var(--warn)', marginTop: 8 }}>
+          {positionWarning}
+        </p>
+      ) : null}
 
       {windows.length === 0 ? (
         <div className="banner warn" style={{ marginTop: 12 }}>
@@ -425,8 +512,15 @@ export function SolarRecordingPeriods({
                 Remove
               </button>
               {previewWindow(window) ? (
-                <span className="muted mono" style={{ flexBasis: '100%', fontSize: 12 }}>
-                  mid-deployment: {previewWindow(window)}
+                <span
+                  className="mono"
+                  style={{
+                    flexBasis: '100%',
+                    fontSize: 12,
+                    color: previewWindow(window)!.problem ? 'var(--crit)' : 'var(--ink-3)',
+                  }}
+                >
+                  On {previewDate}, mid-deployment: {previewWindow(window)!.text}
                 </span>
               ) : null}
             </div>
@@ -479,4 +573,32 @@ export function SolarRecordingPeriods({
 function wrap(seconds: number): number {
   const wrapped = seconds % 86400;
   return wrapped < 0 ? wrapped + 86400 : wrapped;
+}
+
+/** "CDT", "EAT" or the like for the zone on that day, so a previewed time says whose clock it is. */
+function shortZoneName(iso: string, timezone: string): string {
+  try {
+    const part = new Intl.DateTimeFormat('en-US', { timeZone: timezone, timeZoneName: 'short' })
+      .formatToParts(new Date(iso))
+      .find((entry) => entry.type === 'timeZoneName');
+    return part?.value ?? timezone;
+  } catch {
+    return timezone;
+  }
+}
+
+/** A latitude and longitude typed or pasted together, in decimal degrees with optional N/S/E/W. */
+export function parseCoordinatePair(text: string): { latitude: number; longitude: number } | null {
+  const match = /^\s*(-?\d+(?:\.\d+)?)\s*°?\s*([NSns])?(\s*[,;]\s*|\s+)(-?\d+(?:\.\d+)?)\s*°?\s*([EWew])?\s*$/.exec(text);
+  if (!match) return null;
+  // A bare space only separates two numbers when hemispheres say which is which; otherwise a
+  // stray space in the middle of typing one number would split it in two.
+  if (!/[,;]/.test(match[3]) && !(match[2] && match[5])) return null;
+  match.splice(3, 1);
+  let latitude = Number(match[1]);
+  let longitude = Number(match[3]);
+  if (match[2] && match[2].toUpperCase() === 'S') latitude = -Math.abs(latitude);
+  if (match[4] && match[4].toUpperCase() === 'W') longitude = -Math.abs(longitude);
+  if (!isValidPosition({ latitude, longitude })) return null;
+  return { latitude, longitude };
 }

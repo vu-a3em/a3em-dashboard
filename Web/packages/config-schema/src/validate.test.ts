@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { defaultConfig, defaultPhase } from './defaults.js';
-import { validateConfig } from './validate.js';
+import { deviceLabelProblems, validateConfig } from './validate.js';
 import { serializeConfig } from './serialize.js';
 import { IMU_SAMPLE_RATES_HZ, PHASE_NAME_MAX_LEN } from './firmware-constants.js';
 import { DEFAULT_FIRMWARE_PROFILE, FIRMWARE_CURRENT } from './firmware-profile.js';
@@ -532,5 +532,134 @@ describe('solar schedules are judged as their own kind of schedule', () => {
   it('refuses a solar schedule with no solar windows at all', () => {
     const config = solarConfig(solarPhase({ audioSolarWindows: [] }));
     assert.ok(errorsFor(config).some((issue) => issue.path.endsWith('audioSolarWindows')));
+  });
+});
+
+describe('checks for a card about to be written', () => {
+  const NOW = Date.parse('2026-09-23T15:00:00.000Z');
+  const dated = (startTime: string, endTime: string, overrides: Partial<DeploymentConfig> = {}): DeploymentConfig => ({
+    ...defaultConfig('UTC'),
+    deviceLabel: 'TEST',
+    startTime,
+    endTime,
+    ...overrides,
+  });
+
+  it('refuses a deployment that has already ended', () => {
+    const issues = validateConfig(dated('2025-05-01T00:00:00.000Z', '2025-05-15T00:00:00.000Z'), FIRMWARE_CURRENT, { now: NOW });
+    assert.ok(issues.some((issue) => issue.path === 'endTime' && issue.severity === 'error'));
+  });
+
+  it('warns about a start in the past, and says what it does to the clock', () => {
+    const issues = validateConfig(dated('2026-09-20T00:00:00.000Z', '2026-10-20T00:00:00.000Z'), FIRMWARE_CURRENT, { now: NOW });
+    const start = issues.find((issue) => issue.path === 'startTime');
+    assert.equal(start?.severity, 'warning');
+    assert.match(start!.message, /clock/);
+  });
+
+  it('judges nothing against the clock unless asked to', () => {
+    const issues = validateConfig(dated('2025-05-01T00:00:00.000Z', '2025-05-15T00:00:00.000Z'), FIRMWARE_CURRENT);
+    assert.ok(!issues.some((issue) => issue.path === 'endTime' || issue.path === 'startTime'));
+  });
+
+  it('warns when the clock will not be set at activation and nothing else sets it', () => {
+    const issues = validateConfig(dated('2026-10-01T00:00:00.000Z', '2026-10-20T00:00:00.000Z', { setRtcAtMagnetDetect: false }), FIRMWARE_CURRENT);
+    assert.ok(issues.some((issue) => issue.path === 'setRtcAtMagnetDetect' && issue.severity === 'warning'));
+  });
+
+  it('asks for a second look at an analog microphone', () => {
+    const issues = validateConfig({ ...dated('2026-10-01T00:00:00.000Z', '2026-10-20T00:00:00.000Z'), micType: 'ANALOG', micAmplificationDb: 1 }, FIRMWARE_CURRENT);
+    assert.ok(issues.some((issue) => issue.path === 'micType' && issue.severity === 'warning'));
+  });
+
+  it('lists errors before warnings', () => {
+    const issues = validateConfig({ ...dated('2026-10-01T00:00:00.000Z', '2026-10-20T00:00:00.000Z'), deviceLabel: '', micType: 'ANALOG', micAmplificationDb: 1 }, FIRMWARE_CURRENT);
+    const firstWarning = issues.findIndex((issue) => issue.severity === 'warning');
+    const lastError = issues.map((issue) => issue.severity).lastIndexOf('error');
+    assert.ok(lastError >= 0 && firstWarning > lastError);
+  });
+});
+
+describe('recording periods across midnight', () => {
+  const h = (hours: number) => hours * 3600;
+  const withPeriods = (audioTriggerTimes: PhaseConfig['audioTriggerTimes']): DeploymentConfig => ({
+    ...defaultConfig('UTC'),
+    deviceLabel: 'OWL',
+    phases: [{ ...defaultPhase(), audioRecordingMode: 'SCHEDULED', audioTriggerTimes }],
+  });
+  const periodIssues = (periods: PhaseConfig['audioTriggerTimes']) =>
+    validateConfig(withPeriods(periods), FIRMWARE_CURRENT).filter((issue) => issue.path.endsWith('audioTriggerTimes'));
+
+  it('accepts a period that runs past midnight', () => {
+    assert.deepEqual(periodIssues([{ startSecond: h(21), endSecond: h(27) }]), []);
+  });
+
+  it('catches an overnight period that runs into a morning one', () => {
+    const issues = periodIssues([{ startSecond: h(21), endSecond: h(27) }, { startSecond: h(2), endSecond: h(4) }]);
+    assert.ok(issues.some((issue) => /overlap/.test(issue.message)));
+  });
+
+  it('refuses a period that starts and ends at the same time', () => {
+    assert.ok(periodIssues([{ startSecond: h(6), endSecond: h(6) }]).some((issue) => /same time/.test(issue.message)));
+  });
+
+  it('counts each overnight period as two entries against the limit', () => {
+    const periods = Array.from({ length: 7 }, (_, i) => ({ startSecond: h(i * 3) + 1800, endSecond: h(i * 3) + 1800 + 600 }));
+    periods[6] = { startSecond: h(23), endSecond: h(24) + 600 };
+    // Seven periods, eight entries: fine. Six more ordinary ones would not be.
+    assert.deepEqual(periodIssues(periods), []);
+    const tooMany = [...periods, ...Array.from({ length: 5 }, (_, i) => ({ startSecond: h(19) + i * 600, endSecond: h(19) + i * 600 + 300 }))];
+    assert.ok(periodIssues(tooMany).some((issue) => /two/.test(issue.message)));
+  });
+});
+
+describe('device labels', () => {
+  it('reports each problem in its own sentence', () => {
+    assert.deepEqual(deviceLabelProblems('SITE_01'), []);
+    assert.equal(deviceLabelProblems('').length, 1);
+    assert.equal(deviceLabelProblems('Site/01').length, 1);
+    assert.equal(deviceLabelProblems('x'.repeat(40) + ':').length, 2);
+  });
+});
+
+describe('solar schedules that cannot be what was meant', () => {
+  const solar = (overrides: Partial<DeploymentConfig>, window: PhaseConfig['audioSolarWindows'][number]): DeploymentConfig => ({
+    ...defaultConfig('America/Chicago'),
+    deviceLabel: 'OWL',
+    timezone: 'America/Chicago',
+    startTime: '2026-10-01T05:00:00.000Z',
+    endTime: '2026-10-15T05:00:00.000Z',
+    latitude: 36.16,
+    longitude: -86.78,
+    phases: [
+      {
+        ...defaultPhase(),
+        audioRecordingMode: 'SCHEDULED',
+        audioScheduleType: 'SOLAR',
+        audioSolarWindows: [window],
+        audioTriggerTimes: [{ startSecond: 5 * 3600, endSecond: 7 * 3600 }],
+      },
+    ],
+    ...overrides,
+  });
+  const dawn = { startAnchor: 'DAWN' as const, startOffsetSeconds: 0, endAnchor: 'SUNRISE' as const, endOffsetSeconds: 5400 };
+
+  it('refuses a period that ends before it starts', () => {
+    const backwards = { startAnchor: 'SUNRISE' as const, startOffsetSeconds: 0, endAnchor: 'DAWN' as const, endOffsetSeconds: 0 };
+    const issues = validateConfig(solar({}, backwards), FIRMWARE_CURRENT);
+    assert.ok(issues.some((issue) => issue.severity === 'error' && /ends before it starts/.test(issue.message)));
+  });
+
+  it('accepts a period that runs past midnight', () => {
+    const late = { startAnchor: 'DUSK' as const, startOffsetSeconds: 0, endAnchor: 'DUSK' as const, endOffsetSeconds: 6 * 3600 };
+    const issues = validateConfig(solar({}, late), FIRMWARE_CURRENT);
+    assert.ok(!issues.some((issue) => /ends before it starts/.test(issue.message)));
+  });
+
+  it('warns when the position and the timezone are different places', () => {
+    const flipped = validateConfig(solar({ longitude: 86.78 }, dawn), FIRMWARE_CURRENT);
+    assert.ok(flipped.some((issue) => issue.path === 'longitude' && issue.severity === 'warning'));
+    const right = validateConfig(solar({}, dawn), FIRMWARE_CURRENT);
+    assert.ok(!right.some((issue) => issue.path === 'longitude'));
   });
 });

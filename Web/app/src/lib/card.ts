@@ -301,6 +301,19 @@ export async function writeConfig(root: FileSystemDirectoryHandle, text: string)
   } finally {
     await writable.close();
   }
+  /*
+    Read back, and compare.
+
+    A card that was pulled, or a folder handle left over from a card no longer mounted, can
+    fail in ways that still let the write call return. "Written to the card" should mean the
+    file on the card now says exactly this.
+  */
+  const back = await (await handle.getFile()).text();
+  if (back !== text) {
+    throw new CardAccessError(
+      'The configuration read back from the card does not match what was written. Reinsert the card and try again.',
+    );
+  }
 }
 
 /** Fallback for browsers without the File System Access API. */

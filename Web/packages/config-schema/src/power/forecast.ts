@@ -1,11 +1,30 @@
 import {
   AUDIO_BYTES_PER_SAMPLE,
   IMU_BYTES_PER_SAMPLE,
+  NUM_HOURS_PER_AUDIO_DIRECTORY,
   TIME_SCALE_SECONDS,
 } from '../firmware-constants.js';
 import { effectiveSampleRateHz } from '../serialize.js';
 import { DEFAULT_FIRMWARE_PROFILE, type FirmwareProfile } from '../firmware-profile.js';
-import type { DeploymentConfig, PhaseConfig } from '../types.js';
+import { clipFootprint, recommendAllocationUnit } from '../allocation-unit.js';
+import {
+  BUCKET_DIRECTORY_NAME_LENGTH,
+  BUCKET_LOG_NAME_LENGTH,
+  BYTES_PER_MARKETED_GB,
+  RECORDING_NAME_LENGTH,
+  clustersFor,
+  directoryEntryBytes,
+  marketedCardLayout,
+} from '../card-capacity.js';
+import {
+  deviceUtcOffsetSeconds,
+  periodDuration,
+  periodSegments,
+  recordedSecondsInPeriods,
+  scheduleOnDay,
+} from '../schedule.js';
+import { formatZonedDate } from '../timezone.js';
+import type { DeploymentConfig, PhaseConfig, TriggerWindow, ValidationIssue } from '../types.js';
 import {
   BUFFERS,
   Confidence,
@@ -39,10 +58,17 @@ import {
  * The spreadsheet models CONTINUOUS recording only. Everything here that involves
  * a duty cycle — scheduled windows, intervals, trigger caps, LEDs, VHF — is an
  * extension, and every extended path reports reduced confidence.
+ *
+ * Storage is modelled the way the card will actually be laid out rather than as a pool of
+ * bytes: the formatter's exFAT geometry decides what is free, and every file the device
+ * writes rounds up to whole clusters, directories and logs included. The spreadsheet's
+ * byte-pool model is kept as `storageModel: 'raw'` so the parity tests can still ask it
+ * the spreadsheet's own question.
  */
 
 export interface ForecastInputs {
   config: DeploymentConfig;
+  /** Marketed size, in the decimal gigabytes printed on the card. */
   sdCardCapacityGb?: number;
   batteryCapacityMah?: number;
   sdSpeedClass?: string;
@@ -53,16 +79,33 @@ export interface ForecastInputs {
    * ends of the storage range. Defaults to the legacy profile.
    */
   firmware?: FirmwareProfile;
+  /**
+   * The cluster size the card is, or will be, formatted with. Defaults to the size this
+   * deployment is recommended, which is what the formatter will be told to use.
+   */
+  allocationUnitBytes?: number;
+  /**
+   * `exfat` (the default) lays the card out as the formatter does and charges every file
+   * its whole clusters. `raw` is the planner spreadsheet's model — capacity as GB × 1024³
+   * and nothing but the recorded bytes — kept so the port can be checked against the sheet.
+   */
+  storageModel?: 'exfat' | 'raw';
 }
 
 export interface PhaseForecast {
   phaseName: string;
   dutyCycle: number;
+  /** Recorded data per day, before the card's own overhead. */
   bytesPerDay: number;
+  /** What a day costs on the card: whole clusters per file, plus directories and logs. */
+  cardBytesPerDay: number;
   averageCurrentMa: number;
   clipsPerDay: number;
   audioSecondsPerDay: number;
 }
+
+/** What stops the recording before the configured end, if anything does. */
+export type EarlyStop = 'card' | 'battery' | null;
 
 export interface Forecast {
   /** Written to the card over the whole deployment, capped at what the card holds. */
@@ -74,23 +117,39 @@ export interface Forecast {
    * is more than one.
    */
   bytesPerDay: number;
+  /** The average day's cost on the card, overhead included. */
+  cardBytesPerDay: number;
   clipsPerDay: number;
   averageCurrentMa: number;
 
   deploymentDays: number;
   /** Days until the card is full at this rate. Infinity when it never fills. */
   storageDays: number;
-  /** Days until the battery reaches its cutoff. */
+  /** Days until the battery is exhausted. */
   batteryDays: number;
 
   /** ISO instant the card fills, or null if it lasts the whole deployment. */
   cardFullAt: string | null;
   /** ISO instant the battery dies, or null if it lasts the whole deployment. */
   batteryDeadAt: string | null;
+  /** Whichever of the two ends recording first, when one of them does. */
+  stopsEarlyBecause: EarlyStop;
+  /** Days of recording the deployment actually gets. */
+  recordingDays: number;
 
   totalClips: number;
   totalAudioHours: number;
 
+  /** Bytes available to recordings on a freshly formatted card. */
+  cardUsableBytes: number;
+  /** The cluster size the card figures assume, or null under the raw model. */
+  allocationUnitBytes: number | null;
+  /**
+   * Clips each phase contributes over its span, in `config.phases` order. What the cluster
+   * size was recommended from, so a caller asking `recommendAllocationUnit` about a connected
+   * card gets the same recommendation this forecast used.
+   */
+  clipWeights: number[];
   cardUsedFraction: number;
   confidence: Confidence;
   /** Human-readable notes on what limits the forecast's accuracy. */
@@ -100,7 +159,11 @@ export interface Forecast {
 }
 
 const SECONDS_PER_DAY = 86400;
-const BYTES_PER_GB = 1024 ** 3;
+const RAW_BYTES_PER_GB = 1024 ** 3;
+const BUCKET_SECONDS = NUM_HOURS_PER_AUDIO_DIRECTORY * 3600;
+const BUCKETS_PER_DAY = SECONDS_PER_DAY / BUCKET_SECONDS;
+/** Enough days to see a whole year's worth of sunrise without walking a decade of them. */
+const MAX_SCHEDULE_SAMPLES = 366;
 
 export function forecast(inputs: ForecastInputs): Forecast {
   const {
@@ -110,6 +173,7 @@ export function forecast(inputs: ForecastInputs): Forecast {
     sdSpeedClass = DEFAULT_SD_SPEED_CLASS,
     microphone = DEFAULT_MICROPHONE,
     firmware = DEFAULT_FIRMWARE_PROFILE,
+    storageModel = 'exfat',
   } = inputs;
 
   const start = Date.parse(config.startTime);
@@ -123,21 +187,15 @@ export function forecast(inputs: ForecastInputs): Forecast {
     SD_CARD.writeCurrentMa,
   ];
 
-  const perPhase: PhaseForecast[] = [];
-  /* Each phase placed on the deployment's own clock, so the card can be filled in the
-     order the phases actually run rather than at their blended average rate. */
-  const timeline: Array<PhaseForecast & { startDay: number; endDay: number }> = [];
-  let weightedBytesPerDay = 0;
-  let weightedClipsPerDay = 0;
-  let weightedCurrentMa = 0;
-
-  config.phases.forEach((phase, phaseIndex) => {
+  /* Everything about each phase that does not depend on the card. */
+  const phases = config.phases.map((phase, phaseIndex) => {
     const segment = phaseSegment(phase, config, phaseIndex, start, deploymentDays);
     const share =
       deploymentDays > 0
         ? Math.max(0, segment.endDay - segment.startDay) / deploymentDays
         : 1 / config.phases.length;
-    const duty = dutyCycle(phase, caveats, firmware);
+    const activity = phaseActivity(phase, config, segment, start, caveats, firmware);
+    const duty = activity.duty;
     const rate = effectiveSampleRateHz(phase);
 
     const audioBytesPerSecond = phase.useOpusEncoding
@@ -156,8 +214,8 @@ export function forecast(inputs: ForecastInputs): Forecast {
       );
     }
 
-    const bytesPerDay =
-      duty * audioBytesPerSecond * SECONDS_PER_DAY + imuDuty * imuBytesPerSecond * SECONDS_PER_DAY;
+    const audioBytesPerDay = duty * audioBytesPerSecond * SECONDS_PER_DAY;
+    const imuBytesPerDay = imuDuty * imuBytesPerSecond * SECONDS_PER_DAY;
 
     const recordingMa = recordingCurrentMa(phase, {
       sdSpeedClass,
@@ -179,30 +237,70 @@ export function forecast(inputs: ForecastInputs): Forecast {
         ? (duty * SECONDS_PER_DAY) / phase.audioClipLengthSeconds
         : 0;
 
-    const entry: PhaseForecast = {
-      phaseName: phase.name,
-      dutyCycle: duty,
-      bytesPerDay,
-      averageCurrentMa: averageMa,
-      clipsPerDay,
-      audioSecondsPerDay: duty * SECONDS_PER_DAY,
-    };
-    perPhase.push(entry);
-    timeline.push({ ...entry, ...segment });
-
-    weightedBytesPerDay += bytesPerDay * share;
-    weightedClipsPerDay += clipsPerDay * share;
-    weightedCurrentMa += averageMa * share;
-
     if (duty < 1) contributing.push(IDLE_STATE.mcuCurrentMa);
     if (phase.audioRecordingMode === 'AMPLITUDE') contributing.push(IDLE_STATE.comparatorCurrentMa);
+
+    return {
+      phase,
+      segment,
+      share,
+      duty,
+      bucketsPerDay: activity.bucketsPerDay,
+      audioBytesPerDay,
+      imuBytesPerDay,
+      averageMa,
+      clipsPerDay,
+    };
   });
 
+  const clipWeights = phases.map(
+    (entry) => entry.clipsPerDay * Math.max(0, Math.min(deploymentDays, entry.segment.endDay) - Math.max(0, entry.segment.startDay)),
+  );
+
+  /* The card: its usable capacity, and what each phase's day costs on it. */
+  let allocationUnitBytes: number | null = null;
+  let cardUsableBytes: number;
+  if (storageModel === 'raw') {
+    cardUsableBytes = sdCardCapacityGb * RAW_BYTES_PER_GB;
+  } else {
+    allocationUnitBytes =
+      inputs.allocationUnitBytes ??
+      recommendAllocationUnit({
+        config,
+        clipsPerPhase: clipWeights,
+        cardCapacityBytes: sdCardCapacityGb * BYTES_PER_MARKETED_GB,
+      }).recommendedBytes;
+    cardUsableBytes = marketedCardLayout(sdCardCapacityGb, allocationUnitBytes).freeBytes;
+  }
+
+  const perPhase: PhaseForecast[] = phases.map((entry) => {
+    const bytesPerDay = entry.audioBytesPerDay + entry.imuBytesPerDay;
+    return {
+      phaseName: entry.phase.name,
+      dutyCycle: entry.duty,
+      bytesPerDay,
+      cardBytesPerDay:
+        allocationUnitBytes === null
+          ? bytesPerDay
+          : cardBytesPerDayFor(entry.phase, entry.clipsPerDay, entry.imuBytesPerDay, entry.bucketsPerDay, allocationUnitBytes),
+      averageCurrentMa: entry.averageMa,
+      clipsPerDay: entry.clipsPerDay,
+      audioSecondsPerDay: entry.duty * SECONDS_PER_DAY,
+    };
+  });
+
+  const weighted = (pick: (phase: PhaseForecast) => number) =>
+    perPhase.reduce((sum, phase, index) => sum + pick(phase) * phases[index].share, 0);
+
   // The VHF beacon runs continuously from activation to the end of the deployment.
-  let averageCurrentMa = weightedCurrentMa;
-  if (config.vhfMode !== 'NEVER') {
-    const vhfStart = config.vhfMode === 'END' ? end : Date.parse(config.vhfStartTime);
-    const vhfDays = Math.max(0, (end - vhfStart) / 1000 / SECONDS_PER_DAY);
+  const vhfStartDay =
+    config.vhfMode === 'NEVER'
+      ? null
+      : Math.max(0, ((config.vhfMode === 'END' ? end : Date.parse(config.vhfStartTime)) - start) / 1000 / SECONDS_PER_DAY);
+  let averageCurrentMa = weighted((phase) => phase.averageCurrentMa);
+  // The beacon has its own battery today, which the measurement records as zero draw.
+  if (vhfStartDay !== null && VHF.activeCurrentMa.value > 0) {
+    const vhfDays = Math.max(0, deploymentDays - vhfStartDay);
     if (vhfDays > 0 && deploymentDays > 0) {
       averageCurrentMa += (vhfDays / deploymentDays) * VHF.activeCurrentMa.value;
       contributing.push(VHF.activeCurrentMa);
@@ -210,65 +308,127 @@ export function forecast(inputs: ForecastInputs): Forecast {
     }
   }
 
-  const cardBytes = sdCardCapacityGb * BYTES_PER_GB;
-  const batteryDays = averageCurrentMa > 0 ? batteryCapacityMah / averageCurrentMa / 24 : Infinity;
+  const timeline = perPhase
+    .map((phase, index) => ({ ...phase, ...phases[index].segment }))
+    .sort((a, b) => a.startDay - b.startDay);
 
   /*
-    Run the phases in order and fill the card as they go.
+    The battery, drained phase by phase in the order they run.
 
-    Doing this at the deployment's average rate instead gets two things wrong once
-    phases differ. A heavy phase early fills the card sooner than the average predicts,
-    so the fill date lands late; and the clip and audio-hour totals kept counting past
-    the point where the card was full, which contradicted the card-usage meter sitting
-    directly above them. Recording stops when the card fills, so the totals stop too.
+    At the deployment's average a heavy phase early would appear to leave the battery for
+    longer than it does, exactly as it did for the card. Past the end of the deployment
+    there is no schedule to follow, so the figure is extrapolated at the average rate.
   */
+  const batteryDeadDay = drainBattery(timeline, batteryCapacityMah, deploymentDays, vhfStartDay);
+  const batteryDays =
+    batteryDeadDay ?? (averageCurrentMa > 0 ? batteryCapacityMah / averageCurrentMa / 24 : Infinity);
+
+  /*
+    Run the phases in order and fill the card as they go, stopping wherever recording does.
+
+    Recording ends when the card fills or the battery gives out, whichever comes first, so
+    the clip and audio-hour totals stop there too — otherwise they would describe more
+    recording than the meters above them say the deployment can make.
+  */
+  const recordableDays = Math.min(deploymentDays, batteryDeadDay ?? Infinity);
   let totalBytes = 0;
   let totalClips = 0;
   let totalAudioSeconds = 0;
   let cardFullDay: number | null = null;
 
-  for (const segment of [...timeline].sort((a, b) => a.startDay - b.startDay)) {
+  for (const segment of timeline) {
     if (cardFullDay !== null) break;
     const from = Math.max(0, segment.startDay);
-    const days = Math.min(deploymentDays, segment.endDay) - from;
+    const days = Math.min(recordableDays, segment.endDay) - from;
     if (days <= 0) continue;
 
     let recorded = days;
-    if (segment.bytesPerDay > 0) {
-      const remaining = cardBytes - totalBytes;
-      if (remaining <= days * segment.bytesPerDay) {
-        recorded = Math.max(0, remaining / segment.bytesPerDay);
+    if (segment.cardBytesPerDay > 0) {
+      const remaining = cardUsableBytes - totalBytes;
+      if (remaining <= days * segment.cardBytesPerDay) {
+        recorded = Math.max(0, remaining / segment.cardBytesPerDay);
         cardFullDay = from + recorded;
       }
     }
 
-    totalBytes += recorded * segment.bytesPerDay;
+    totalBytes += recorded * segment.cardBytesPerDay;
     totalClips += recorded * segment.clipsPerDay;
     totalAudioSeconds += recorded * segment.audioSecondsPerDay;
   }
 
   // Exact when the card fills; otherwise the average rate extrapolated past the end.
-  const storageDays =
-    cardFullDay ?? (weightedBytesPerDay > 0 ? cardBytes / weightedBytesPerDay : Infinity);
+  const cardBytesPerDay = weighted((phase) => phase.cardBytesPerDay);
+  const storageDays = cardFullDay ?? (cardBytesPerDay > 0 ? cardUsableBytes / cardBytesPerDay : Infinity);
+
+  const cardFullAt = cardFullDay !== null && cardFullDay < deploymentDays ? isoAfterDays(start, cardFullDay) : null;
+  const batteryDeadAt = batteryDeadDay !== null && batteryDeadDay < deploymentDays ? isoAfterDays(start, batteryDeadDay) : null;
+  let stopsEarlyBecause: EarlyStop = null;
+  if (cardFullAt && (!batteryDeadAt || cardFullDay! <= batteryDeadDay!)) stopsEarlyBecause = 'card';
+  else if (batteryDeadAt) stopsEarlyBecause = 'battery';
 
   return {
     totalBytes,
-    bytesPerDay: weightedBytesPerDay,
-    clipsPerDay: weightedClipsPerDay,
+    bytesPerDay: weighted((phase) => phase.bytesPerDay),
+    cardBytesPerDay,
+    clipsPerDay: weighted((phase) => phase.clipsPerDay),
     averageCurrentMa,
     deploymentDays,
     storageDays,
     batteryDays,
-    cardFullAt: cardFullDay !== null && cardFullDay < deploymentDays ? isoAfterDays(start, cardFullDay) : null,
-    batteryDeadAt: batteryDays < deploymentDays ? isoAfterDays(start, batteryDays) : null,
+    cardFullAt,
+    batteryDeadAt,
+    stopsEarlyBecause,
+    recordingDays: Math.min(deploymentDays, cardFullDay ?? Infinity, batteryDeadDay ?? Infinity),
     totalClips: Math.round(totalClips),
     totalAudioHours: totalAudioSeconds / 3600,
-    cardUsedFraction: cardBytes > 0 ? Math.min(1, totalBytes / cardBytes) : 0,
+    cardUsableBytes,
+    allocationUnitBytes,
+    clipWeights,
+    cardUsedFraction: cardUsableBytes > 0 ? Math.min(1, totalBytes / cardUsableBytes) : 0,
     confidence: weakestConfidence(...contributing),
-    caveats,
+    caveats: [...new Set(caveats)],
     perPhase,
     measurementsRevision: MEASUREMENTS_REVISION,
   };
+}
+
+/**
+ * Readiness warnings for a deployment that will stop before its end date.
+ *
+ * Warnings rather than errors: running a unit until its card or battery gives out is an
+ * ordinary way to deploy, and nothing about the configuration is wrong. What is worth
+ * saying before the card is written is that the end date will not be reached.
+ */
+export function forecastIssues(plan: Forecast, timezone: string): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const short = (days: number) => {
+    const remaining = Math.max(1, Math.round(plan.deploymentDays - days));
+    return remaining === 1 ? '1 day' : `${remaining} days`;
+  };
+  if (plan.cardFullAt) {
+    issues.push({
+      severity: 'warning',
+      path: 'forecast.card',
+      message:
+        `The card is expected to fill on ${formatZonedDate(plan.cardFullAt, timezone)}, about ` +
+        `${short(plan.storageDays)} before the deployment ends. Recording stops when it does.`,
+    });
+  }
+  if (plan.batteryDeadAt) {
+    issues.push({
+      severity: 'warning',
+      path: 'forecast.battery',
+      message:
+        plan.stopsEarlyBecause === 'battery'
+          ? `The battery is expected to run out on ${formatZonedDate(plan.batteryDeadAt, timezone)}, about ` +
+            `${short(plan.batteryDays)} before the deployment ends. Recording stops when it does.`
+          : // The card fills first, and nothing here models what the device draws after that,
+            // so this is what the battery would do if recording carried on.
+            `If the card did not fill first, the battery would run out on ` +
+            `${formatZonedDate(plan.batteryDeadAt, timezone)}, about ${short(plan.batteryDays)} before the deployment ends.`,
+    });
+  }
+  return issues;
 }
 
 /**
@@ -277,23 +437,23 @@ export function forecast(inputs: ForecastInputs): Forecast {
  * CONTINUOUS is 1 by definition. SCHEDULED and INTERVAL are exact. AMPLITUDE is a
  * WORST CASE — it assumes every permitted clip is triggered, because the true rate
  * depends on how noisy the site is, which no model can know.
+ *
+ * A solar schedule changes from day to day, so its duty cycle depends on WHEN the phase
+ * runs and WHERE; pass `context` to have it resolved day by day the way the device does.
+ * Without one, a solar phase is judged by its fallback periods alone.
  */
 export function dutyCycle(
   phase: PhaseConfig,
   caveats: string[] = [],
   firmware: FirmwareProfile = DEFAULT_FIRMWARE_PROFILE,
+  context?: ScheduleContext,
 ): number {
   switch (phase.audioRecordingMode) {
     case 'CONTINUOUS':
       return 1;
 
-    case 'SCHEDULED': {
-      const active = phase.audioTriggerTimes.reduce(
-        (sum, window) => sum + Math.max(0, window.endSecond - window.startSecond),
-        0,
-      );
-      return Math.min(1, active / SECONDS_PER_DAY);
-    }
+    case 'SCHEDULED':
+      return scheduledActivity(phase, caveats, context).duty;
 
     case 'INTERVAL': {
       const intervalSeconds =
@@ -324,6 +484,214 @@ export function dutyCycle(
       return Math.min(1, (phase.maxAudioClips * phase.audioClipLengthSeconds) / windowSeconds);
     }
   }
+}
+
+/** Where and when a scheduled phase runs, for resolving a solar schedule. */
+export interface ScheduleContext {
+  config: Pick<DeploymentConfig, 'latitude' | 'longitude' | 'timezone' | 'startTime'>;
+  /** The span the phase covers, as epoch milliseconds. */
+  fromMs: number;
+  toMs: number;
+}
+
+interface Activity {
+  duty: number;
+  /** Four-hour directory buckets a day of this phase writes into. */
+  bucketsPerDay: number;
+}
+
+function phaseActivity(
+  phase: PhaseConfig,
+  config: DeploymentConfig,
+  segment: { startDay: number; endDay: number },
+  start: number,
+  caveats: string[],
+  firmware: FirmwareProfile,
+): Activity {
+  if (phase.audioRecordingMode === 'SCHEDULED') {
+    return scheduledActivity(phase, caveats, {
+      config,
+      fromMs: start + segment.startDay * SECONDS_PER_DAY * 1000,
+      toMs: start + segment.endDay * SECONDS_PER_DAY * 1000,
+    });
+  }
+  const duty = dutyCycle(phase, caveats, firmware);
+  if (duty <= 0) return { duty, bucketsPerDay: 0 };
+  // An interval longer than a bucket leaves some buckets empty.
+  if (phase.audioRecordingMode === 'INTERVAL') {
+    const intervalSeconds = phase.audioTriggerInterval * TIME_SCALE_SECONDS[phase.audioTriggerIntervalTimeScale];
+    return { duty, bucketsPerDay: Math.min(BUCKETS_PER_DAY, SECONDS_PER_DAY / Math.max(1, intervalSeconds)) };
+  }
+  return { duty, bucketsPerDay: BUCKETS_PER_DAY };
+}
+
+/**
+ * The scheduled duty cycle, as the device will run it.
+ *
+ * Each sampled day is resolved by `scheduleOnDay`, which mirrors the firmware: solar
+ * windows against that day's sun, the clock periods where the sun gives none, and
+ * continuous recording where there is nothing to schedule by at all. A clip that starts in
+ * a period runs to its full length, so each period records whole clips.
+ */
+function scheduledActivity(phase: PhaseConfig, caveats: string[], context?: ScheduleContext): Activity {
+  const clip = phase.audioClipLengthSeconds;
+  const solar = phase.audioScheduleType === 'SOLAR' && phase.audioSolarWindows.length > 0;
+
+  const summarise = (periods: TriggerWindow[], continuous: boolean, offsetSeconds: number) => ({
+    seconds: continuous ? SECONDS_PER_DAY : Math.min(SECONDS_PER_DAY, recordedSecondsInPeriods(periods, clip)),
+    buckets: continuous ? BUCKETS_PER_DAY : bucketsTouched(periods, offsetSeconds),
+  });
+
+  if (!solar || !context) {
+    const offset = context ? deviceUtcOffsetSeconds(context.config) : 0;
+    if (phase.audioTriggerTimes.length === 0) {
+      caveats.push(
+        `Phase "${phase.name}" has no recording periods, and a scheduled phase with nothing to ` +
+          'schedule by records continuously. These figures assume it does.',
+      );
+    }
+    const day = summarise(phase.audioTriggerTimes, phase.audioTriggerTimes.length === 0, offset);
+    return { duty: day.seconds / SECONDS_PER_DAY, bucketsPerDay: day.buckets };
+  }
+
+  const offset = deviceUtcOffsetSeconds(context.config);
+  const spanMs = Math.max(0, context.toMs - context.fromMs);
+  const days = Math.max(1, Math.ceil(spanMs / (SECONDS_PER_DAY * 1000)));
+  const samples = Math.min(days, MAX_SCHEDULE_SAMPLES);
+  let seconds = 0;
+  let buckets = 0;
+  let fallbackDays = 0;
+  let continuousDays = 0;
+  for (let i = 0; i < samples; i++) {
+    // The middle of each sampled day, so a sample never lands on a day boundary.
+    const at = context.fromMs + ((i + 0.5) / samples) * spanMs;
+    const day = scheduleOnDay(phase, context.config, Math.floor(at / 1000), offset);
+    const summary = summarise(day.periods, day.continuous, offset);
+    seconds += summary.seconds;
+    buckets += summary.buckets;
+    if (day.usedFallback) fallbackDays++;
+    if (day.continuous) continuousDays++;
+  }
+
+  if (context.config.latitude === null || context.config.longitude === null) {
+    caveats.push(
+      `Phase "${phase.name}" follows the sun but the deployment has no position, so the device ` +
+        'will use its fallback periods every day. These figures assume it does.',
+    );
+  } else if (continuousDays > 0) {
+    caveats.push(
+      `On about ${Math.round((continuousDays / samples) * 100)}% of days the sun gives phase ` +
+        `"${phase.name}" no usable period and there are no fallback periods, so the device records ` +
+        'continuously on those days. These figures include that.',
+    );
+  } else if (fallbackDays > 0) {
+    caveats.push(
+      `On about ${Math.round((fallbackDays / samples) * 100)}% of days the sun gives phase ` +
+        `"${phase.name}" no usable period, and the device uses its fallback periods instead.`,
+    );
+  }
+
+  return { duty: seconds / samples / SECONDS_PER_DAY, bucketsPerDay: buckets / samples };
+}
+
+/**
+ * How many of the day's four-hour directories the periods write into.
+ *
+ * The firmware buckets by UTC epoch, not by local time (`storage.c`,
+ * `ensure_audio_directory`), so the local periods are shifted back onto UTC first.
+ */
+function bucketsTouched(periods: readonly TriggerWindow[], utcOffsetSeconds: number): number {
+  const touched = new Set<number>();
+  for (const period of periods) {
+    if (periodDuration(period) <= 0) continue;
+    for (const segment of periodSegments(period)) {
+      const from = segment.startSecond - utcOffsetSeconds;
+      const to = segment.endSecond - utcOffsetSeconds;
+      for (let bucket = Math.floor(from / BUCKET_SECONDS); bucket * BUCKET_SECONDS < to; bucket++) {
+        touched.add(((bucket % BUCKETS_PER_DAY) + BUCKETS_PER_DAY) % BUCKETS_PER_DAY);
+      }
+    }
+  }
+  return touched.size;
+}
+
+/**
+ * What one day of a phase costs on the card.
+ *
+ * Every recording rounds up to whole clusters, one audio file and — when motion is recorded
+ * with the audio — one IMU file per clip. Each four-hour bucket the day writes into is a
+ * directory of its own with a log in it, and each day is a directory holding the buckets.
+ * Directories grow in whole clusters as their entries fill them. The logs are assumed to
+ * fit in one cluster each, which a four-hour log does comfortably at any cluster size the
+ * dashboard recommends.
+ */
+function cardBytesPerDayFor(
+  phase: PhaseConfig,
+  clipsPerDay: number,
+  imuBytesPerDay: number,
+  bucketsPerDay: number,
+  clusterBytes: number,
+): number {
+  if (clipsPerDay <= 0 && imuBytesPerDay <= 0) return 0;
+  const footprint = clipFootprint(phase);
+  const imuPerClip = phase.imuRecordingMode === 'AUDIO' && footprint.imuBytes > 0;
+  const filesPerClip = imuPerClip ? 2 : 1;
+  const clipClusters = clustersFor(footprint.audioBytes, clusterBytes) + (imuPerClip ? clustersFor(footprint.imuBytes, clusterBytes) : 0);
+  // Motion recorded on movement is written as it comes, so it is charged by the byte.
+  const activityImuBytes = phase.imuRecordingMode === 'ACTIVITY' ? imuBytesPerDay : 0;
+
+  const buckets = Math.max(bucketsPerDay, clipsPerDay > 0 ? 1 : 0);
+  const filesPerBucket = buckets > 0 ? (clipsPerDay * filesPerClip) / buckets : 0;
+  const bucketDirectoryClusters = Math.max(
+    1,
+    Math.ceil(
+      (filesPerBucket * directoryEntryBytes(RECORDING_NAME_LENGTH + (phase.useOpusEncoding ? 1 : 0)) +
+        directoryEntryBytes(BUCKET_LOG_NAME_LENGTH)) /
+        clusterBytes,
+    ),
+  );
+  const logClusters = 1;
+  const dayDirectoryClusters = Math.max(1, Math.ceil((buckets * directoryEntryBytes(BUCKET_DIRECTORY_NAME_LENGTH)) / clusterBytes));
+
+  return (
+    clipsPerDay * clipClusters * clusterBytes +
+    buckets * (bucketDirectoryClusters + logClusters) * clusterBytes +
+    dayDirectoryClusters * clusterBytes +
+    activityImuBytes
+  );
+}
+
+/**
+ * The day the battery is exhausted, drawing each phase's current in the order they run.
+ *
+ * Returns null when it outlasts the deployment. Gaps between phases draw nothing here, as
+ * they draw nothing in the per-phase figures; the VHF beacon adds its current from the
+ * moment it starts.
+ */
+function drainBattery(
+  timeline: Array<PhaseForecast & { startDay: number; endDay: number }>,
+  capacityMah: number,
+  deploymentDays: number,
+  vhfStartDay: number | null,
+): number | null {
+  let remaining = capacityMah;
+  for (const segment of timeline) {
+    const from = Math.max(0, segment.startDay);
+    const to = Math.min(deploymentDays, segment.endDay);
+    // Split where the beacon starts, since the draw changes there.
+    const cuts = [from, ...(vhfStartDay !== null && vhfStartDay > from && vhfStartDay < to ? [vhfStartDay] : []), to];
+    for (let i = 0; i < cuts.length - 1; i++) {
+      const pieceFrom = cuts[i];
+      const days = cuts[i + 1] - pieceFrom;
+      if (days <= 0) continue;
+      const vhf = vhfStartDay !== null && pieceFrom >= vhfStartDay ? VHF.activeCurrentMa.value : 0;
+      const perDay = (segment.averageCurrentMa + vhf) * 24;
+      if (perDay <= 0) continue;
+      if (remaining <= days * perDay) return pieceFrom + remaining / perDay;
+      remaining -= days * perDay;
+    }
+  }
+  return null;
 }
 
 /** ACTIVITY-mode IMU storage assumption until field data says otherwise. */

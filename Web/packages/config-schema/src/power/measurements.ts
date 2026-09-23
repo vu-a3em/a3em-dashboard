@@ -165,8 +165,12 @@ export const LED = {
 } as const;
 
 export const VHF = {
-  /** Continuous once the beacon activates, until the battery dies. */
-  activeCurrentMa: m(8.0, 'mA', 'extrapolated', 'placeholder — not measured'),
+  /**
+   * Zero: the beacon carries its own battery, so it draws nothing from the A3EM pack. Kept
+   * as a measurement rather than deleted so the forecast still has the one place to change
+   * should a beacon ever be powered from the unit.
+   */
+  activeCurrentMa: m(0, 'mA', 'datasheet', 'the VHF beacon has its own battery'),
 } as const;
 
 // ---------------------------------------------------------------------------

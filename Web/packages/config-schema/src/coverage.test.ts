@@ -264,3 +264,20 @@ describe('the grid and the count agreeing', () => {
     assert.ok(trailing.every((cell) => !cell.isGap));
   });
 });
+
+describe('silence detection', () => {
+  it('treats an empty hour under a silence gate as the gate working, not as a gap', () => {
+    const gated = config({ phases: [{ ...defaultPhase(), audioRecordingMode: 'CONTINUOUS', silenceThreshold: 0.03 }] });
+    assert.equal(expectationFor('2026-04-01T03:00:00.000Z', gated, UTC), 'unpredictable');
+    const grid = buildCoverage({ recordings: at('2026-04-01T00:10:00.000Z', '2026-04-01T09:10:00.000Z'), config: gated, timezone: UTC });
+    assert.equal(grid.gaps.length, 0);
+  });
+
+  it('still calls an hour outside a gated schedule idle', () => {
+    const gated = config({
+      phases: [{ ...defaultPhase(), audioRecordingMode: 'SCHEDULED', silenceThreshold: 0.02, audioTriggerTimes: [{ startSecond: 0, endSecond: 3600 }] }],
+    });
+    assert.equal(expectationFor('2026-04-01T00:00:00.000Z', gated, UTC), 'unpredictable');
+    assert.equal(expectationFor('2026-04-01T05:00:00.000Z', gated, UTC), 'idle');
+  });
+});

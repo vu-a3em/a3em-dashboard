@@ -53,6 +53,12 @@ export interface SolarDay {
   available: Record<SolarAnchor, boolean>;
   /** Seconds past local midnight, already folded into [0, 86400). */
   secondsOfDay: Record<SolarAnchor, number>;
+  /**
+   * The same instants UNFOLDED — relative to local midnight but free to run below zero or past
+   * 86 400 — so the anchors stay in chronological order. A window from one anchor to another
+   * can only be recognised as running past midnight while its two ends are in this form.
+   */
+  secondsFromMidnight: Record<SolarAnchor, number>;
   polarDay: boolean;
   polarNight: boolean;
 }
@@ -76,6 +82,7 @@ export function solarDay(
   const empty: SolarDay = {
     available: { DAWN: false, SUNRISE: false, SUNSET: false, DUSK: false },
     secondsOfDay: { DAWN: 0, SUNRISE: 0, SUNSET: 0, DUSK: 0 },
+    secondsFromMidnight: { DAWN: 0, SUNRISE: 0, SUNSET: 0, DUSK: 0 },
     polarDay: false,
     polarNight: false,
   };
@@ -95,6 +102,7 @@ export function solarDay(
   const result: SolarDay = {
     available: { ...empty.available },
     secondsOfDay: { ...empty.secondsOfDay },
+    secondsFromMidnight: { ...empty.secondsFromMidnight },
     polarDay: false,
     polarNight: false,
   };
@@ -104,7 +112,9 @@ export function solarDay(
     if (minutes === null) continue;
 
     const eventUtc = utcDay * 86400 + Math.floor(minutes * 60 + 0.5);
-    let secondsOfDay = (eventUtc + utcOffsetSeconds - localDay * 86400) % 86400;
+    const unfolded = eventUtc + utcOffsetSeconds - localDay * 86400;
+    result.secondsFromMidnight[anchor] = unfolded;
+    let secondsOfDay = unfolded % 86400;
     if (secondsOfDay < 0) secondsOfDay += 86400;
 
     result.secondsOfDay[anchor] = secondsOfDay;

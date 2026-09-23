@@ -8,6 +8,7 @@ import {
 import { defaultPhase, defaultConfig } from './defaults.js';
 import type { SolarAnchor, TimeScale } from './firmware-constants.js';
 import type { DeploymentConfig, PhaseConfig } from './types.js';
+import { dstChangesAffectingSchedule, joinDstSegments, mergeMidnightPeriods } from './schedule.js';
 
 export interface ParseResult {
   config: DeploymentConfig;
@@ -34,6 +35,8 @@ export const KEY_ORDER = [
   // seconds offset. Retired from output — see serialize.ts.
   'DEVICE_UTC_OFFSET_HOUR',
   'DEVICE_UTC_OFFSET',
+  // The dashboard's own; the firmware ignores it. See serialize.ts.
+  'DST_ADJUSTED',
   'SET_RTC_AT_MAGNET_DETECT',
   'DEPLOYMENT_START_TIME',
   'DEPLOYMENT_END_TIME',
@@ -92,6 +95,7 @@ export function parseConfig(text: string, timezoneHint = 'UTC'): ParseResult {
   let deploymentEnd = 0;
   let vhfEpoch = 0;
   let sawPhaseMarker = false;
+  let dstAdjusted = false;
 
   const rawLines = text.split('\n');
   const endsWithNewline = text.endsWith('\n');
@@ -163,6 +167,9 @@ export function parseConfig(text: string, timezoneHint = 'UTC'): ParseResult {
         break; // derived from timezone on write; nothing to restore
       case 'SET_RTC_AT_MAGNET_DETECT':
         config.setRtcAtMagnetDetect = value === 'True';
+        break;
+      case 'DST_ADJUSTED':
+        dstAdjusted = value === 'True';
         break;
       case 'DEPLOYMENT_LATITUDE':
         config.latitude = Number(value);
@@ -251,7 +258,7 @@ export function parseConfig(text: string, timezoneHint = 'UTC'): ParseResult {
         const [startAnchor, startOffset, endAnchor, endOffset] = value.split(',');
         if (phase!.audioSolarWindows.length >= MAX_AUDIO_TRIGGER_TIMES) {
           warnings.push(
-            `Phase "${phase!.name}" has more than ${MAX_AUDIO_TRIGGER_TIMES} solar windows. ` +
+            `Phase "${phase!.name}" has more than ${MAX_AUDIO_TRIGGER_TIMES} solar recording periods. ` +
               `The device ignores the extras.`,
           );
         }
@@ -259,7 +266,7 @@ export function parseConfig(text: string, timezoneHint = 'UTC'): ParseResult {
         // and marks the file corrected, so reading one back as a window with NaN edges would
         // disagree with the device about what it is actually running.
         if (!isSolarAnchor(startAnchor) || !isSolarAnchor(endAnchor)) {
-          warnings.push(`Phase "${phase!.name}" has a solar window naming an unknown anchor. The device ignores it.`);
+          warnings.push(`Phase "${phase!.name}" has a solar recording period naming an unknown anchor. The device ignores it.`);
           break;
         }
         phase!.audioSolarWindows.push({
@@ -274,7 +281,7 @@ export function parseConfig(text: string, timezoneHint = 'UTC'): ParseResult {
         const [start, end] = value.split('-');
         if (phase!.audioTriggerTimes.length >= MAX_AUDIO_TRIGGER_TIMES) {
           warnings.push(
-            `Phase "${phase!.name}" has more than ${MAX_AUDIO_TRIGGER_TIMES} recording windows. ` +
+            `Phase "${phase!.name}" has more than ${MAX_AUDIO_TRIGGER_TIMES} recording period entries. ` +
               `The device overruns its schedule array — this card's configuration is unsafe.`,
           );
         }
@@ -326,9 +333,23 @@ export function parseConfig(text: string, timezoneHint = 'UTC'): ParseResult {
     }
   }
 
+  // An overnight period is written as the two entries either side of midnight; read it back
+  // as the one period it was entered as.
+  for (const phase of config.phases) {
+    phase.audioTriggerTimes = mergeMidnightPeriods(phase.audioTriggerTimes);
+  }
+
   if (!sawPhaseMarker) {
     warnings.push('No [PHASE] section found; the device would run with built-in defaults.');
-    config.phases = [defaultPhase('Default')];
+    config.phases = [defaultPhase()];
+  }
+
+  // Put back what the serializer split for daylight saving, so the editor shows the phases
+  // and local times that were entered rather than the pieces the device was given.
+  if (dstAdjusted && config.isPhased) {
+    const joined = joinDstSegments(config);
+    config.phases = joined.phases;
+    config.isPhased = joined.isPhased;
   }
 
   // A non-phased deployment inherits the deployment span, matching the firmware's
@@ -339,6 +360,10 @@ export function parseConfig(text: string, timezoneHint = 'UTC'): ParseResult {
       phase.endTime = undefined;
     }
   }
+
+  // A card written without the adjustment, across a change that would have moved its
+  // periods, ran unadjusted — which is what reviewing it must assume.
+  config.adjustForDst = dstAdjusted || dstChangesAffectingSchedule(config).length === 0;
 
   config.vhfStartTime = epochToIso(vhfEpoch || deploymentEnd || deploymentStart);
   config.schemaVersion = CONFIG_SCHEMA_VERSION;

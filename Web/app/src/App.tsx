@@ -181,7 +181,14 @@ export default function App() {
             />
           ) : null}
           {view === 'batch' ? (
-            <BatchPrepare card={card} config={draft.config} units={batch} onUnitsChange={setBatch} />
+            <BatchPrepare
+              card={card}
+              config={draft.config}
+              basedOn={draft.basedOn}
+              units={batch}
+              onUnitsChange={setBatch}
+              onEditConfiguration={() => setView('configure')}
+            />
           ) : null}
           {view === 'review' ? (
             <CardOverview

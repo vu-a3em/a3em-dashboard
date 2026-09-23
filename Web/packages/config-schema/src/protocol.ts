@@ -84,6 +84,8 @@ export function protocolSettingsFrom(config: DeploymentConfig): ProtocolSettings
   // Phase boundaries live in phaseSpans as proportions; carrying the instants too would
   // leave two sources of truth that disagree the moment a protocol is reused.
   settings.phases = settings.phases!.map(stripPhaseTimes);
+  // Absent means on, so a protocol saved before the setting existed compares as it runs.
+  settings.adjustForDst = config.adjustForDst !== false;
   return settings as ProtocolSettings;
 }
 
@@ -186,7 +188,8 @@ function rebasePhases(
  * shifting the dates never counts as drift.
  */
 export function matchesProtocol(config: DeploymentConfig, protocol: Protocol): boolean {
-  return stableStringify(protocolSettingsFrom(config)) === stableStringify(protocol.settings);
+  const stored = { ...protocol.settings, adjustForDst: protocol.settings.adjustForDst !== false };
+  return stableStringify(protocolSettingsFrom(config)) === stableStringify(stored);
 }
 
 /**
@@ -293,7 +296,7 @@ export const STARTER_PROTOCOLS: Protocol[] = [
     'starter.low-frequency-continuous',
     'Low-frequency continuous',
     'Continuous 8 kHz, uncompressed, for the low-frequency calls of large mammals, such as elephant ' +
-      'rumble harmonics, bear and caribou vocalisations. Nothing above 3.8 kHz is captured.',
+      'rumble harmonics and the vocalisations of bears and caribou. Nothing above 3.8 kHz is captured.',
     (config) => ({
       ...config,
       /*
@@ -391,10 +394,10 @@ export const STARTER_PROTOCOLS: Protocol[] = [
 
   starter(
     'starter.dawn-dusk',
-    'Dawn and dusk windows',
+    'Dawn and dusk periods',
     'Roughly two hours around first light and two around dusk, at 48 kHz, high-pass filtered at ' +
       '200 Hz to cut wind and collar noise without touching bird song. Anchored to civil twilight ' +
-      'and sunrise at the deployment position, so the windows follow the sun rather than the clock.',
+      'and sunrise at the deployment position, so the periods follow the sun rather than the clock.',
     (config) => ({
       ...config,
       phases: [
@@ -451,7 +454,7 @@ export const STARTER_PROTOCOLS: Protocol[] = [
     'starter.activity-budget',
     'Activity budget (audio and motion)',
     'Continuous 16 kHz audio with motion recorded alongside it, for classifying what the animal is ' +
-      'doing, such as feeding, ruminating or moving.',
+      'doing, such as feeding, ruminating, or moving.',
     (config) => ({
       ...config,
       phases: [
@@ -485,7 +488,7 @@ export const STARTER_PROTOCOLS: Protocol[] = [
     'starter.amplitude-detection',
     'Amplitude detection',
     'Records only when sound crosses a loudness threshold, for sparse loud events against a quiet ' +
-      'background, such as gunshots, vehicles and alarm calls. Capped at 30 clips an hour so a windy ' +
+      'background, such as gunshots, vehicles, and alarm calls. Capped at 30 clips an hour so a windy ' +
       'or busy site cannot fill the card early. Triggers on loudness alone and cannot tell what made ' +
       'the sound.',
     (config) => ({

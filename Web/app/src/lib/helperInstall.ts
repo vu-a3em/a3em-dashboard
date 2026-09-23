@@ -62,24 +62,54 @@ export const HELPER_DOWNLOAD_URL: string | null = null;
  */
 const EXTENSION_ID = 'felbcgjkphldokgcjildnmnclokfngnh';
 
-const BUILD_FROM_SOURCE: InstallStep = {
-  title: 'Build and register the helper',
-  detail:
-    'From a checkout of the dashboard repository. This builds the native helper and ' +
-    'registers it with every Chromium browser it finds, then verifies the registration ' +
-    'by running it.',
-  command:
-    'npm --workspace @a3em/card-helper run build\n' +
-    `npm run install-helper -- --extension-id ${EXTENSION_ID}`,
-};
+const REPOSITORY_URL = 'https://github.com/vu-a3em/a3em-dashboard.git';
 
-const VERIFY: InstallStep = {
-  title: 'Check it worked',
-  detail:
-    'Reports which browsers were wired up and whether the helper actually runs. A ' +
-    'registration that silently did not take is otherwise only discovered with a card in hand.',
-  command: 'npm run helper-doctor',
-};
+/**
+ * The steps, in the words and the shell of the system they are for.
+ *
+ * Everything funnels through npm, so the commands barely differ; what differs is where they
+ * are typed, what the helper can do there, and — on Windows — that registering it with the
+ * browser is a registry change the installer prints rather than makes.
+ */
+function sourceSteps(os: 'macos' | 'windows' | 'linux'): InstallStep[] {
+  const shell = os === 'windows' ? 'PowerShell' : os === 'macos' ? 'Terminal' : 'a terminal';
+  const steps: InstallStep[] = [
+    {
+      title: 'Get the dashboard source',
+      detail: `Needs Git and Node.js 20 or later. In ${shell}:`,
+      command: `git clone ${REPOSITORY_URL}\ncd a3em-dashboard/Web\nnpm install`,
+    },
+    {
+      title: 'Build and register the helper',
+      detail:
+        os === 'windows'
+          ? 'From the same folder. This builds the helper and writes its manifest, then prints the ' +
+            'registry commands that tell each browser where to find it.'
+          : 'From the same folder. This builds the native helper and registers it with every ' +
+            'Chromium browser it finds, then verifies the registration by running it.',
+      command: 'npm --workspace @a3em/card-helper run build\n' + `npm run install-helper -- --extension-id ${EXTENSION_ID}`,
+    },
+  ];
+  if (os === 'windows') {
+    steps.push({
+      title: 'Register it with the browser',
+      detail:
+        'Run the reg add commands the previous step printed, in the same PowerShell window. They ' +
+        'write to your own user registry and need no administrator rights.',
+    });
+  }
+  steps.push({
+    title: 'Check it worked',
+    detail:
+      os === 'windows'
+        ? 'Reports whether the helper actually runs. It cannot read the registry, so if the dashboard ' +
+          'still cannot find the helper, re-run the reg add commands above.'
+        : 'Reports which browsers were wired up and whether the helper actually runs. A registration ' +
+          'that silently did not take is otherwise only discovered with a card in hand.',
+    command: 'npm run helper-doctor',
+  });
+  return steps;
+}
 
 export function installGuide(os: HostOs = detectOs()): InstallGuide {
   const extensionStep: InstallStep = {
@@ -87,8 +117,8 @@ export function installGuide(os: HostOs = detectOs()): InstallGuide {
     detail: EXTENSION_STORE_URL
       ? 'From the Chrome Web Store. It is a small relay — it holds no card logic of its own.'
       : 'Not yet published to the Chrome Web Store. For now, load it unpacked: open ' +
-        'chrome://extensions, turn on Developer mode, choose "Load unpacked", and select ' +
-        'the extension folder from the dashboard repository.',
+        'chrome://extensions (edge://extensions in Edge), turn on Developer mode, choose "Load unpacked", ' +
+        'and select the Web/extension folder in the copy you just downloaded.',
   };
 
   switch (os) {
@@ -98,7 +128,7 @@ export function installGuide(os: HostOs = detectOs()): InstallGuide {
         osLabel: 'macOS',
         helperAvailable: true,
         caveat: null,
-        steps: [extensionStep, BUILD_FROM_SOURCE, VERIFY],
+        steps: [...sourceSteps('macos').slice(0, 1), extensionStep, ...sourceSteps('macos').slice(1)],
       };
     case 'windows':
       return {
@@ -109,7 +139,7 @@ export function installGuide(os: HostOs = detectOs()): InstallGuide {
           'The native helper does not support Windows yet. The extension installs and the ' +
           'connection works, but every card operation will report which command still needs ' +
           'implementing. macOS is complete.',
-        steps: [extensionStep, BUILD_FROM_SOURCE, VERIFY],
+        steps: [...sourceSteps('windows').slice(0, 1), extensionStep, ...sourceSteps('windows').slice(1)],
       };
     case 'linux':
       return {
@@ -120,7 +150,7 @@ export function installGuide(os: HostOs = detectOs()): InstallGuide {
           'The native helper does not support Linux yet. The extension installs and the ' +
           'connection works, but every card operation will report which command still needs ' +
           'implementing. macOS is complete.',
-        steps: [extensionStep, BUILD_FROM_SOURCE, VERIFY],
+        steps: [...sourceSteps('linux').slice(0, 1), extensionStep, ...sourceSteps('linux').slice(1)],
       };
     default:
       return {

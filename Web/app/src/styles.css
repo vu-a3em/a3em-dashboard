@@ -17,15 +17,18 @@
   --sunken: #e4ebe6;
   --ink: #0f1613;
   --ink-2: #4b5854;
-  --ink-3: #77837e;
+  /* Help text, notes and summaries. #77837e read at 3.5–3.9:1, under the 4.5:1 small text
+     needs and hard going on a laptop outdoors; this is 5.8:1 on white, 4.5:1 on the chrome. */
+  --ink-3: #5c6863;
   --line: #d9e2dc;
   --line-2: #c3d0c8;
-  /* The navigation column. Its own tone rather than a reused one: it has to sit clear of
-     BOTH the page field and the panes, and every existing token is one or the other. */
-  --rail-bg: #e4ebe6;
-  /* The selected item, which has to carry against --rail-bg rather than against white.
-     --primary-wash is a hair lighter than the rail now, so the tint all but disappeared. */
-  --rail-active: #d0e5db;
+  /* The application chrome — navigation column AND top bar — in one tone of its own, a step
+     darker than the page so the frame reads as frame and the white panes as the content.
+     The top bar used to be pane-white, which made the title look like one more data pane. */
+  --rail-bg: #dce6df;
+  /* The selected item is a white tab, the colour of the panes it opens. */
+  --rail-active: #ffffff;
+  --rail-hover: rgba(255, 255, 255, 0.6);
   --primary: #2f6f5e;
   --primary-deep: #1e4b3f;
   --primary-wash: #e2efe9;
@@ -34,10 +37,13 @@
   --mark-signal: #5dae86;
   --signal: #b4622f;
   --signal-wash: #f6e8dd;
-  --ok: #33765a;
-  --warn: #9c7220;
+  /* A grass green, clearly apart from the teal primary: success used to be the brand colour
+     at 1.1:1, so "Written" and "Ready" read as ordinary chrome. */
+  --ok: #2c7a3a;
+  /* 5.5:1 on its wash; the old amber was 3.75:1. */
+  --warn: #7a5a12;
   --crit: #a93f35;
-  --ok-wash: #dfede5;
+  --ok-wash: #e2f0e3;
   --warn-wash: #f6eeda;
   --crit-wash: #f7e2df;
 
@@ -63,6 +69,7 @@
        goes below paper rather than trying to find room between the two. */
     --rail-bg: #050907;
     --rail-active: #16302a;
+    --rail-hover: #10201b;
     --primary: #63b79b;
     --primary-deep: #8fd0b8;
     --primary-wash: #152722;
@@ -156,7 +163,7 @@ button:disabled {
   top: 0;
   height: 100vh;
   background: var(--rail-bg);
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--line-2);
   padding: 20px 14px;
   display: flex;
   flex-direction: column;
@@ -198,13 +205,14 @@ button:disabled {
    direction the selected state moves — the rail now shares the page's background, so a
    hover of --surface-2 against it was barely a shade apart in light mode. */
 .rail-link:hover {
-  background: var(--surface);
+  background: var(--rail-hover);
   color: var(--ink);
 }
 .rail-link[aria-current='page'] {
   background: var(--rail-active);
   color: var(--primary);
   font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 /*
  * Ambient state at the bottom of the rail: firmware version, then card tools.
@@ -299,8 +307,8 @@ button:disabled {
   align-items: center;
   gap: 12px;
   padding: 12px 24px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
+  border-bottom: 1px solid var(--line-2);
+  background: var(--rail-bg);
   flex-wrap: wrap;
 }
 .topbar h1 {
@@ -514,7 +522,7 @@ details.card > summary + .field {
 /* The top margin was declared but the bottom was left to the browser's ~1em default, so a
    note ending a card sat on a band of dead space the card's own padding then doubled. */
 .stat-note {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ink-3);
   margin-top: 2px;
   margin-bottom: 0;
@@ -548,7 +556,7 @@ details.card > summary + .field {
   margin-bottom: 5px;
 }
 .field .help {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-3);
   margin-top: 4px;
 }
@@ -723,7 +731,7 @@ table.data td.num {
   .editor-layout {
     grid-template-columns: minmax(0, 1fr);
   }
-  .editor-layout > div:last-child {
+  .editor-layout > #forecast-column {
     position: static !important;
   }
 }
@@ -1681,4 +1689,174 @@ details.card[open] > summary > .summary-note {
 .phase-remove:not(:disabled):hover {
   color: var(--crit);
   border-color: var(--crit);
+}
+
+/* ---------- deployment editor additions ---------- */
+
+/* A multi-line field reads like the single-line ones beside it. */
+.field textarea {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+/* Amber text on the pane itself, for a figure that runs out before the deployment does. */
+.warn-text {
+  color: var(--warn);
+}
+
+/* The format instructions: a numbered sequence, each command on a line of its own. */
+.format-steps {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.format-steps li + li {
+  margin-top: 5px;
+}
+.format-steps code {
+  display: block;
+  margin-top: 3px;
+  padding: 5px 8px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.forecast-caveats {
+  margin-top: 14px;
+}
+.forecast-caveats ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+.forecast-caveats li + li {
+  margin-top: 4px;
+}
+
+/* A destructive confirmation, in the one colour reserved for things that cannot be undone. */
+.btn.danger {
+  background: var(--crit);
+  border-color: var(--crit);
+  color: #fff;
+  font-weight: 600;
+}
+.protocol-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--crit);
+  border-radius: 5px;
+  background: var(--crit-wash);
+  color: var(--crit);
+  font-size: 13px;
+}
+.protocol-confirm span {
+  flex-basis: 100%;
+}
+
+/* Batch rows sit outside .field, so their label boxes take the form styling explicitly. */
+.batch-label {
+  width: 16rem;
+  max-width: 100%;
+  height: var(--input-height);
+  padding: 7px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+.batch-label[aria-invalid='true'] {
+  border-color: var(--crit);
+  background: var(--crit-wash);
+}
+.batch-label-problem {
+  flex-basis: 100%;
+  order: 10;
+  font-size: 12px;
+  color: var(--crit);
+}
+
+/*
+  The forecast summary bar, for windows too narrow to give the forecast its own column.
+
+  Hidden wherever the column exists. Below that width the forecast sits under the whole form,
+  so this keeps its answer — and the way to it — in view while the form is being edited.
+*/
+.forecast-dock {
+  display: none;
+}
+@media (max-width: 980px) {
+  .forecast-dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 16px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border-top: 1px solid var(--line-2);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.06);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .forecast-dock .warn {
+    color: var(--warn);
+  }
+  .forecast-dock .crit {
+    color: var(--crit);
+    font-weight: 600;
+  }
+  .forecast-dock .ok {
+    color: var(--ok);
+  }
+  .forecast-dock .btn {
+    margin-left: auto;
+  }
+  /* Room for the bar, so it never sits over the write button at the very bottom. */
+  .editor-layout {
+    padding-bottom: 64px;
+  }
+}
+
+/* A banner that lists what it is about. */
+.banner-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+/* The batch's "what each card will carry", one line per part of the configuration. */
+.batch-summary {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.batch-summary li + li {
+  margin-top: 3px;
+}
+.batch-label-note {
+  flex-basis: 100%;
+  order: 11;
+  font-size: 12px;
+  color: var(--warn);
 }

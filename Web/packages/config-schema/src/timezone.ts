@@ -17,9 +17,7 @@ export function utcOffsetSecondsAt(timezone: string, isoInstant: string): number
   if (Number.isNaN(instant.getTime())) {
     throw new Error(`Invalid ISO 8601 timestamp: ${isoInstant}`);
   }
-  const asZoned = Date.UTC(
-    ...(dateParts(timezone, instant) as [number, number, number, number, number, number]),
-  );
+  const asZoned = utcMs(...(dateParts(timezone, instant) as [number, number, number, number, number, number]));
   // Intl reports whole seconds only; round to the nearest minute to absorb the
   // sub-minute historical offsets some zones carry (e.g. LMT before 1900).
   return Math.round((asZoned - instant.getTime()) / 1000 / 60) * 60;
@@ -34,7 +32,7 @@ export function zonedWallClockToIso(
   hour: number,
   minute: number,
 ): string {
-  const naive = Date.UTC(year, month - 1, day, hour, minute, 0);
+  const naive = utcMs(year, month - 1, day, hour, minute, 0);
   // Two passes converge for every real zone: the first correction can land on the
   // wrong side of a DST transition, the second settles it.
   let instant = naive - guessOffsetMs(timezone, naive);
@@ -69,7 +67,7 @@ export function supportedTimezones(): string[] {
 function guessOffsetMs(timezone: string, instantMs: number): number {
   const d = new Date(instantMs);
   return (
-    Date.UTC(...(dateParts(timezone, d) as [number, number, number, number, number, number])) -
+    utcMs(...(dateParts(timezone, d) as [number, number, number, number, number, number])) -
     instantMs
   );
 }
@@ -114,7 +112,8 @@ export function toZonedInput(isoInstant: string, timezone: string): string {
   if (Number.isNaN(instant.getTime())) throw new Error(`Invalid ISO 8601 timestamp: ${isoInstant}`);
   const [year, month, day, hour, minute] = dateParts(timezone, instant);
   const pad = (value: number) => String(value).padStart(2, '0');
-  return `${year}-${pad(month + 1)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
+  // Four digits whatever the year: a datetime-local field rejects "2-10-15".
+  return `${String(year).padStart(4, '0')}-${pad(month + 1)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
 }
 
 /** The instant a wall-clock reading names in a given zone. Inverse of `toZonedInput`. */
@@ -150,4 +149,44 @@ export function formatZonedDisplay(isoInstant: string, timezone: string): string
     hour: 'numeric',
     minute: '2-digit',
   }).format(instant);
+}
+
+/**
+ * A date alone, in the deployment's zone, the way the viewer's locale writes dates.
+ *
+ * For "the card fills on …" and the like, where a time of day would be false precision and
+ * a UTC date is simply the wrong day for anyone west of Greenwich in the evening.
+ */
+export function formatZonedDate(isoInstant: string, timezone: string): string {
+  const instant = new Date(isoInstant);
+  if (Number.isNaN(instant.getTime())) return '—';
+  try {
+    return new Intl.DateTimeFormat(undefined, { timeZone: timezone, dateStyle: 'medium' }).format(instant);
+  } catch {
+    return instant.toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * Local midnight in `timezone` at the start of the day `daysAhead` days after the one
+ * containing `now` — so `localMidnight(tz, now, 1)` is the coming midnight.
+ */
+export function localMidnight(timezone: string, now: Date, daysAhead: number): string {
+  const [year, month, day] = dateParts(timezone, now);
+  const target = new Date(utcMs(year, month, day + daysAhead, 0, 0, 0));
+  return zonedWallClockToIso(timezone, target.getUTCFullYear(), target.getUTCMonth() + 1, target.getUTCDate(), 0, 0);
+}
+
+/**
+ * `Date.UTC` without its two-digit-year rule.
+ *
+ * `Date.UTC(2, …)` is 1902, not year 2 — so the first digit typed into a date field's year,
+ * which the browser reports as year 0002, went through the offset arithmetic as 1902 and
+ * came back as an instant nearly two thousand years out.
+ */
+function utcMs(year: number, month: number, day: number, hour: number, minute: number, second: number): number {
+  const date = new Date(0);
+  date.setUTCFullYear(year, month, day);
+  date.setUTCHours(hour, minute, second, 0);
+  return date.getTime();
 }

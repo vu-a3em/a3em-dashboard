@@ -61,7 +61,7 @@ export function AudioFilter({
       note={summariseFilter(phase)}
     >
       <p className="hint">
-        Removes audio outside the selected frequency band from the recordings themselves. The ceiling is the Nyquist limit less a 200 Hz guard band.
+        Removes audio outside the selected frequency band from the recordings themselves. Either corner can be set up to just below half the sample rate (the Nyquist frequency).
       </p>
 
         <div className="field">
@@ -228,8 +228,9 @@ export function SilenceDetection({
       note={summariseSilence(phase)}
     >
       <p className="hint">
-        Discards clips whose sound never rises above the threshold, saving on storage during quiet periods.
-        This only decides what to keep, not what the recordings contain.
+        Starts a clip only once the frequencies of interest rise above the threshold, so quiet stretches are
+        never written. A clip that starts is recorded in full. In a sleep/record cycle, the device keeps
+        listening for up to one clip length before it skips that cycle.
       </p>
 
       <div className="field">
@@ -244,7 +245,7 @@ export function SilenceDetection({
         />
         <p className="help">
           {enabled
-            ? `Clips staying below ${Math.round(phase.silenceThreshold * 100)}% of full scale are discarded.`
+            ? `Nothing is recorded while the band stays below ${Math.round(phase.silenceThreshold * 100)}% of full scale.`
             : 'Off — every clip is kept.'}
         </p>
       </div>

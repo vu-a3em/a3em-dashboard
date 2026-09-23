@@ -61,6 +61,12 @@ export function OffloadCard({
 
   const { layout, unreadable } = card.contents;
 
+  // Counted the way the check counts: the self-test capture at the card root is checked too,
+  // so a button offering one number fewer than the report then showed looked like a miscount.
+  const checkableCount = (card.contents?.layout.files ?? []).filter(
+    (file) => file.kind === 'audio' || file.kind === 'imu' || file.kind === 'self-test-clip',
+  ).length;
+
   const runCheck = async () => {
     setError(null);
     setChecking({ done: 0, total: 0 });
@@ -189,7 +195,7 @@ export function OffloadCard({
           </>
         ) : (
           <button className="btn" onClick={() => void runCheck()}>
-            Check {(layout.audioCount + layout.imuCount).toLocaleString()} recordings
+            Check {checkableCount.toLocaleString()} recordings
           </button>
         )}
 

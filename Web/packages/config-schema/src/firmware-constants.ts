@@ -24,13 +24,14 @@ export const LOG_FILE_NAME = 'a3em.log'; // static_config.h: LOG_FILE_NAME
 // ---------------------------------------------------------------------------
 
 /**
- * static_config.h: MAX_NUM_DEPLOYMENT_PHASES = 6
+ * static_config.h: MAX_NUM_DEPLOYMENT_PHASES = 20
  *
- * runtime_config.c `parse_line()` does `deployment_phases[++num_deployment_phases]`
- * with NO bounds check. A config containing a 7th `[PHASE]` writes past the end of
- * the array. The desktop dashboard enforces no limit at all. HARD CAP.
+ * Raised from 6 so a deployment can carry the extra phases that daylight-saving changes
+ * are split into (see `schedule.ts`). Each phase costs 248 bytes of TCM. Current firmware
+ * bounds-checks the array and ignores extra `[PHASE]` sections; legacy firmware wrote past
+ * the end of it, which is why this is still treated as a HARD CAP.
  */
-export const MAX_DEPLOYMENT_PHASES = 6;
+export const MAX_DEPLOYMENT_PHASES = 20;
 
 /**
  * static_config.h: MAX_AUDIO_TRIGGER_TIMES = 12

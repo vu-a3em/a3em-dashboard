@@ -19,8 +19,14 @@ import type {
  */
 
 export interface TriggerWindow {
-  /** Seconds past local midnight. Firmware stores these verbatim. */
+  /** Seconds past local midnight, in [0, 86400). */
   startSecond: number;
+  /**
+   * Seconds past the SAME local midnight, so a period running past midnight ends beyond
+   * 86 400 — 21:00 to 03:00 is 75 600 to 97 200. The serializer writes such a period as the
+   * two entries either side of midnight, which is all the firmware can express, and the
+   * parser joins them back up. See `schedule.ts`.
+   */
   endSecond: number;
 }
 
@@ -171,6 +177,16 @@ export interface DeploymentConfig {
   vhfMode: VhfMode;
   /** Ignored unless vhfMode === 'SCHEDULED'; derived for 'END'. */
   vhfStartTime: string; // ISO 8601
+
+  /**
+   * Keep clock-time recording periods on the local wall clock across daylight-saving changes.
+   *
+   * The device holds one UTC offset, so without this a 06:00 period runs at 05:00 or 07:00
+   * local after a change. With it, the serializer splits each affected phase at the change
+   * and shifts the later part's periods to compensate, and writes DST_ADJUSTED so the parser
+   * can put them back. Absent means on.
+   */
+  adjustForDst?: boolean;
 
   /** True when phases carry their own start/end times. */
   isPhased: boolean;

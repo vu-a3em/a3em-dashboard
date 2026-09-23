@@ -175,6 +175,13 @@ export interface SolarScheduleHistory {
   lastWindowCount: number | null;
   lastStartSecond: number | null;
   lastEndSecond: number | null;
+  /**
+   * Days on which at least one solar window ended before it started and was skipped, and
+   * how many windows that was in all. A configuration mistake the device reports rather
+   * than silently recording less than it was asked to.
+   */
+  reversedDays: number;
+  reversedWindows: number;
 }
 
 export interface ParsedLog {
@@ -647,10 +654,14 @@ export function parseLogs(
             nominal: Number(fields.nominal ?? 0),
             tolerance: Number(fields.tolerance ?? 0),
           });
+        } else if (code === 'SOLAR_REVERSED') {
+          solarSchedule ??= emptySolarHistory();
+          solarSchedule.reversedDays += 1;
+          solarSchedule.reversedWindows += Number(fields.windows ?? 0);
         } else if (code === 'SOLAR_SCHEDULE') {
           // One of these per local day, so it is accumulated rather than pushed onto the
           // timeline: a three-month deployment would otherwise add ninety near-identical rows.
-          solarSchedule ??= { daysResolved: 0, fallbackDays: 0, lastWindowCount: null, lastStartSecond: null, lastEndSecond: null };
+          solarSchedule ??= emptySolarHistory();
           solarSchedule.daysResolved += 1;
           const windows = Number(fields.windows ?? 0);
           if (windows > 0) {
@@ -860,5 +871,17 @@ function readDetailsBlock(lines: string[], startIndex: number): { sample: Teleme
       measuredSampleRateHz: null,
       sampleRateSettled: null,
     },
+  };
+}
+
+function emptySolarHistory(): SolarScheduleHistory {
+  return {
+    daysResolved: 0,
+    fallbackDays: 0,
+    lastWindowCount: null,
+    lastStartSecond: null,
+    lastEndSecond: null,
+    reversedDays: 0,
+    reversedWindows: 0,
   };
 }

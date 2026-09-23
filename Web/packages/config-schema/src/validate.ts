@@ -37,6 +37,18 @@ import { effectiveSampleRateHz, filterCornerCeilingHz } from './serialize.js';
 import { DEFAULT_FIRMWARE_PROFILE, type FirmwareProfile } from './firmware-profile.js';
 import { MIN_THRESHOLD_DBFS, MIN_WIPER, fractionToWiper, wiperToStoredFraction } from './audio-threshold.js';
 import type { DeploymentConfig, PhaseConfig, ValidationIssue } from './types.js';
+import {
+  approximateSolarNoonMinutes,
+  deviceUtcOffsetSeconds,
+  dstAdjustmentApplies,
+  dstSegments,
+  firmwareEntryCount,
+  periodDuration,
+  periodSegments,
+  SECONDS_PER_DAY,
+  solarPeriodReports,
+} from './schedule.js';
+import { formatZonedDate } from './timezone.js';
 
 /**
  * Every rule the desktop `validate_details()` enforced, plus the ones the
@@ -47,11 +59,21 @@ import type { DeploymentConfig, PhaseConfig, ValidationIssue } from './types.js'
  * legacy profile, because assuming a device lacks the recent fixes is the safe
  * direction to be wrong in.
  *
- * Returns issues in no particular order; the UI sorts by severity.
+ * Returns errors before warnings, each group in the order the editor presents its panes.
+ *
+ * `options.now` switches on the checks that only make sense for a card about to be written —
+ * that the deployment is not already over, say. Without it nothing is judged against the
+ * clock, which is right for a configuration read off a card to be reviewed.
  */
+export interface ValidateOptions {
+  /** Epoch milliseconds to judge the deployment dates against. */
+  now?: number;
+}
+
 export function validateConfig(
   config: DeploymentConfig,
   firmware: FirmwareProfile = DEFAULT_FIRMWARE_PROFILE,
+  options: ValidateOptions = {},
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const start = Date.parse(config.startTime);
@@ -63,27 +85,44 @@ export function validateConfig(
     issues.push({ severity: 'warning', path, message, fix });
 
   // --- identity -----------------------------------------------------------
-  if (!config.deviceLabel.trim()) {
-    error('deviceLabel', 'Give the device a label.');
-  }
-  if (config.deviceLabel.length > DEVICE_LABEL_MAX_LEN) {
-    error(
-      'deviceLabel',
-      `Device labels are limited to ${DEVICE_LABEL_MAX_LEN} characters ` +
-        `(this one is ${config.deviceLabel.length}).`,
-    );
-  }
-  // FIRMWARE: the label becomes a FAT directory name via f_mkdir().
-  if (/[\\/:*?"<>|]/.test(config.deviceLabel)) {
-    error(
-      'deviceLabel',
-      'Device labels cannot contain \\ / : * ? " < > or | — the label is used as a folder name on the card.',
-    );
-  }
+  for (const problem of deviceLabelProblems(config.deviceLabel)) error('deviceLabel', problem);
 
   // --- deployment window --------------------------------------------------
   if (start >= end) {
     error('endTime', 'The deployment must end after it starts.');
+  }
+  /*
+    Dates already behind us, for a card about to be written.
+
+    An end in the past is always a mistake — it is usually the previous deployment's dates,
+    kept by the saved draft and by every protocol applied since. A start in the past is
+    only a warning, because configuring at the site minutes before activating is ordinary,
+    but it is never harmless: with the clock set at activation, every recording is stamped
+    at least that far in the past.
+  */
+  if (options.now !== undefined && Number.isFinite(end) && Number.isFinite(start)) {
+    if (end <= options.now) {
+      error('endTime', 'The deployment ends in the past. Set the dates for this deployment.');
+    } else if (start < options.now - 60_000) {
+      warn(
+        'startTime',
+        config.setRtcAtMagnetDetect
+          ? 'The deployment starts in the past. The device sets its clock to this start time when ' +
+              'it is activated, so every recording would be stamped that much earlier than it was made.'
+          : 'The deployment starts in the past, so the device will begin recording as soon as it is activated.',
+      );
+    }
+  }
+  // FIRMWARE: main.c seeds the RTC only when SET_RTC_AT_MAGNET_DETECT is on. Without it, and
+  // without a GPS fix to set it, the clock is whatever the device last knew — the newest file
+  // on the card, or the time in MRAM from its previous deployment.
+  if (!config.setRtcAtMagnetDetect && !config.gpsAvailable) {
+    warn(
+      'setRtcAtMagnetDetect',
+      'The device will not set its clock when activated and has no GPS to set it, so it runs on ' +
+        'whatever time it last knew. Unless its clock is already correct, recording starts at the ' +
+        'wrong moment and every time on the card is wrong by the same amount.',
+    );
   }
   // FIRMWARE: every timestamp on device is a 32-bit time_t.
   if (end / 1000 > MAX_REPRESENTABLE_EPOCH_SECONDS) {
@@ -174,7 +213,7 @@ export function validateConfig(
   ) {
     error(
       'micAmplificationDb',
-      `A ${config.micType.toLowerCase()} microphone takes a gain between ${MIC_AMPLIFICATION_MIN_DB} ` +
+      `${micPhrase(config.micType, true)} takes a gain between ${MIC_AMPLIFICATION_MIN_DB} ` +
         `and ${gainCeiling} dB. The device clamps silently to that range rather than reporting it, ` +
         'so a higher number here would simply not be the gain it runs at.',
       {
@@ -193,6 +232,16 @@ export function validateConfig(
         { label: `Use ${actual} dB`, patch: { micAmplificationDb: actual } },
       );
     }
+  }
+
+  // Digital is what A3EM units are built with. An analog setting on a digital unit records
+  // nothing usable, and the device has no way to notice, so this is worth a second look.
+  if (config.micType === 'ANALOG') {
+    warn(
+      'micType',
+      'This deployment is set for an analog microphone; however, most A3EM units use a digital one. ' +
+        'Check your hardware before writing the card.',
+    );
   }
 
   // FIRMWARE: battery.c `battery_monitor_is_critically_low()` returns false outright on a
@@ -241,6 +290,51 @@ export function validateConfig(
         : `A deployment can have at most ${MAX_DEPLOYMENT_PHASES} phases. ` +
           `More than that overruns the device's memory and corrupts the deployment.`,
     );
+  }
+
+  /*
+    The phases the card will actually carry, once daylight-saving changes are split out.
+
+    Only worth its own message when the split is what pushes the count over; a deployment
+    already over the limit is reported above.
+  */
+  if (config.phases.length <= MAX_DEPLOYMENT_PHASES && dstAdjustmentApplies(config)) {
+    const written = dstSegments(config).length;
+    if (written > MAX_DEPLOYMENT_PHASES) {
+      error(
+        'adjustForDst',
+        `Adjusting for daylight saving splits this deployment into ${written} phases on the card, and ` +
+          `the device holds ${MAX_DEPLOYMENT_PHASES}. Use fewer phases, or turn the adjustment off.`,
+      );
+    }
+  }
+
+  /*
+    A position and a timezone that describe different places.
+
+    The device resolves sunrise from the position and reads the schedule on the timezone's
+    clock, so a mismatch — the browser's zone left in place for a site elsewhere, or a west
+    longitude typed as positive — moves every solar period by hours without anything looking
+    wrong. Solar noon more than three hours from 12:00 local is not a real place.
+  */
+  if (hasPosition(config) && config.phases.some((phase) => phase.audioRecordingMode === 'SCHEDULED' && phase.audioScheduleType === 'SOLAR')) {
+    const noon = approximateSolarNoonMinutes(config.longitude!, deviceUtcOffsetSeconds(config));
+    const fromNoon = Math.min(Math.abs(noon - 720), 1440 - Math.abs(noon - 720));
+    if (fromNoon > 180) {
+      const clock = `${String(Math.floor(noon / 60)).padStart(2, '0')}:${String(Math.round(noon % 60) % 60).padStart(2, '0')}`;
+      // Clocks at a longitude sit within an hour or so of its solar time, so the two whole
+      // hours either side of longitude / 15 are what the right timezone would be near.
+      const hours = config.longitude! / 15;
+      const utc = (value: number) => (value === 0 ? 'UTC' : `UTC${value > 0 ? '+' : '−'}${Math.abs(value)}`);
+      const near = Math.floor(hours) === Math.ceil(hours) ? utc(Math.round(hours)) : `${utc(Math.floor(hours))} or ${utc(Math.ceil(hours))}`;
+      warn(
+        'longitude',
+        `The deployment position and its timezone do not look like the same place: the sun is highest ` +
+          `there at about ${clock} by ${config.timezone.replace(/_/g, ' ')} time, not near midday. A site at ` +
+          `this longitude would normally use a timezone near ${near}. Check the timezone, and that a ` +
+          'longitude west of Greenwich is negative.',
+      );
+    }
   }
 
   if (config.isPhased) {
@@ -311,7 +405,7 @@ export function validateConfig(
       if (phaseStart < start || phaseEnd > end) {
         error(
           `phases.${index}`,
-          `Phase "${phase.name}" falls outside the deployment window.`,
+          `Phase "${phase.name}" falls outside the deployment dates.`,
         );
       }
       if (previousEnd !== null && phaseStart < previousEnd) {
@@ -330,13 +424,35 @@ export function validateConfig(
   }
 
   config.phases.forEach((phase, index) => validatePhase(phase, index, config, firmware, issues));
-  return issues;
+  // Errors first: only they stop a write, so they are what to read first. Stable, so each
+  // group keeps the order the editor's panes run in.
+  return [...issues.filter((issue) => issue.severity === 'error'), ...issues.filter((issue) => issue.severity === 'warning')];
+}
+
+/**
+ * What is wrong with a device label, one sentence per problem.
+ *
+ * Shared by the editor and batch preparation, which applies it to every unit's label.
+ */
+export function deviceLabelProblems(label: string): string[] {
+  const problems: string[] = [];
+  if (!label.trim()) problems.push('Give the device a label.');
+  if (label.length > DEVICE_LABEL_MAX_LEN) {
+    problems.push(`Device labels are limited to ${DEVICE_LABEL_MAX_LEN} characters (this one is ${label.length}).`);
+  }
+  // FIRMWARE: the label becomes a FAT directory name via f_mkdir().
+  if (/[\\/:*?"<>|]/.test(label)) {
+    problems.push('Device labels cannot contain \\ / : * ? " < > or | — the label is used as a folder name on the card.');
+  }
+  return problems;
 }
 
 /** A window as the editor shows it, so an error names something findable on screen. */
 function describeWindow(window: { startSecond: number; endSecond: number }): string {
-  const clock = (seconds: number) =>
-    `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}`;
+  const clock = (seconds: number) => {
+    const ofDay = ((seconds % SECONDS_PER_DAY) + SECONDS_PER_DAY) % SECONDS_PER_DAY;
+    return `${String(Math.floor(ofDay / 3600)).padStart(2, '0')}:${String(Math.floor((ofDay % 3600) / 60)).padStart(2, '0')}`;
+  };
   return `${clock(window.startSecond)}–${clock(window.endSecond)}`;
 }
 
@@ -404,8 +520,8 @@ function validatePhase(
       error(
         at('maxAudioClips'),
         firmware.capabilities.zeroClipCapIsRewritten
-          ? 'A cap of zero is rewritten to a single clip per period by the device, which is ' +
-            'almost certainly not what you want. Set the number of clips it may capture.'
+          ? `A cap of zero is rewritten to a single clip per ${phase.maxClipsTimeScale.toLowerCase().replace(/s$/, '')} ` +
+            'by the device, which is almost certainly not what you want. Set the number of clips it may capture.'
           : `On ${firmware.label} firmware a cap of zero stops the device recording altogether. ` +
             'Set how many clips it may capture per time period.',
         {
@@ -467,7 +583,8 @@ function validatePhase(
     if (phase.audioClipLengthSeconds > intervalSeconds) {
       error(
         at('audioTriggerInterval'),
-        `A ${phase.audioClipLengthSeconds}s clip does not fit in a ${intervalSeconds}s interval. ` +
+        // Phrased without an article in front of a number, which "a 80s interval" got wrong.
+        `Clips of ${phase.audioClipLengthSeconds} s do not fit into an interval of ${intervalSeconds} s. ` +
           'Lengthen the interval or shorten the clip.',
       );
     }
@@ -488,94 +605,138 @@ function validatePhase(
     */
     if (phase.audioTriggerTimes.length === 0) {
       if (solar) {
+        // FIRMWARE: an empty schedule is not silence. seconds_until_next_scheduled_recording()
+        // returns zero for an empty list, so a solar day with nothing to fall back on is
+        // recorded around the clock — and runtime_config.c marks the file corrected for it.
         warn(
           at('audioTriggerTimes'),
-          'The solar schedule has no fallback windows. On any day that the sun gives no usable ' +
-            'window, the device will record nothing.',
+          'the solar schedule has no fallback recording periods. On any day the sun gives no ' +
+            'usable period, the device records continuously instead.',
         );
       } else {
-        error(at('audioTriggerTimes'), 'add at least one recording window.');
+        error(
+          at('audioTriggerTimes'),
+          'add at least one recording period. With none, the device ignores the schedule and records continuously.',
+        );
       }
     }
 
     if (solar) {
       if (phase.audioSolarWindows.length === 0) {
-        error(at('audioSolarWindows'), 'add at least one solar recording window.');
+        error(at('audioSolarWindows'), 'add at least one solar recording period.');
       }
       // FIRMWARE: solar_trigger_times[] is the same fixed 12-entry array as the clock schedule,
       // and runtime_config.c refuses the extras rather than writing past the end.
       if (phase.audioSolarWindows.length > MAX_AUDIO_TRIGGER_TIMES) {
         error(
           at('audioSolarWindows'),
-          `A phase can have at most ${MAX_AUDIO_TRIGGER_TIMES} solar windows. The device ignores any beyond that.`,
+          `A phase can have at most ${MAX_AUDIO_TRIGGER_TIMES} solar recording periods. The device ignores any beyond that.`,
         );
       }
       for (const window of phase.audioSolarWindows) {
         // FIRMWARE: the offset is stored in an int16 and runtime_config.c REFUSES an entry
         // outside that range rather than clamping it, so an over-large offset silently drops
-        // the whole window rather than shifting it.
+        // the whole period rather than shifting it.
         for (const offset of [window.startOffsetSeconds, window.endOffsetSeconds]) {
           if (!Number.isInteger(offset) || offset < SOLAR_OFFSET_MIN_SECONDS || offset > SOLAR_OFFSET_MAX_SECONDS) {
             error(
               at('audioSolarWindows'),
               `A solar offset must be a whole number of seconds between ${SOLAR_OFFSET_MIN_SECONDS} and ` +
-                `${SOLAR_OFFSET_MAX_SECONDS}. The device refuses the whole window otherwise.`,
+                `${SOLAR_OFFSET_MAX_SECONDS}. The device refuses the whole period otherwise.`,
             );
             break;
           }
         }
       }
+      /*
+        A period that ends before it starts, on any day the phase runs.
+
+        FIRMWARE: resolve_solar_schedule() skips it for that day and logs SOLAR_REVERSED. It is
+        a configuration mistake rather than a period across midnight — which the device now
+        records, split either side — and it can hold on only part of the year, since the gap
+        between two anchors changes with the season.
+      */
+      if (hasPosition(config)) {
+        const from = Date.parse(config.isPhased ? (phase.startTime ?? config.startTime) : config.startTime);
+        const to = Date.parse(config.isPhased ? (phase.endTime ?? config.endTime) : config.endTime);
+        solarPeriodReports(phase, config, from, to).forEach((report, windowIndex) => {
+          if (!report.reversedDays) return;
+          const days = report.reversedDays === report.daysChecked ? 'every day' : `${report.reversedDays} of the ${report.daysChecked} days checked`;
+          error(
+            at('audioSolarWindows'),
+            `solar recording period ${windowIndex + 1} ends before it starts on ${days}` +
+              (report.firstReversedAt !== null && report.reversedDays < report.daysChecked
+                ? `, starting ${formatZonedDate(new Date(report.firstReversedAt).toISOString(), config.timezone)}`
+                : '') +
+              '. The device skips it on those days. Move its end later, or its start earlier.',
+          );
+        });
+      }
+
       // Without a position the device can never resolve any of this, so it would run the
       // fallback every single day and the solar schedule would be decoration.
       if (!hasPosition(config)) {
         error(
           'latitude',
           'A solar schedule needs the deployment position. Without it the device cannot work ' +
-            'out sunrise and will use the fallback windows every day.',
+            'out sunrise and will use the fallback recording periods every day.',
         );
       }
     }
-    // FIRMWARE: audio_trigger_times[] is a fixed 12-entry array. Current firmware refuses the
-    // extras and marks the file corrected; before that it wrote past the end of the array.
-    if (phase.audioTriggerTimes.length > MAX_AUDIO_TRIGGER_TIMES) {
+
+    /*
+      The clock periods, as the device will receive them.
+
+      An overnight period is written as two entries either side of midnight, so the device's
+      limit is on entries rather than on periods — twelve overnight periods would not fit.
+    */
+    const entries = firmwareEntryCount(phase.audioTriggerTimes);
+    if (entries > MAX_AUDIO_TRIGGER_TIMES) {
+      const overnight = entries > phase.audioTriggerTimes.length;
       error(
         at('audioTriggerTimes'),
-        firmware.capabilities.boundsCheckedArrays
-          ? `A phase can have at most ${MAX_AUDIO_TRIGGER_TIMES} recording windows. ` +
-            `The device ignores any beyond that.`
-          : `A phase can have at most ${MAX_AUDIO_TRIGGER_TIMES} recording windows. ` +
-            `More than that overruns the device's memory.`,
+        `A phase can have at most ${MAX_AUDIO_TRIGGER_TIMES} recording period entries` +
+          (overnight ? `, and each period that runs past midnight takes two (this schedule needs ${entries}).` : '.') +
+          (firmware.capabilities.boundsCheckedArrays
+            ? ' The device ignores any beyond that.'
+            : " More than that overruns the device's memory."),
       );
     }
-    const sorted = [...phase.audioTriggerTimes].sort((a, b) => a.startSecond - b.startSecond);
-    let previous: (typeof sorted)[number] | null = null;
-    for (const window of sorted) {
-      if (window.startSecond >= window.endSecond) {
+    for (const window of phase.audioTriggerTimes) {
+      if (window.startSecond === window.endSecond) {
         error(
           at('audioTriggerTimes'),
-          `recording window ${describeWindow(window)} must end after it starts.`,
+          `recording period ${describeWindow(window)} starts and ends at the same time.`,
         );
         break;
       }
-      if (window.endSecond > 86400) {
+      if (window.startSecond < 0 || window.startSecond >= SECONDS_PER_DAY || window.endSecond < window.startSecond) {
+        error(at('audioTriggerTimes'), `recording period ${describeWindow(window)} must end after it starts.`);
+        break;
+      }
+      if (periodDuration(window) > SECONDS_PER_DAY) {
+        error(at('audioTriggerTimes'), `recording period ${describeWindow(window)} is longer than a day.`);
+        break;
+      }
+    }
+    // Overlaps are judged on the part of the day each period covers, so an overnight period
+    // collides with a morning one exactly where it should.
+    const segments = phase.audioTriggerTimes
+      .filter((window) => periodDuration(window) > 0 && periodDuration(window) <= SECONDS_PER_DAY)
+      .flatMap((window) => periodSegments(window).map((segment) => ({ segment, window })))
+      .sort((a, b) => a.segment.startSecond - b.segment.startSecond);
+    let reach: (typeof segments)[number] | null = null;
+    for (const current of segments) {
+      if (reach && current.segment.startSecond < reach.segment.endSecond && current.window !== reach.window) {
+        // Naming both is the point: "periods cannot overlap" leaves someone scanning a list
+        // of twelve to work out which pair is at fault.
         error(
           at('audioTriggerTimes'),
-          `recording window ${describeWindow(window)} extends past midnight. ` +
-            'Split it into one window either side of midnight.',
+          `recording periods ${describeWindow(reach.window)} and ${describeWindow(current.window)} must not overlap.`,
         );
         break;
       }
-      // Naming both windows is the point: "windows cannot overlap" leaves someone scanning
-      // a list of twelve to work out which pair is at fault.
-      if (previous && window.startSecond < previous.endSecond) {
-        error(
-          at('audioTriggerTimes'),
-          `recording windows ${describeWindow(previous)} and ${describeWindow(window)} ` +
-            'must not overlap.',
-        );
-        break;
-      }
-      previous = window;
+      if (!reach || current.segment.endSecond > reach.segment.endSecond) reach = current;
     }
   }
 
@@ -607,12 +768,12 @@ function validatePhase(
   if (!clock.reachable) {
     error(
       at('audioSampleRateHz'),
-      `A ${config.micType.toLowerCase()} microphone cannot produce ${phase.audioSampleRateHz} Hz at all.`,
+      `${micPhrase(config.micType, true)} cannot produce ${phase.audioSampleRateHz} Hz at all.`,
     );
   } else if (!clock.exact) {
     warn(
       at('audioSampleRateHz'),
-      `A ${config.micType.toLowerCase()} microphone cannot produce exactly ${phase.audioSampleRateHz} Hz. ` +
+      `${micPhrase(config.micType, true)} cannot produce exactly ${phase.audioSampleRateHz} Hz. ` +
         `It will record at ${clock.actualHz} Hz, ${Math.abs(clock.errorFraction * 100).toFixed(2)}% ` +
         `${clock.errorFraction > 0 ? 'fast' : 'slow'}, and label the files with that rate.`,
     );
@@ -725,8 +886,9 @@ function validatePhase(
 export function isWritable(
   config: DeploymentConfig,
   firmware: FirmwareProfile = DEFAULT_FIRMWARE_PROFILE,
+  options: ValidateOptions = {},
 ): boolean {
-  return !validateConfig(config, firmware).some((issue) => issue.severity === 'error');
+  return !validateConfig(config, firmware, options).some((issue) => issue.severity === 'error');
 }
 
 /** Both coordinates present and in range, matching `solar_position_valid()` on the device. */
@@ -739,4 +901,10 @@ function hasPosition(config: DeploymentConfig): boolean {
     Math.abs(config.latitude) <= LATITUDE_MAX_DEG &&
     Math.abs(config.longitude) <= LONGITUDE_MAX_DEG
   );
+}
+
+/** "An analog microphone" or "A digital microphone" — the article follows the word. */
+function micPhrase(micType: DeploymentConfig['micType'], capitalised = false): string {
+  const phrase = micType === 'ANALOG' ? 'an analog microphone' : 'a digital microphone';
+  return capitalised ? phrase.charAt(0).toUpperCase() + phrase.slice(1) : phrase;
 }

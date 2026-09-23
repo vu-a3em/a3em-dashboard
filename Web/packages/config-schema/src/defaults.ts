@@ -7,6 +7,7 @@ import {
   maxFrequencyCeilingHz,
   LEDS_DEFAULT_ACTIVE_SECONDS,
 } from './firmware-constants.js';
+import { localMidnight } from './timezone.js';
 import type { DeploymentConfig, PhaseConfig } from './types.js';
 
 /**
@@ -36,7 +37,7 @@ const START_MIC_AMPLIFICATION_DB = 1.5;
 const START_MAGNET_VALIDATION_MS = 3000;
 const START_IMU_SAMPLE_RATE_HZ = 50;
 
-export function defaultPhase(name = 'Default'): PhaseConfig {
+export function defaultPhase(name = 'Phase 1'): PhaseConfig {
   return {
     name,
     audioRecordingMode: 'CONTINUOUS',
@@ -79,10 +80,27 @@ export function defaultPhase(name = 'Default'): PhaseConfig {
 }
 
 export function defaultConfig(timezone = 'UTC', now = new Date()): DeploymentConfig {
-  const start = new Date(now);
-  start.setUTCHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 14);
+  /*
+    The coming local midnight, and two weeks after it, in the DEPLOYMENT's zone.
+
+    It used to be today's UTC midnight, which read as 7 PM yesterday to anyone in Chicago —
+    a start already in the past before a single field had been touched, and at an hour
+    nobody would choose.
+  */
+  let startIso: string;
+  let endIso: string;
+  try {
+    startIso = localMidnight(timezone, now, 1);
+    endIso = localMidnight(timezone, now, 15);
+  } catch {
+    const start = new Date(now);
+    start.setUTCHours(0, 0, 0, 0);
+    start.setUTCDate(start.getUTCDate() + 1);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 14);
+    startIso = start.toISOString();
+    endIso = end.toISOString();
+  }
 
   return {
     schemaVersion: CONFIG_SCHEMA_VERSION,
@@ -90,8 +108,8 @@ export function defaultConfig(timezone = 'UTC', now = new Date()): DeploymentCon
     timezone,
     latitude: null,
     longitude: null,
-    startTime: start.toISOString(),
-    endTime: end.toISOString(),
+    startTime: startIso,
+    endTime: endIso,
     setRtcAtMagnetDetect: true,
     gpsAvailable: false,
     awakeOnMagnet: true,
@@ -103,7 +121,8 @@ export function defaultConfig(timezone = 'UTC', now = new Date()): DeploymentCon
     micType: 'DIGITAL',
     micAmplificationDb: START_MIC_AMPLIFICATION_DB,
     vhfMode: 'NEVER',
-    vhfStartTime: end.toISOString(),
+    vhfStartTime: endIso,
+    adjustForDst: true,
     isPhased: false,
     phases: [defaultPhase()],
   };

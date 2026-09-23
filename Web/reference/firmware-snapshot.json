@@ -288,6 +288,7 @@
     "_write",
     "active_main",
     "active_main_get_end_reason",
+    "add_resolved_window",
     "ai_continue",
     "ai_initialize",
     "ai_invoke",
@@ -1021,6 +1022,9 @@
     "SELF_TEST_START": [
       "fw"
     ],
+    "SOLAR_REVERSED": [
+      "windows"
+    ],
     "SOLAR_SCHEDULE": [
       "windows",
       "first_start",
@@ -1070,7 +1074,7 @@
     "MAX_AUDIO_TRIGGER_TIMES": 12,
     "MAX_CFG_FILE_LINE_LENGTH": 80,
     "MAX_DEVICE_LABEL_LEN": 31,
-    "MAX_NUM_DEPLOYMENT_PHASES": 6,
+    "MAX_NUM_DEPLOYMENT_PHASES": 20,
     "MIN_LOG_DATA_INTERVAL_SECONDS": 300,
     "NUM_HOURS_PER_AUDIO_DIRECTORY": 4,
     "OPUS_DEFAULT_ENCODING_BITRATE": 32000,

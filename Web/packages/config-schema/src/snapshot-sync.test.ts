@@ -209,8 +209,11 @@ describe('config keys stay in step with parse_line()', () => {
    * deployment span. This is why the serializer must omit phase times on a
    * single-phase deployment and emit them on every phase of a multi-phase one:
    * the boolean is decoration, the times are the mechanism.
+   *
+   * DST_ADJUSTED records that the serializer split phases for daylight saving, so the
+   * parser can rejoin them. The firmware has no use for it: it simply runs the phases.
    */
-  const DASHBOARD_ONLY = ['DEVICE_TIMEZONE', 'PHASE_NAME', 'PHASED_DEPLOYMENT'];
+  const DASHBOARD_ONLY = ['DEVICE_TIMEZONE', 'DST_ADJUSTED', 'PHASE_NAME', 'PHASED_DEPLOYMENT'];
 
   it('handles every key the firmware handles', () => {
     const missing = snapshot.configKeyOrder.filter((key) => !KEY_ORDER.includes(key as never));
@@ -250,6 +253,8 @@ describe('the log parser stays in step with the firmware event contract', () => 
 
   const CONSUMED_FIELDS: Record<string, string[]> = {
     SOLAR_SCHEDULE: ['windows', 'first_start', 'first_end'],
+    // A solar window that ended before it started on that day, and was skipped.
+    SOLAR_REVERSED: ['windows'],
     TELEM: [
       // Carries its own timestamp, which is preferred over the line prefix.
       'time',
