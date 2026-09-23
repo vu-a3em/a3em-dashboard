@@ -1,0 +1,66 @@
+name: Card helper
+
+# Unit tests on every platform, then each platform's integration test: a virtual disk
+# (a loop device, an hdiutil image, a VHD) prepared exactly as the dashboard prepares a card.
+# No real device is ever visible to these runs; A3EM_HELPER_VIRTUAL_ONLY hides them.
+
+on:
+  push:
+    paths:
+      - 'Web/card-helper/**'
+      - '.github/workflows/card-helper.yml'
+  pull_request:
+    paths:
+      - 'Web/card-helper/**'
+      - '.github/workflows/card-helper.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: Web/card-helper
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: Web/card-helper/go.mod
+          cache: false
+
+      - name: Vet and unit tests
+        shell: bash
+        run: |
+          go vet ./...
+          go test ./...
+
+      - name: Build
+        shell: bash
+        run: go build -o dist/ ./cmd/a3em-card-helper
+
+      - name: Integration (Linux loop device)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq exfatprogs
+          # The runners' cloud kernel keeps its exFAT driver in the extra modules package.
+          sudo modprobe exfat || { sudo apt-get install -y -qq "linux-modules-extra-$(uname -r)" && sudo modprobe exfat; } || sudo apt-get install -y -qq exfat-fuse
+          sudo --preserve-env=PATH test/integration-linux.sh dist/a3em-card-helper
+
+      - name: Integration (macOS disk image)
+        if: runner.os == 'macOS'
+        run: test/integration-macos.sh dist/a3em-card-helper
+
+      - name: Integration (Windows VHD)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./test/integration-windows.ps1 -Helper dist/a3em-card-helper.exe

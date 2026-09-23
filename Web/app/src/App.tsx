@@ -183,6 +183,7 @@ export default function App() {
           {view === 'batch' ? (
             <BatchPrepare
               card={card}
+              helper={helper}
               config={draft.config}
               basedOn={draft.basedOn}
               units={batch}

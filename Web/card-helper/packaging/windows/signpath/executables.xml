@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration "executables": the zip GitHub makes of dist/windows/*.exe
+     (x64 and ARM64). Every executable in it is signed. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="*.exe" max-matches="unbounded" product-name="A3EM Card Helper">
+      <authenticode-sign/>
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

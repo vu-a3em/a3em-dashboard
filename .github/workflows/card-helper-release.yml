@@ -1,0 +1,222 @@
+name: Card helper release
+
+# Builds the card helper's installers and, for a card-helper-v* tag, publishes them as a
+# GitHub release:
+#
+#   A3EM-Card-Helper-macOS.pkg        universal, signed and notarized
+#   A3EM-Card-Helper-Windows.exe      per-user installer, x64 and ARM64, signed by SignPath
+#   a3em-card-helper_{amd64,arm64}.deb, a3em-card-helper_linux_{amd64,arm64}.tar.gz
+#
+# Asset names carry no version, so the dashboard can link to releases/latest/download/<name>.
+#
+# Signing credentials live in the card-helper-release environment, which only card-helper-v*
+# tags can deploy to; Web/card-helper/packaging/setup-signing.sh puts them there. Anything not
+# configured is skipped with a warning, so a manual run from any branch makes unsigned test
+# builds without touching a secret.
+
+on:
+  push:
+    tags: ['card-helper-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read   # SignPath reads the run to verify where the artifact came from
+
+env:
+  RELEASE: ${{ startsWith(github.ref, 'refs/tags/card-helper-v') }}
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        run: |
+          case "$GITHUB_REF" in
+            refs/tags/card-helper-v*) echo "version=${GITHUB_REF#refs/tags/card-helper-v}" >> "$GITHUB_OUTPUT" ;;
+            *) echo "version=0.0.0-dev.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+  macos:
+    needs: version
+    runs-on: macos-latest
+    environment: ${{ startsWith(github.ref, 'refs/tags/card-helper-v') && 'card-helper-release' || '' }}
+    defaults:
+      run:
+        working-directory: Web/card-helper
+    env:
+      HAS_CERTS: ${{ secrets.MACOS_CERTS_P12 != '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: Web/card-helper/go.mod
+          cache: false
+      - name: Import signing identities
+        if: env.HAS_CERTS == 'true'
+        env:
+          MACOS_CERTS_P12: ${{ secrets.MACOS_CERTS_P12 }}
+          MACOS_CERTS_PASSWORD: ${{ secrets.MACOS_CERTS_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 24)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          printf '%s' "$MACOS_CERTS_P12" | base64 --decode > "$RUNNER_TEMP/certs.p12"
+          security import "$RUNNER_TEMP/certs.p12" -k "$KEYCHAIN" -P "$MACOS_CERTS_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/productsign
+          rm -f "$RUNNER_TEMP/certs.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+      - name: Build, sign and notarize
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          if [ -n "$APPLE_API_KEY_P8" ]; then
+            export APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+            printf '%s' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY_PATH"
+          fi
+          packaging/macos/build-pkg.sh "${{ needs.version.outputs.version }}" dist
+          rm -f "$RUNNER_TEMP/AuthKey.p8"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos
+          path: Web/card-helper/dist/A3EM-Card-Helper-macOS.pkg
+
+  linux:
+    needs: version
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Web/card-helper
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: Web/card-helper/go.mod
+          cache: false
+      - run: packaging/linux/build-deb.sh "${{ needs.version.outputs.version }}" dist
+      - name: Check the package installs and answers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ./dist/a3em-card-helper_amd64.deb
+          a3em-card-helper version
+          cat /etc/opt/chrome/native-messaging-hosts/org.a3em.card_helper.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux
+          path: |
+            Web/card-helper/dist/*.deb
+            Web/card-helper/dist/*.tar.gz
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    environment: ${{ startsWith(github.ref, 'refs/tags/card-helper-v') && 'card-helper-release' || '' }}
+    defaults:
+      run:
+        working-directory: Web/card-helper
+        shell: pwsh
+    env:
+      SIGN: ${{ secrets.SIGNPATH_API_TOKEN != '' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: Web/card-helper/go.mod
+          cache: false
+      - name: Build the executables
+        run: ./packaging/windows/build.ps1 -Version "${{ needs.version.outputs.version }}" -Stage binaries
+
+      # SignPath signs the executables first, so that what the installer carries is signed,
+      # and then the installer itself.
+      - id: unsigned-binaries
+        if: env.SIGN == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-unsigned-binaries
+          path: Web/card-helper/dist/windows/*.exe
+      - if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: executables
+          github-artifact-id: ${{ steps.unsigned-binaries.outputs.artifact-id }}
+          wait-for-completion: true
+          # Each request waits for an approver to accept it in SignPath.
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: Web/card-helper/dist/windows
+
+      - name: Build the installer
+        run: ./packaging/windows/build.ps1 -Version "${{ needs.version.outputs.version }}" -Stage installer
+      - id: unsigned-installer
+        if: env.SIGN == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-unsigned-installer
+          path: Web/card-helper/dist/A3EM-Card-Helper-Windows.exe
+      - if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: Web/card-helper/dist
+      - if: env.SIGN != 'true'
+        run: Write-Host "::warning::SignPath is not configured; the Windows installer is unsigned and SmartScreen will warn about it."
+      - name: Check the installer installs and registers
+        run: |
+          Start-Process -FilePath dist/A3EM-Card-Helper-Windows.exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES' -Wait
+          & "$env:LOCALAPPDATA\Programs\A3EM Card Helper\a3em-card-helper.exe" version
+          reg query 'HKCU\Software\Google\Chrome\NativeMessagingHosts\org.a3em.card_helper' /ve
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: Web/card-helper/dist/A3EM-Card-Helper-Windows.exe
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/card-helper-v')
+    needs: [version, macos, linux, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: assets
+          merge-multiple: true
+          pattern: '{macos,linux,windows}'
+      - run: cd assets && sha256sum * > SHA256SUMS && cat SHA256SUMS
+      - uses: softprops/action-gh-release@v3
+        with:
+          name: A3EM Card Helper ${{ needs.version.outputs.version }}
+          make_latest: true
+          files: assets/*
+          body: |
+            The native helper the A3EM dashboard uses to test, format and check SD cards. Install
+            it, add the A3EM Card Helper browser extension, and reload the dashboard.
+
+            - **macOS 11 or later**: `A3EM-Card-Helper-macOS.pkg`
+            - **Windows 10 or later**: `A3EM-Card-Helper-Windows.exe` (installs for you only; no administrator rights needed)
+            - **Debian, Ubuntu**: `a3em-card-helper_amd64.deb` (or `_arm64`), then `sudo apt install ./a3em-card-helper_amd64.deb`
+            - **Other Linux**: the `.tar.gz` for your architecture; run `sudo ./install.sh`, or `./install.sh --user`
+
+            Check an installation with `a3em-card-helper doctor`.
+
+            Code signing policy: https://github.com/vu-a3em/a3em-dashboard/blob/main/Web/card-helper/README.md#code-signing-policy

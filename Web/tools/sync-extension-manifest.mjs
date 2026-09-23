@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Writes `deployment.json` into the extension manifest, and checks it has not drifted.
+ * Writes `deployment.json` into the extension manifest and everything else that names the
+ * extension, and checks none of it has drifted.
  *
  *   node tools/sync-extension-manifest.mjs           # write
  *   node tools/sync-extension-manifest.mjs --check   # verify, non-zero on drift
@@ -12,6 +13,7 @@
  * talk to the dashboard at all and fixing it costs another Chrome Web Store review.
  */
 
+import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +26,27 @@ const PLACEHOLDER = 'CHANGE-ME';
 
 const config = JSON.parse(readFileSync(CONFIG, 'utf8'));
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
+
+/**
+ * The ID Chrome gives an extension with this public key: the first 128 bits of the key's
+ * SHA-256, written with the letters a–p for the hex digits 0–f. Checked rather than trusted,
+ * because the ID and the key are pasted into deployment.json separately — from the Chrome Web
+ * Store's Package tab — and a mismatch would break the helper for every user silently.
+ */
+function idFromKey(key) {
+  const hex = createHash('sha256').update(Buffer.from(key, 'base64')).digest('hex').slice(0, 32);
+  return [...hex].map((digit) => String.fromCharCode(97 + parseInt(digit, 16))).join('');
+}
+
+/**
+ * Everywhere else the extension ID is written: the native helper will only answer an
+ * extension it names, and the page only calls the one it names.
+ */
+const CONSUMERS = [
+  { file: 'card-helper/internal/install/install.go', pattern: /(const ExtensionID = ")([a-p]{32})(")/ },
+  { file: 'card-helper/packaging/linux/org.a3em.card_helper.json', pattern: /(chrome-extension:\/\/)([a-p]{32})(\/)/ },
+  { file: 'app/src/lib/helper.ts', pattern: /(\?\?\s*')([a-p]{32})(';)/ },
+];
 
 /**
  * Origins the extension will answer.
@@ -55,6 +78,19 @@ if (check) {
     failed = true;
   }
 
+  const derived = idFromKey(config.extensionPublicKey);
+  if (derived !== config.extensionId) {
+    console.error(`✗ deployment.json's extensionId is not the ID of its extensionPublicKey, which is ${derived}.`);
+    failed = true;
+  }
+  for (const { file, pattern } of CONSUMERS) {
+    const found = readFileSync(resolve(here, '..', file), 'utf8').match(pattern)?.[2];
+    if (found !== config.extensionId) {
+      console.error(`✗ ${file} names extension ${found ?? '(none found)'}, not ${config.extensionId}. Run: npm run sync:extension`);
+      failed = true;
+    }
+  }
+
   if (placeholderOrigin) {
     console.error(
       `✗ deployment.json still has the placeholder dashboard origin.\n` +
@@ -69,7 +105,23 @@ if (check) {
   if (failed) process.exit(1);
   console.log(`✓ extension manifest matches deployment.json (${config.dashboardOrigin})`);
 } else {
+  const derived = idFromKey(config.extensionPublicKey);
+  if (derived !== config.extensionId) {
+    console.error(`✗ deployment.json's extensionId is not the ID of its extensionPublicKey, which is ${derived}.`);
+    console.error('  Copy both from the same place: the Chrome Web Store Developer Dashboard, Package tab.');
+    process.exit(1);
+  }
   writeFileSync(MANIFEST, `${wanted}\n`, 'utf8');
+  for (const { file, pattern } of CONSUMERS) {
+    const path = resolve(here, '..', file);
+    const text = readFileSync(path, 'utf8');
+    if (!pattern.test(text)) {
+      console.error(`✗ could not find the extension ID in ${file}`);
+      process.exit(1);
+    }
+    writeFileSync(path, text.replace(pattern, `$1${config.extensionId}$3`), 'utf8');
+    console.log(`Wrote the extension ID into ${file}`);
+  }
   console.log(`Wrote extension/manifest.json`);
   console.log(`  origins:   ${matches.join(', ')}`);
   console.log(`  extension: ${config.extensionId}`);

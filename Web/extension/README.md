@@ -12,55 +12,45 @@ means it is reviewed roughly once and then left alone, while the part that actua
 changes stays free to change.
 
 If you are about to add something here, it almost certainly belongs in
-[`../packages/card-helper`](../packages/card-helper).
+[`../card-helper`](../card-helper), the native helper.
 
-## Before first use: two things to fill in
+## Its ID, and where it is written
 
-### 1. A stable extension ID
+[`deployment.json`](../deployment.json) holds the extension's public key and the ID derived from
+it; `npm run sync:extension` writes them into [`manifest.json`](manifest.json), the native
+helper's registration, and the dashboard, and `npm run ci` fails if any copy has drifted or if the
+ID is not the key's. The key in the manifest exists so that an unpacked extension, loaded for
+development, gets the published extension's ID.
 
-`allowed_origins` in the native host manifest names the extension by ID, and an unpacked
-extension's ID is derived from its filesystem path — so it differs per machine and the
-installed manifest would be wrong everywhere.
+The Chrome Web Store assigns the published ID when the item is first uploaded. Copy that item's
+public key from the Developer Dashboard (Package tab, "View public key", as one line without the
+BEGIN/END lines) into `extensionPublicKey`, its ID into `extensionId`, and run
+`npm run sync:extension`. Do it before releasing the card helper: the helper answers only the
+extension it names.
 
-```bash
-# once, and keep it somewhere safe
-openssl genrsa -out a3em-extension.pem 2048
-openssl rsa -in a3em-extension.pem -pubout -outform DER | openssl base64 -A
-```
+`externally_connectable` names the dashboard's origin, from `dashboardOrigin`. Changing the
+hostname later means a new extension version and another store review.
 
-Add the output to `manifest.json` as `"key": "<base64>"`. The ID then derives from the key
-and is identical on every machine.
+## Publishing
 
-> When first uploading to the Chrome Web Store, `key` must be **absent**. Restore it for
-> every upload after that, or the ID changes and every installed native manifest breaks.
-
-### 2. The production origin
-
-`externally_connectable.matches` currently lists only localhost. Add the dashboard's real
-origin before shipping:
-
-```json
-"matches": ["https://a3em.example.org/*", "http://localhost/*"]
-```
-
-Match patterns ignore ports, so `http://localhost/*` covers the Vite dev server on 5173.
-Wildcard TLDs (`*://*.com/*`) and `<all_urls>` are rejected — the host must be named
-explicitly, which means **changing the dashboard's hostname later requires republishing
-the extension**. Worth settling the hostname before the first submission.
+`npm run package:extension` builds the zip to upload, without the manifest's `key` (the store
+keeps its own). What to enter in each tab of the listing is in
+[`STORE-LISTING.md`](STORE-LISTING.md); the privacy policy it links to is
+[`PRIVACY.md`](PRIVACY.md).
 
 ## Loading it for development
 
 1. `chrome://extensions` → enable Developer mode → **Load unpacked** → this folder.
 2. Copy the extension ID it shows.
-3. Register the native host:
+3. Register the native host (needs Go 1.22 or later), or install a release of it:
 
    ```bash
-   npm --workspace @a3em/card-helper run build
    npm run install-helper -- --extension-id <id>
    ```
 
-   That writes the manifest for every Chromium browser it finds, then spawns the host and
-   exchanges a real message to prove the registration took.
+   That builds the helper and writes its manifest for every Chromium browser it finds.
+   `npm run helper-doctor` then starts it the way a browser would and exchanges a real
+   message, to prove the registration took.
 
 4. Point the app at it, if the ID is not the published one:
 

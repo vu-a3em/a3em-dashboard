@@ -12,7 +12,7 @@
  * without interpreting them. Reviewed once, then left alone.
  *
  * Consequently: **do not add features here.** If something needs doing, it almost
- * certainly belongs in `packages/card-helper`.
+ * certainly belongs in the native helper, `card-helper`.
  *
  * Security note. The origin allowlist is `externally_connectable.matches` in the
  * manifest, enforced by Chrome before anything reaches this file — which is why there is

@@ -1,0 +1,2102 @@
+[
+ {
+  "diskBytes": 1000000000,
+  "clusterBytes": 512,
+  "zeroThroughSector": 23013,
+  "clusterCount": 1930597,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "43a8c867ef0affd420eeece6454f8e7cb02475f21d9b935d2bd87b7996378743"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "43a8c867ef0affd420eeece6454f8e7cb02475f21d9b935d2bd87b7996378743"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 2048,
+    "sha256": "7d7ba6371231ec8a371437118071c384d001c7a4c1ab600933e46fee029d774f"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 22528,
+    "length": 512,
+    "sha256": "9c6c212ff339c49500cab1997ad7ae93d3e9a986e8afae4ca175ada314890aa6"
+   },
+   {
+    "name": "up-case table",
+    "sector": 23000,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 23012,
+    "length": 512,
+    "sha256": "1fdf21185cd17bace0ac0391369ab5dc16316be7b66e4db6b99d93935544b118"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "375ccfd61e49e99d5924c78da750454cf8260288f03a265515e5d1fcd1673ee3"
+   }
+  ]
+ },
+ {
+  "diskBytes": 1000000000,
+  "clusterBytes": 4096,
+  "zeroThroughSector": 8280,
+  "clusterCount": 243116,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "e0d595c309460415c0687d4d957a993c04d63498ea53193d68d6e58d99fefa3e"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "e0d595c309460415c0687d4d957a993c04d63498ea53193d68d6e58d99fefa3e"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "ada87f80303dc2dfdceb83011c78f764a52f0055179ba597dd87c0ab0cefc2c1"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 8192,
+    "length": 512,
+    "sha256": "49f4702e56868c2cd0dc22b74a8a5f6369a135a94a1f78c8a3c79a4752ca1ce6"
+   },
+   {
+    "name": "up-case table",
+    "sector": 8256,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 8272,
+    "length": 4096,
+    "sha256": "4a67eaab88a05f744bbdddd0227719d3c89da7d275e43703e834ff25df7758e8"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "375ccfd61e49e99d5924c78da750454cf8260288f03a265515e5d1fcd1673ee3"
+   }
+  ]
+ },
+ {
+  "diskBytes": 1000000000,
+  "clusterBytes": 32768,
+  "zeroThroughSector": 8384,
+  "clusterCount": 30389,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "317bd4f0c0362492b424b1153f7fa3d4d098f56df82e5983771dd6523c260b34"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "317bd4f0c0362492b424b1153f7fa3d4d098f56df82e5983771dd6523c260b34"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 8192,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 8256,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 8320,
+    "length": 32768,
+    "sha256": "f4d3cf8ecb219fd141444c759bb09fc2e795109ef5874815c03a24687a5f5918"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "375ccfd61e49e99d5924c78da750454cf8260288f03a265515e5d1fcd1673ee3"
+   }
+  ]
+ },
+ {
+  "diskBytes": 1000000000,
+  "clusterBytes": 131072,
+  "zeroThroughSector": 8960,
+  "clusterCount": 7597,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "7b5ce1ae37a028f1981800700c77e9acfb9fabd54ddfa7524d6ecd6e574cd71f"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "7b5ce1ae37a028f1981800700c77e9acfb9fabd54ddfa7524d6ecd6e574cd71f"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 8192,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 8448,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 8704,
+    "length": 131072,
+    "sha256": "acbe9e36f2dca1c52dcb2e43c9ce7d8f9577c6a1a852782247564f4964542308"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "375ccfd61e49e99d5924c78da750454cf8260288f03a265515e5d1fcd1673ee3"
+   }
+  ]
+ },
+ {
+  "diskBytes": 1000000000,
+  "clusterBytes": 524288,
+  "zeroThroughSector": 11264,
+  "clusterCount": 1899,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "beb2388c554931292a96492760a5d5ce9a11e638aa6c7ba9ab50bd3c6be1d862"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "beb2388c554931292a96492760a5d5ce9a11e638aa6c7ba9ab50bd3c6be1d862"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 8192,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 9216,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 10240,
+    "length": 524288,
+    "sha256": "1594051b988ba4de1ebae51910065ee27525d078e350d82ff31c1a6586652caf"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "375ccfd61e49e99d5924c78da750454cf8260288f03a265515e5d1fcd1673ee3"
+   }
+  ]
+ },
+ {
+  "diskBytes": 1000000000,
+  "clusterBytes": 33554432,
+  "zeroThroughSector": 268288,
+  "clusterCount": 28,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "4482058a821efe053453b19682c907eda8c5f51c30188fd3d05c953d8625cc8f"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "4482058a821efe053453b19682c907eda8c5f51c30188fd3d05c953d8625cc8f"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 71680,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 137216,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 202752,
+    "length": 33554432,
+    "sha256": "f7d7c1345ab0189e079a4507f0ad25c649791fde483211c36022618fe1c400d5"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "375ccfd61e49e99d5924c78da750454cf8260288f03a265515e5d1fcd1673ee3"
+   }
+  ]
+ },
+ {
+  "diskBytes": 4294967296,
+  "clusterBytes": 512,
+  "zeroThroughSector": 73724,
+  "clusterCount": 8316928,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "8ab63aca7be5890aeac2845e093c65953c2d442fa16d9d625b959c0d11c777b9"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "8ab63aca7be5890aeac2845e093c65953c2d442fa16d9d625b959c0d11c777b9"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 8192,
+    "sha256": "84d05cc390e4f072cadd98d72e5dd9eb37144cff59c7fe6b9d26dddb7eb3f481"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 71680,
+    "length": 512,
+    "sha256": "ec98f2b562db6f1dc1f2c4ea627ef4c62380d83a4c84b9bdc976aef98602b8b4"
+   },
+   {
+    "name": "up-case table",
+    "sector": 73711,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 73723,
+    "length": 512,
+    "sha256": "8715355dbabf124401c6b9df1f75d226f1c037882db0ef8cd7b9d45ebce043b7"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "a701567a50e18a0bb7986b26a0f7f8a3d2c9b7ccc8c6967b812351f6eed3c149"
+   }
+  ]
+ },
+ {
+  "diskBytes": 4294967296,
+  "clusterBytes": 4096,
+  "zeroThroughSector": 14616,
+  "clusterCount": 1046784,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "751ce3e35da0c6f393c6860073ccd1df333722dfeba59249621aef8f532d620c"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "751ce3e35da0c6f393c6860073ccd1df333722dfeba59249621aef8f532d620c"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "b780b639efeb4302a1f7fa30f8b546ae837627f4a2e4eba8600059b7373f7fe8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 14336,
+    "length": 512,
+    "sha256": "2d9e46fbddaf92bffc9e7193344c65e636e92e2fa2d46af9b1620f9adbf43e0f"
+   },
+   {
+    "name": "up-case table",
+    "sector": 14592,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 14608,
+    "length": 4096,
+    "sha256": "b7032646da572a81510d75ab5df89993fb493d06f53479b435dd1235c6f4e41d"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "a701567a50e18a0bb7986b26a0f7f8a3d2c9b7ccc8c6967b812351f6eed3c149"
+   }
+  ]
+ },
+ {
+  "diskBytes": 4294967296,
+  "clusterBytes": 32768,
+  "zeroThroughSector": 8384,
+  "clusterCount": 130944,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "f2f0521c6e4ed11d647b448245a87d52a6e744348f921196cbeb3175a4c617df"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "f2f0521c6e4ed11d647b448245a87d52a6e744348f921196cbeb3175a4c617df"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 8192,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 8256,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 8320,
+    "length": 32768,
+    "sha256": "8b8e3bf462187fdaf2ba526be560ce10939087f230afc7c00edc5cae2fc761e9"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "a701567a50e18a0bb7986b26a0f7f8a3d2c9b7ccc8c6967b812351f6eed3c149"
+   }
+  ]
+ },
+ {
+  "diskBytes": 4294967296,
+  "clusterBytes": 131072,
+  "zeroThroughSector": 8960,
+  "clusterCount": 32736,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "22ae39648e75da69f26abefef452a8008fa8695018323a4e4bbf80d831bfa119"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "22ae39648e75da69f26abefef452a8008fa8695018323a4e4bbf80d831bfa119"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 8192,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 8448,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 8704,
+    "length": 131072,
+    "sha256": "44309703323bdeec308f821d4f4a091590d24f7b7e73bc280674c6bf6fd04971"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "a701567a50e18a0bb7986b26a0f7f8a3d2c9b7ccc8c6967b812351f6eed3c149"
+   }
+  ]
+ },
+ {
+  "diskBytes": 4294967296,
+  "clusterBytes": 524288,
+  "zeroThroughSector": 11264,
+  "clusterCount": 8184,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "d8753419d7c096a27ea9f2ee7edc9a9aaa6f4b5c812b133b4eebde77c4c44fd5"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "d8753419d7c096a27ea9f2ee7edc9a9aaa6f4b5c812b133b4eebde77c4c44fd5"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 8192,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 9216,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 10240,
+    "length": 524288,
+    "sha256": "d4d0773c58cf4a682f1c4b7a786eec37cfcfa64fd17206099de75b5c5d8f0a98"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "a701567a50e18a0bb7986b26a0f7f8a3d2c9b7ccc8c6967b812351f6eed3c149"
+   }
+  ]
+ },
+ {
+  "diskBytes": 4294967296,
+  "clusterBytes": 33554432,
+  "zeroThroughSector": 268288,
+  "clusterCount": 126,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "d67a731e7ba830b4cc213f033e4e0fc52ce99de4867d256ca03e09978149ac44"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "d67a731e7ba830b4cc213f033e4e0fc52ce99de4867d256ca03e09978149ac44"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 71680,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 137216,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 202752,
+    "length": 33554432,
+    "sha256": "70b401269d605ebf7ea6eaa9f92e53826aa93919e997b5f2760267d688f33234"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "a701567a50e18a0bb7986b26a0f7f8a3d2c9b7ccc8c6967b812351f6eed3c149"
+   }
+  ]
+ },
+ {
+  "diskBytes": 7948206080,
+  "clusterBytes": 512,
+  "zeroThroughSector": 132796,
+  "clusterCount": 15394816,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "e630fbd6e8ac2f97dbdc07681f4097b49657c1c945e8853b222676c65af2add3"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "e630fbd6e8ac2f97dbdc07681f4097b49657c1c945e8853b222676c65af2add3"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 15360,
+    "sha256": "e3b3ad662171fee2103d250a9cbb4057ca11dbe342ae0cdec157d2391fba928f"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 129024,
+    "length": 512,
+    "sha256": "d0db153c12fdc22732856970ac7afa88e1043adfff9d033b6fde4db84e052af6"
+   },
+   {
+    "name": "up-case table",
+    "sector": 132783,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 132795,
+    "length": 512,
+    "sha256": "6709344c50a7621629c1439b3944de294d4bece4893b5a4ea0a64e392e2f7aaa"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "c2f21d61076554e4f2ba5543ad8226135c50a2c9c85acc3a6f510e33c6325c4f"
+   }
+  ]
+ },
+ {
+  "diskBytes": 7948206080,
+  "clusterBytes": 4096,
+  "zeroThroughSector": 23032,
+  "clusterCount": 1937664,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "b97bbbec9f37f3d800b580b89d5b76576f3ccd9118f7498a5444e539682b27de"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "b97bbbec9f37f3d800b580b89d5b76576f3ccd9118f7498a5444e539682b27de"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "4198a4a450e3329cea27480b34b9040c63907bdbd44d35394101cf68298478c0"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 22528,
+    "length": 512,
+    "sha256": "c4379c0bf030a4cf504e5e785da39fc4667d027403554240300023834f69d311"
+   },
+   {
+    "name": "up-case table",
+    "sector": 23008,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 23024,
+    "length": 4096,
+    "sha256": "c813fce1fafd2f168a79f13d4356a94b8607638e9e7636a86098fda673aca3ed"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "c2f21d61076554e4f2ba5543ad8226135c50a2c9c85acc3a6f510e33c6325c4f"
+   }
+  ]
+ },
+ {
+  "diskBytes": 7948206080,
+  "clusterBytes": 32768,
+  "zeroThroughSector": 8384,
+  "clusterCount": 242432,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "5d2cc6466d6af25d3284710a3b5cfde38e45b0de78db254d6fc74b664f44a7aa"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "5d2cc6466d6af25d3284710a3b5cfde38e45b0de78db254d6fc74b664f44a7aa"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 8192,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 8256,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 8320,
+    "length": 32768,
+    "sha256": "814395c15caeed9dfbfee9b29f2b2ecd65d633d6bd9fbd22b75e2956e1bfe97a"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "c2f21d61076554e4f2ba5543ad8226135c50a2c9c85acc3a6f510e33c6325c4f"
+   }
+  ]
+ },
+ {
+  "diskBytes": 7948206080,
+  "clusterBytes": 131072,
+  "zeroThroughSector": 8960,
+  "clusterCount": 60608,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "311e97f856ccced398b13383e0e54804f2b13ba8fe2ed9a408fa4703dc3568e1"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "311e97f856ccced398b13383e0e54804f2b13ba8fe2ed9a408fa4703dc3568e1"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 8192,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 8448,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 8704,
+    "length": 131072,
+    "sha256": "7e2241cfd351b12672cd45cededd0530f275c8ea12ffc83c9488e81a9b9944f5"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "c2f21d61076554e4f2ba5543ad8226135c50a2c9c85acc3a6f510e33c6325c4f"
+   }
+  ]
+ },
+ {
+  "diskBytes": 7948206080,
+  "clusterBytes": 524288,
+  "zeroThroughSector": 11264,
+  "clusterCount": 15152,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "32da68760afcb9f4830dc697a00189765b857f69820ec4c1aad94cb5915da4b8"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "32da68760afcb9f4830dc697a00189765b857f69820ec4c1aad94cb5915da4b8"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 8192,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 9216,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 10240,
+    "length": 524288,
+    "sha256": "c17ec42403fd9fec9511c657ef91b0c36a4408bfa8480cf6941f224215977b4f"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "c2f21d61076554e4f2ba5543ad8226135c50a2c9c85acc3a6f510e33c6325c4f"
+   }
+  ]
+ },
+ {
+  "diskBytes": 7948206080,
+  "clusterBytes": 33554432,
+  "zeroThroughSector": 268288,
+  "clusterCount": 235,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "5b78a71609ca132d53542702fd18791fc833eee53b508533cccb355949b8b94e"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "5b78a71609ca132d53542702fd18791fc833eee53b508533cccb355949b8b94e"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 71680,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 137216,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 202752,
+    "length": 33554432,
+    "sha256": "2ff7c19a234feeaf5cc11dc01c3e615e414aeef8c58bd65082877034d0abce7d"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "c2f21d61076554e4f2ba5543ad8226135c50a2c9c85acc3a6f510e33c6325c4f"
+   }
+  ]
+ },
+ {
+  "diskBytes": 31914983424,
+  "clusterBytes": 512,
+  "zeroThroughSector": 508679,
+  "clusterCount": 61840384,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "004acc64f513409eb93dba928b349d2f1264d92dd544079d80cad3203aaf61d7"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "004acc64f513409eb93dba928b349d2f1264d92dd544079d80cad3203aaf61d7"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 60928,
+    "sha256": "1128fa2863c57a2c138dc7a8d8f2257a6c652e1adeb9a96c23d4fd9224abbc84"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 493568,
+    "length": 2048,
+    "sha256": "fa8fa4f5f56b28c3f4da75d89ac74be9a1fe37526c5006730fc567fb7a002d6f"
+   },
+   {
+    "name": "up-case table",
+    "sector": 508666,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 508678,
+    "length": 512,
+    "sha256": "81a09b8b0cedec41e035bd1e54db36f24c4dc22163aee02bd8471573e89b3574"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "5524794ce15b51f2059cb99eedcd87f3536b4642dee6a21536ce90746ebca64e"
+   }
+  ]
+ },
+ {
+  "diskBytes": 31914983424,
+  "clusterBytes": 4096,
+  "zeroThroughSector": 69512,
+  "clusterCount": 7783296,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "93c6c276b6a313739177fa4b3eb5a8f5a910ca379d0d6ca89435b0d2e8420615"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "93c6c276b6a313739177fa4b3eb5a8f5a910ca379d0d6ca89435b0d2e8420615"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 1024,
+    "sha256": "baddf43af99198a41e8f5df360fdba2023f8f7c6553df13fbe317dfa5669942e"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 67584,
+    "length": 512,
+    "sha256": "809fe13e8e3e497d0702890024887885525c22a99847216585a21a8775db456c"
+   },
+   {
+    "name": "up-case table",
+    "sector": 69488,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 69504,
+    "length": 4096,
+    "sha256": "d4c4ffc66783a9df09fb14cf7f32fb0825348a8e5e7626c1eefdc7ed36165bb1"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "5524794ce15b51f2059cb99eedcd87f3536b4642dee6a21536ce90746ebca64e"
+   }
+  ]
+ },
+ {
+  "diskBytes": 31914983424,
+  "clusterBytes": 32768,
+  "zeroThroughSector": 14720,
+  "clusterCount": 973744,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "53b44c8e72de8196963fa6cfed927234b52f4017bb4646b4dcfe08e19ef7f2f9"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "53b44c8e72de8196963fa6cfed927234b52f4017bb4646b4dcfe08e19ef7f2f9"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "beaa10a287c1a353de826509b208683bc8686b0828b7fdde58d031a2d633f005"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 14336,
+    "length": 512,
+    "sha256": "4999700bea20b53cabd6adf075a9ebe9657b48d5f4d07f290667cf84961e772d"
+   },
+   {
+    "name": "up-case table",
+    "sector": 14592,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 14656,
+    "length": 32768,
+    "sha256": "a4e4f116f4f9abb0b270b56afd094152ec2d764b804d8ed09c48b36a084862ca"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "5524794ce15b51f2059cb99eedcd87f3536b4642dee6a21536ce90746ebca64e"
+   }
+  ]
+ },
+ {
+  "diskBytes": 31914983424,
+  "clusterBytes": 131072,
+  "zeroThroughSector": 8960,
+  "clusterCount": 243460,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "8b6d7e170d4aadd27f945cf27b9c2292fff43b97f1c31bb7821c0c001cb2fcd9"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "8b6d7e170d4aadd27f945cf27b9c2292fff43b97f1c31bb7821c0c001cb2fcd9"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 8192,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 8448,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 8704,
+    "length": 131072,
+    "sha256": "d0435abc967c179456c755d7b7141d4f9ec5b0b95a6e60bc7978c3e39b34322a"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "5524794ce15b51f2059cb99eedcd87f3536b4642dee6a21536ce90746ebca64e"
+   }
+  ]
+ },
+ {
+  "diskBytes": 31914983424,
+  "clusterBytes": 524288,
+  "zeroThroughSector": 11264,
+  "clusterCount": 60865,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "7faeb536493c58a512d70b0d875dff7a1ef5d3fedf2392383b7b13d9585baaea"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "7faeb536493c58a512d70b0d875dff7a1ef5d3fedf2392383b7b13d9585baaea"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 8192,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 9216,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 10240,
+    "length": 524288,
+    "sha256": "2f7dcfa21110c694a7eda946211b99ad510933bce30f41ce9f4c72c81f898cdf"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "5524794ce15b51f2059cb99eedcd87f3536b4642dee6a21536ce90746ebca64e"
+   }
+  ]
+ },
+ {
+  "diskBytes": 31914983424,
+  "clusterBytes": 33554432,
+  "zeroThroughSector": 268288,
+  "clusterCount": 950,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "c2138226db61f6e9005016f8b1e249606a285313720077edadd26f766aa71c4b"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "c2138226db61f6e9005016f8b1e249606a285313720077edadd26f766aa71c4b"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 71680,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 137216,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 202752,
+    "length": 33554432,
+    "sha256": "812b6ca22f5590236b9b21b7d8844cab327928fdc956fcd8e46d1ee21c1d63fe"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "5524794ce15b51f2059cb99eedcd87f3536b4642dee6a21536ce90746ebca64e"
+   }
+  ]
+ },
+ {
+  "diskBytes": 127865454592,
+  "clusterBytes": 512,
+  "zeroThroughSector": 2018394,
+  "clusterCount": 247779328,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "9d224a1b7fbdf3d7e3586aea60075b38ab9c871e99780d626cc0cb6bd53d615a"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "9d224a1b7fbdf3d7e3586aea60075b38ab9c871e99780d626cc0cb6bd53d615a"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 242176,
+    "sha256": "a0133b90fcb605cbb6a11bdbac4691020cd34c50440945d47c79b0d0d239823f"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 1957888,
+    "length": 7680,
+    "sha256": "f90dfd7377076572ae9aa61b217e0ec67d6aa7f28615b13ada8e2d6d41185e72"
+   },
+   {
+    "name": "up-case table",
+    "sector": 2018381,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 2018393,
+    "length": 512,
+    "sha256": "40016842e269e554161653a5b67db80e1d1b48b955bbd1a2e77c88ec731e239d"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "1e1764c466c6286f2bec3d873040b049779c3c9eaf36cf2960f944ef2eab916d"
+   }
+  ]
+ },
+ {
+  "diskBytes": 127865454592,
+  "clusterBytes": 4096,
+  "zeroThroughSector": 259544,
+  "clusterCount": 31185664,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "14df729364dccb4cd9474533527d87100b3d6813f1f059cd22f6f9560df61c25"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "14df729364dccb4cd9474533527d87100b3d6813f1f059cd22f6f9560df61c25"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 4096,
+    "sha256": "c19268f470e184060cf556671637d3fd07f9dc5d331875a634625bce836aa218"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 251904,
+    "length": 512,
+    "sha256": "06f8e3150ecd3d0b6b28845a506f809823e57131b911a6a743af87b034d9af00"
+   },
+   {
+    "name": "up-case table",
+    "sector": 259520,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 259536,
+    "length": 4096,
+    "sha256": "90923ae45600a28f4d2c4d12e82fe4db2f1562b9a1a962f6e855c0a7e7978aee"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "1e1764c466c6286f2bec3d873040b049779c3c9eaf36cf2960f944ef2eab916d"
+   }
+  ]
+ },
+ {
+  "diskBytes": 127865454592,
+  "clusterBytes": 32768,
+  "zeroThroughSector": 37952,
+  "clusterCount": 3901568,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "eb92b5794979b588f61ad0482df442e73f187fe46f2edc82ba032bf6360f7aaa"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "eb92b5794979b588f61ad0482df442e73f187fe46f2edc82ba032bf6360f7aaa"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "abc8284518dfd7c00726b0dbce10e6a86ececd0eceedbee5a6134a02bd0aa8a6"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 36864,
+    "length": 512,
+    "sha256": "479748df0bfdb3cc8719c9c3926bd32e6daa5a586dbfa6b8b8dd02961d987c01"
+   },
+   {
+    "name": "up-case table",
+    "sector": 37824,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 37888,
+    "length": 32768,
+    "sha256": "b0fb676ec750ffb750105c9f59917e65a67119fcd56bb070b6f1fb82cd329b95"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "1e1764c466c6286f2bec3d873040b049779c3c9eaf36cf2960f944ef2eab916d"
+   }
+  ]
+ },
+ {
+  "diskBytes": 127865454592,
+  "clusterBytes": 131072,
+  "zeroThroughSector": 15104,
+  "clusterCount": 975480,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "4356f8d8d16d37aff6b0bf4b5399859574aa376363b33fe4360a0e1603da7da0"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "4356f8d8d16d37aff6b0bf4b5399859574aa376363b33fe4360a0e1603da7da0"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 14336,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 14592,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 14848,
+    "length": 131072,
+    "sha256": "ea4f759bb341ef1bdf7fc5b6f41021b0f56cd9000b39fe7ea4b7b0e19656d195"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "1e1764c466c6286f2bec3d873040b049779c3c9eaf36cf2960f944ef2eab916d"
+   }
+  ]
+ },
+ {
+  "diskBytes": 127865454592,
+  "clusterBytes": 524288,
+  "zeroThroughSector": 11264,
+  "clusterCount": 243876,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "da9e17ce448da17149e1665810676ce4b8230436c838fa5170444a3e6612975e"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "da9e17ce448da17149e1665810676ce4b8230436c838fa5170444a3e6612975e"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 8192,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 9216,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 10240,
+    "length": 524288,
+    "sha256": "5f5f196d78bbdc71d2647b3f723e8ab12a475a7486f45b1304083b09bf0f7fc4"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "1e1764c466c6286f2bec3d873040b049779c3c9eaf36cf2960f944ef2eab916d"
+   }
+  ]
+ },
+ {
+  "diskBytes": 127865454592,
+  "clusterBytes": 33554432,
+  "zeroThroughSector": 268288,
+  "clusterCount": 3809,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "c4dfb91b0a201dfbd75f9a995541b303c8eb0f01432e35365d0255aa22829e39"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "c4dfb91b0a201dfbd75f9a995541b303c8eb0f01432e35365d0255aa22829e39"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 71680,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 137216,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 202752,
+    "length": 33554432,
+    "sha256": "c4aa8b76fc211979dec18229dfa6fd3257553148bf697361ba6dbd529d00c6df"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "1e1764c466c6286f2bec3d873040b049779c3c9eaf36cf2960f944ef2eab916d"
+   }
+  ]
+ },
+ {
+  "diskBytes": 255869321216,
+  "clusterBytes": 512,
+  "zeroThroughSector": 4032746,
+  "clusterCount": 495833088,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "3220f89cd449f0378a60a34674dff0c937810f6743fed0f6ffff05a0b044b407"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "3220f89cd449f0378a60a34674dff0c937810f6743fed0f6ffff05a0b044b407"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 484352,
+    "sha256": "cacddc833b1201a34f64966a1c00260144f4cab45d0b8ab6824c272461929095"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 3911680,
+    "length": 15360,
+    "sha256": "733bfd0dc8e039217732d7023d0752ea1208ab2b433e27d2b187c3ed3f982780"
+   },
+   {
+    "name": "up-case table",
+    "sector": 4032733,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 4032745,
+    "length": 512,
+    "sha256": "95493a2f0d4412f0fb9a8fb4bb77cef9077c141628069224deca79b7871058de"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "ddae2ba5b4b22f3f54e92e2c5dba3213c5044f07caf8f522c115bf1459ba9d0b"
+   }
+  ]
+ },
+ {
+  "diskBytes": 255869321216,
+  "clusterBytes": 4096,
+  "zeroThroughSector": 510880,
+  "clusterCount": 62406144,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "45263b84ab2a4041df3a468eac36a11a90e4417c20f0c16034e7fa40db9905e8"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "45263b84ab2a4041df3a468eac36a11a90e4417c20f0c16034e7fa40db9905e8"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 7680,
+    "sha256": "6ddec72418a6befcfb2404fa0aa0da4b0b357a6ddf376c9c06ec4e2b39e48b63"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 495616,
+    "length": 512,
+    "sha256": "22583505573e8cf4841b8e693b87035dbee610a045e73dfad1abb022785a0aad"
+   },
+   {
+    "name": "up-case table",
+    "sector": 510856,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 510872,
+    "length": 4096,
+    "sha256": "1b9b79a4412bcee7aa81f723b21fd98fb51d7ee9cbff9d3a53417c092b3141e2"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "ddae2ba5b4b22f3f54e92e2c5dba3213c5044f07caf8f522c115bf1459ba9d0b"
+   }
+  ]
+ },
+ {
+  "diskBytes": 255869321216,
+  "clusterBytes": 32768,
+  "zeroThroughSector": 69632,
+  "clusterCount": 7807456,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "946f2d2a34afaf94436b5ec12d3d19f989c5a8c9ed8bcdeac0df0987b9c374a8"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "946f2d2a34afaf94436b5ec12d3d19f989c5a8c9ed8bcdeac0df0987b9c374a8"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "f0c6748c8e4c4c9a7cda3595f349e77ea11954c31f1c7a2b4d0eb3f547e678ff"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 67584,
+    "length": 512,
+    "sha256": "eac0bc584b30b30f3172f645fd2103caa322244e85a3ec4fb1c345f0c4314c94"
+   },
+   {
+    "name": "up-case table",
+    "sector": 69504,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 69568,
+    "length": 32768,
+    "sha256": "f3089e662b0f18634103a303a8d11529194b075b697cd4c8700405d1330baba8"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "ddae2ba5b4b22f3f54e92e2c5dba3213c5044f07caf8f522c115bf1459ba9d0b"
+   }
+  ]
+ },
+ {
+  "diskBytes": 255869321216,
+  "clusterBytes": 131072,
+  "zeroThroughSector": 23552,
+  "clusterCount": 1952040,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "0c7dd847c2548a7ba273a0db8fffa7acf23ca94e4bb410b367ef2a64e44a61c4"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "0c7dd847c2548a7ba273a0db8fffa7acf23ca94e4bb410b367ef2a64e44a61c4"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "ebfaf2cf00ff214b00c9830684e3dc552e0a31b036a812016819ddda608ae620"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 22528,
+    "length": 512,
+    "sha256": "d736457b4c9588b490e4388f0ee4d81febed29e73a6d62466deef627101d65da"
+   },
+   {
+    "name": "up-case table",
+    "sector": 23040,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 23296,
+    "length": 131072,
+    "sha256": "78dbc695bcede9da98c239e80ba9e61bcc3955c8ce2a4e8d5a7323fcaeb59865"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "ddae2ba5b4b22f3f54e92e2c5dba3213c5044f07caf8f522c115bf1459ba9d0b"
+   }
+  ]
+ },
+ {
+  "diskBytes": 255869321216,
+  "clusterBytes": 524288,
+  "zeroThroughSector": 13312,
+  "clusterCount": 488022,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "6efe92fec38875bb658518cc0944746c363768db99767f69cb1de63d8c507105"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "6efe92fec38875bb658518cc0944746c363768db99767f69cb1de63d8c507105"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 10240,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 11264,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 12288,
+    "length": 524288,
+    "sha256": "61a2ec01dbfb56de82cc72503c3fca16d0bd77aa76dcf45bca3c880c603c49a3"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "ddae2ba5b4b22f3f54e92e2c5dba3213c5044f07caf8f522c115bf1459ba9d0b"
+   }
+  ]
+ },
+ {
+  "diskBytes": 255869321216,
+  "clusterBytes": 33554432,
+  "zeroThroughSector": 268288,
+  "clusterCount": 7624,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "4226b627543f34e23312eb6d104df4799e0530e09c48c219dbee43de61fdd7bf"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "4226b627543f34e23312eb6d104df4799e0530e09c48c219dbee43de61fdd7bf"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 71680,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 137216,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 202752,
+    "length": 33554432,
+    "sha256": "33b61f3f0382e4724ebd66df0c7a89b6800dc55108801a134b0fcb044cd94866"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "ddae2ba5b4b22f3f54e92e2c5dba3213c5044f07caf8f522c115bf1459ba9d0b"
+   }
+  ]
+ },
+ {
+  "diskBytes": 1000204886016,
+  "clusterBytes": 512,
+  "zeroThroughSector": 15743108,
+  "clusterCount": 1938255280,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "b3cdb139ed1083b0b9571529214a33b7e5538768d58434bf7c5063630f70bc50"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "b3cdb139ed1083b0b9571529214a33b7e5538768d58434bf7c5063630f70bc50"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 1893376,
+    "sha256": "3f01ca6c4d42bf1bf163360758fb94053125e8786cdad9551fe2cc069a5858f8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 15269888,
+    "length": 59392,
+    "sha256": "d68eb20a9f579a97b8faf1c74004c85665c06d6cff414df94332624a96d7e24d"
+   },
+   {
+    "name": "up-case table",
+    "sector": 15743095,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 15743107,
+    "length": 512,
+    "sha256": "6e2430f953d588bc212b9791a4abb3419f014b805859a8f0a3b5b57c0100ab90"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "a74a073d87aa80689ad84c9d65bfecfeeea83ec8440131d9ec317f4e2138c39e"
+   }
+  ]
+ },
+ {
+  "diskBytes": 1000204886016,
+  "clusterBytes": 4096,
+  "zeroThroughSector": 1974464,
+  "clusterCount": 243951286,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "9210e560c3d275d8e0ebf4e8e60aea452379d4f72c839496fe9d818ddfea96c4"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "9210e560c3d275d8e0ebf4e8e60aea452379d4f72c839496fe9d818ddfea96c4"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 30208,
+    "sha256": "62b7cacc5fe4d12920f215b9f5417258dce79050ce6cae8c31fe3bb051017619"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 1914880,
+    "length": 1024,
+    "sha256": "6708d0dae0e1a79751141dd6882bdd0030abb54593abb1b002346c4b7b2482a4"
+   },
+   {
+    "name": "up-case table",
+    "sector": 1974440,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 1974456,
+    "length": 4096,
+    "sha256": "58f30f540aea3c75dc495ce8b8fd42763aeb012c442ed64cbfb6f3274d90f675"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "a74a073d87aa80689ad84c9d65bfecfeeea83ec8440131d9ec317f4e2138c39e"
+   }
+  ]
+ },
+ {
+  "diskBytes": 1000204886016,
+  "clusterBytes": 32768,
+  "zeroThroughSector": 253376,
+  "clusterCount": 30519990,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "b93ccd03578e192ff0a9b2197b8b34aa35a90696378be14305c33eba5bfa27e0"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "b93ccd03578e192ff0a9b2197b8b34aa35a90696378be14305c33eba5bfa27e0"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "baccddbc413ad3ec07c575dc89a4230206d0942097ea59d6d74210d32a8fff01"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 245760,
+    "length": 512,
+    "sha256": "dd4cd60c9666ce99b356b310ef25b0999bb60c4d8273c1359d611506c3698019"
+   },
+   {
+    "name": "up-case table",
+    "sector": 253248,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 253312,
+    "length": 32768,
+    "sha256": "01590a27c5dd952ffc1892eb7f9a358d14808faed75bb2ba7a193cc40767445b"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "a74a073d87aa80689ad84c9d65bfecfeeea83ec8440131d9ec317f4e2138c39e"
+   }
+  ]
+ },
+ {
+  "diskBytes": 1000204886016,
+  "clusterBytes": 131072,
+  "zeroThroughSector": 70144,
+  "clusterCount": 7630693,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "c649ad0c5870b0ac880984e5386535da8a933dc8d0bdeeb3b2b515fc2b105462"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "c649ad0c5870b0ac880984e5386535da8a933dc8d0bdeeb3b2b515fc2b105462"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "fa8a42de4b6e0e53861dc91519ceb6a0f1b7db0309242a034c36bdc54e32119e"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 67584,
+    "length": 512,
+    "sha256": "8bc4aeddd179ba7f6222f2ca60fc1ebaad30886e9a410783c738de7030438bcd"
+   },
+   {
+    "name": "up-case table",
+    "sector": 69632,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 69888,
+    "length": 131072,
+    "sha256": "1bc5603f913ebbf33034a4cda2b0cd69308f8ea1028773b8ebaf8d526aa5d077"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "a74a073d87aa80689ad84c9d65bfecfeeea83ec8440131d9ec317f4e2138c39e"
+   }
+  ]
+ },
+ {
+  "diskBytes": 1000204886016,
+  "clusterBytes": 524288,
+  "zeroThroughSector": 25600,
+  "clusterCount": 1907717,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "69de7d5674bb1b15203c9d90391786045a5ac22c592cf5df4a591493750204b8"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "69de7d5674bb1b15203c9d90391786045a5ac22c592cf5df4a591493750204b8"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 22528,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 23552,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 24576,
+    "length": 524288,
+    "sha256": "de07b62c0819cf43208f248fa96067146c70cf4ab61b2c700f9b6fc7160e386c"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "a74a073d87aa80689ad84c9d65bfecfeeea83ec8440131d9ec317f4e2138c39e"
+   }
+  ]
+ },
+ {
+  "diskBytes": 1000204886016,
+  "clusterBytes": 33554432,
+  "zeroThroughSector": 268288,
+  "clusterCount": 29807,
+  "regions": [
+   {
+    "name": "boot region",
+    "sector": 4096,
+    "length": 6144,
+    "sha256": "02d3f27977ab7207c62fcb060836afec32d952bb1ef7b8df2840399ef47372d5"
+   },
+   {
+    "name": "boot region backup",
+    "sector": 4108,
+    "length": 6144,
+    "sha256": "02d3f27977ab7207c62fcb060836afec32d952bb1ef7b8df2840399ef47372d5"
+   },
+   {
+    "name": "file allocation table",
+    "sector": 6144,
+    "length": 512,
+    "sha256": "3f882bc552e8eddfc38710b9bbb5a882d76c9d591b227cacbdb07b7dc258a7d8"
+   },
+   {
+    "name": "allocation bitmap",
+    "sector": 71680,
+    "length": 512,
+    "sha256": "15f3481db2188afe834726f33a475732b38510c3048eb3f36ae7392f5f2da539"
+   },
+   {
+    "name": "up-case table",
+    "sector": 137216,
+    "length": 6144,
+    "sha256": "0caa87f612d2fe949df8b09437661b859a9c191944ff78f77d14a99cb3169a5d"
+   },
+   {
+    "name": "root directory",
+    "sector": 202752,
+    "length": 33554432,
+    "sha256": "9e60ca42dc68f98aaaed8d2d2f903d430825d200f188c4e2be3f21957b9a13e1"
+   },
+   {
+    "name": "master boot record",
+    "sector": 0,
+    "length": 512,
+    "sha256": "a74a073d87aa80689ad84c9d65bfecfeeea83ec8440131d9ec317f4e2138c39e"
+   }
+  ]
+ }
+]

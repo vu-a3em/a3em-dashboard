@@ -1,0 +1,15 @@
+Package: a3em-card-helper
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: A3EM <a3em@users.noreply.github.com>
+Installed-Size: @SIZE@
+Depends: util-linux
+Recommends: exfatprogs, udisks2, pkexec | policykit-1
+Section: utils
+Priority: optional
+Homepage: https://github.com/vu-a3em/a3em-dashboard
+Description: A3EM dashboard helper for SD cards
+ Lets the A3EM dashboard, through its browser extension, prepare SD cards for
+ A3EM recorders: it checks that a card really holds what it claims, formats it
+ with the exact layout the recorder firmware expects, verifies the result, and
+ writes the deployment's configuration.

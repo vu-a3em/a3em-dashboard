@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>A3EM Card Helper</title>
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+    <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+    <domains enable_localSystem="true"/>
+    <os-version min="11.0"/>
+    <choices-outline>
+        <line choice="default"/>
+    </choices-outline>
+    <choice id="default" title="A3EM Card Helper">
+        <pkg-ref id="org.a3em.card-helper"/>
+    </choice>
+    <pkg-ref id="org.a3em.card-helper" version="@VERSION@" onConclusion="none">component.pkg</pkg-ref>
+</installer-gui-script>

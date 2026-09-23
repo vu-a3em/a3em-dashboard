@@ -1,0 +1,7 @@
+{
+  "name": "org.a3em.card_helper",
+  "description": "A3EM card helper: prepares and checks SD cards for A3EM recorders.",
+  "path": "@PATH@",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://fccaomdnpebkiakcflkdgidnnodpalik/"]
+}

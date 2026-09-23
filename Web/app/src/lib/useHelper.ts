@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  HELPER_PROTOCOL,
   HelperError,
   helperHello,
   isChromium,
@@ -19,7 +20,9 @@ import {
  *  - `absent` — Chromium, extension not installed. **Offer the installer.** The app is
  *    fully usable in this state and most users will stay in it.
  *  - `incomplete` — extension and host present, but this platform's build implements
- *    nothing yet. Windows and Linux are here until their stubs are filled in.
+ *    nothing yet.
+ *  - `outdated` — a helper older than this page, which speaks an earlier protocol. Offer
+ *    the installer again rather than calling operations whose replies it cannot give.
  *  - `ready` — everything works.
  *
  * The distinction between `unsupported` and `absent` is the one that is easy to get
@@ -29,7 +32,7 @@ import {
  * the moment the installer should be offered.
  */
 
-export type HelperStatus = 'checking' | 'unsupported' | 'absent' | 'incomplete' | 'ready';
+export type HelperStatus = 'checking' | 'unsupported' | 'absent' | 'incomplete' | 'outdated' | 'ready';
 
 /** A long operation in flight, held here so it survives switching sections. */
 export interface HelperTask {
@@ -75,6 +78,10 @@ export function useHelper() {
     setState((previous) => ({ ...previous, status: 'checking', error: null }));
     try {
       const identity = await helperHello();
+      if ((identity.protocol ?? 1) < HELPER_PROTOCOL) {
+        setState({ status: 'outdated', identity, devices: [], error: null, task: null });
+        return;
+      }
 
       // An enumeration failure is not an absent helper: the helper answered. Report it as
       // present with the reason attached, rather than showing install instructions to

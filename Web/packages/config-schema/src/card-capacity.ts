@@ -1,14 +1,15 @@
 /**
  * How much of an SD card is actually available to recordings.
  *
- * A PORT of the `Layout` class in `use-then-delete/exfat_image.py`, the formatter that will
- * prepare cards for this project. That tool builds every exFAT structure itself rather than
- * handing the card to a platform formatter, so the geometry below is exactly what a card it
- * formats will carry — not an approximation of what `newfs_exfat` or Windows might choose.
+ * The same geometry as the card helper's formatter (`card-helper/internal/exfat`), which
+ * prepares cards for this project. It builds every exFAT structure itself rather than handing
+ * the card to a platform formatter, so the geometry below is exactly what a card it formats
+ * will carry — not an approximation of what `newfs_exfat` or Windows might choose. Both began
+ * as ports of `exfat_image.py`, a Python formatter since retired.
  *
- * It is written there for a fixed 4 kB cluster. The cluster size is a parameter here because
- * this dashboard recommends one per deployment, and every other quantity in the layout
- * follows from it by the same rules:
+ * The layout was recovered from known-good cards at 4 kB clusters; every other cluster size
+ * follows from the same rules, which is what lets this dashboard recommend one per deployment
+ * and the card helper (`card-helper/internal/exfat`) write it:
  *
  *     FatOffset          = 2048 sectors (1 MiB aligned)
  *     FatLength          = ceil((approx_clusters + 2) * 4 / 512), rounded up to one cluster
@@ -29,8 +30,10 @@ export const BYTES_PER_SECTOR = 512;
 export const PARTITION_START_SECTOR = 4096;
 /** FAT and cluster heap are aligned to 1 MiB. */
 export const ALIGNMENT_SECTORS = 2048;
-/** `len(UPCASE_TABLE)` in exfat_image.py: the canonical compressed up-case table. */
+/** The canonical compressed up-case table's length, as the formatter writes it. */
 export const UPCASE_TABLE_BYTES = 5836;
+/** The exFAT specification's largest cluster: 32 MB. */
+export const MAX_CLUSTER_BYTES = 32 * 1024 * 1024;
 
 /** Marketed card sizes are decimal. */
 export const BYTES_PER_MARKETED_GB = 1_000_000_000;
@@ -44,8 +47,19 @@ export interface ExfatLayout {
   fatLengthSectors: number;
   clusterHeapOffsetSectors: number;
   clusterCount: number;
+  /** log2 of sectors per cluster, as the boot sector stores it. */
+  sectorsPerClusterShift: number;
+  /** The allocation bitmap, up-case table and root directory, in the order they sit in the heap. */
+  bitmapBytes: number;
+  bitmapClusters: number;
+  upcaseClusters: number;
+  bitmapCluster: number;
+  upcaseCluster: number;
+  rootCluster: number;
   /** Clusters the formatter itself occupies: bitmap, up-case table and root directory. */
   metadataClusters: number;
+  /** The last sector the formatter's structures reach; everything before it is written or blanked. */
+  zeroThroughSector: number;
   /** What recordings can use on a freshly formatted card. */
   freeBytes: number;
 }
@@ -59,8 +73,13 @@ const roundUp = (value: number, multiple: number) => Math.ceil(value / multiple)
  */
 export function exfatLayout(diskBytes: number, clusterBytes: number): ExfatLayout {
   if (!Number.isFinite(diskBytes) || diskBytes <= 0) throw new Error('Card capacity must be positive.');
-  if (!Number.isInteger(clusterBytes) || clusterBytes < BYTES_PER_SECTOR || (clusterBytes & (clusterBytes - 1)) !== 0) {
-    throw new Error(`Cluster size ${clusterBytes} is not a power of two of at least ${BYTES_PER_SECTOR} bytes.`);
+  if (
+    !Number.isInteger(clusterBytes) ||
+    clusterBytes < BYTES_PER_SECTOR ||
+    clusterBytes > MAX_CLUSTER_BYTES ||
+    (clusterBytes & (clusterBytes - 1)) !== 0
+  ) {
+    throw new Error(`Cluster size ${clusterBytes} is not a power of two from ${BYTES_PER_SECTOR} bytes to 32 MB.`);
   }
   const diskSectors = Math.floor(diskBytes / BYTES_PER_SECTOR);
   if (diskSectors <= PARTITION_START_SECTOR + ALIGNMENT_SECTORS * 4) {
@@ -75,11 +94,20 @@ export function exfatLayout(diskBytes: number, clusterBytes: number): ExfatLayou
   const fatLengthSectors = roundUp(roundUp(fatBytes, BYTES_PER_SECTOR) / BYTES_PER_SECTOR, sectorsPerCluster);
   const clusterHeapOffsetSectors = roundUp(fatOffsetSectors + fatLengthSectors, ALIGNMENT_SECTORS);
   const clusterCount = Math.floor((volumeSectors - clusterHeapOffsetSectors) / sectorsPerCluster);
+  if (clusterCount < 16 || clusterCount > 0x7ffffffd) {
+    throw new Error(
+      `A ${clusterBytes}-byte cluster gives ${clusterCount} clusters on this card, outside what exFAT allows. ` +
+        `Choose a ${clusterCount > 16 ? 'larger' : 'smaller'} cluster size.`,
+    );
+  }
 
   const bitmapBytes = roundUp(clusterCount, 8) / 8;
   const bitmapClusters = roundUp(bitmapBytes, clusterBytes) / clusterBytes;
   const upcaseClusters = roundUp(UPCASE_TABLE_BYTES, clusterBytes) / clusterBytes;
   const metadataClusters = bitmapClusters + upcaseClusters + 1;
+  const bitmapCluster = 2;
+  const upcaseCluster = bitmapCluster + bitmapClusters;
+  const rootCluster = upcaseCluster + upcaseClusters;
 
   return {
     diskSectors,
@@ -90,9 +118,23 @@ export function exfatLayout(diskBytes: number, clusterBytes: number): ExfatLayou
     fatLengthSectors,
     clusterHeapOffsetSectors,
     clusterCount,
+    sectorsPerClusterShift: Math.log2(sectorsPerCluster),
+    bitmapBytes,
+    bitmapClusters,
+    upcaseClusters,
+    bitmapCluster,
+    upcaseCluster,
+    rootCluster,
     metadataClusters,
+    zeroThroughSector:
+      PARTITION_START_SECTOR + clusterHeapOffsetSectors + (rootCluster - 2) * sectorsPerCluster + sectorsPerCluster,
     freeBytes: Math.max(0, clusterCount - metadataClusters) * clusterBytes,
   };
+}
+
+/** Absolute sector of a cluster, counted from the start of the card. */
+export function clusterSector(layout: ExfatLayout, cluster: number): number {
+  return PARTITION_START_SECTOR + layout.clusterHeapOffsetSectors + (cluster - 2) * layout.sectorsPerCluster;
 }
 
 /** `exfatLayout` for a card sold as `gb` gigabytes. */

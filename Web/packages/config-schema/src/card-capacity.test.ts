@@ -3,9 +3,10 @@ import { describe, it } from 'node:test';
 import { directoryEntryBytes, exfatLayout, marketedCardLayout } from './card-capacity.js';
 
 /**
- * Expected values are what `use-then-delete/exfat_image.py` computes for the same card, read
- * from its `Layout` class at its own fixed 4 kB cluster. If the formatter's geometry ever
- * changes, these are the numbers to regenerate.
+ * Expected values are what the Python formatter this was ported from, `exfat_image.py` (since
+ * retired), computed for the same card at 4 kB clusters. The card helper's formatter
+ * (`card-helper/internal/exfat`) produces the same figures, and is where to regenerate them if
+ * the geometry ever changes: `exfat.NewLayout(bytes, 4096)`.
  */
 describe('the formatter layout', () => {
   const REFERENCE: Array<[number, number, number, number, number]> = [
@@ -15,7 +16,7 @@ describe('the formatter layout', () => {
     [1024, 249755008, 1953120, 1955840, 7625],
   ];
   for (const [gb, clusters, fatLength, heapOffset, used] of REFERENCE) {
-    it(`matches exfat_image.py for a ${gb} GB card`, () => {
+    it(`matches the formatter for a ${gb} GB card`, () => {
       const layout = marketedCardLayout(gb, 4096);
       assert.equal(layout.clusterCount, clusters);
       assert.equal(layout.fatLengthSectors, fatLength);

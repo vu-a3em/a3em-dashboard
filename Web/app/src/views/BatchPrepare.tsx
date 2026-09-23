@@ -15,6 +15,8 @@ import { CARD_ACCESS_SUPPORTED, downloadConfig, pickCard, writeConfig } from '..
 import { quickCardChecks } from '../lib/cardChecks';
 import { buildZip, downloadBlob } from '../lib/zip';
 import type { useCard } from '../lib/useCard';
+import type { Helper } from '../lib/useHelper';
+import { ConnectedCards, type PreparedUnit } from '../components/ConnectedCards';
 
 type Card = ReturnType<typeof useCard>;
 
@@ -41,6 +43,7 @@ export interface BatchUnit {
  */
 export function BatchPrepare({
   card,
+  helper,
   config,
   basedOn,
   units,
@@ -48,6 +51,8 @@ export function BatchPrepare({
   onEditConfiguration,
 }: Readonly<{
   card: Card;
+  /** The card helper; its panel appears when it is installed. */
+  helper: Helper;
   config: DeploymentConfig;
   /** The protocol the configuration came from, to say what is being written. */
   basedOn: ProtocolProvenance | null;
@@ -167,6 +172,24 @@ export function BatchPrepare({
     );
   };
 
+  /*
+    Cards prepared through the helper, recorded against their units by label. The helper
+    wrote the configuration itself, onto the freshly formatted card.
+  */
+  const recordPrepared = (prepared: PreparedUnit[]) =>
+    onUnitsChange(
+      units.map((unit) => {
+        const match = prepared.find((entry) => entry.label === unit.label);
+        if (!match) return unit;
+        return match.ok
+          ? { ...unit, status: 'written', cardName: match.node, error: null, note: null }
+          : { ...unit, status: 'error', cardName: match.node, error: match.note, note: null };
+      }),
+    );
+  const waiting = units
+    .filter((unit, index) => unit.status !== 'written' && labelProblems[index].length === 0)
+    .map((unit) => unit.label);
+
   const written = units.filter((unit) => unit.status === 'written').length;
   const nextPending = units.findIndex((unit) => unit.status === 'pending' || unit.status === 'error');
 
@@ -257,11 +280,24 @@ export function BatchPrepare({
         </div>
       </div>
 
+      {helper.status === 'ready' && blocking.length === 0 ? (
+        <ConnectedCards
+          helper={helper}
+          config={config}
+          firmware={card.targetFirmware}
+          labels={waiting}
+          known={units.map((unit) => unit.label)}
+          onPrepared={recordPrepared}
+        />
+      ) : null}
+
       {units.length ? (
         <div className="card">
           <h2>Preparation — {written} of {units.length} written</h2>
           <p className="hint">
-            {CARD_ACCESS_SUPPORTED
+            {helper.status === 'ready'
+              ? 'Prepare the cards above, or write a unit’s configuration onto a card that is already formatted: insert it, press Write card, and choose the card itself in the folder picker.'
+              : CARD_ACCESS_SUPPORTED
               ? 'Insert the card for a unit, then write it. The folder picker opens each time — choose the card itself, so each configuration writes to its own card.'
               : `This browser cannot write to a card directly. Download the batch as one archive, then copy each unit's ${CONFIG_FILE_NAME} to the top level of its card.`}
           </p>

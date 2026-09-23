@@ -1,0 +1,7 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: a3em-card-helper
+Source: https://github.com/vu-a3em/a3em-dashboard
+
+Files: *
+Copyright: A3EM contributors
+License: See https://github.com/vu-a3em/a3em-dashboard

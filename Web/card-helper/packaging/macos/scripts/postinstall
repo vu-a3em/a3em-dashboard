@@ -1,0 +1,10 @@
+#!/bin/sh
+# Registers the helper for every user (the locations Chrome, Chromium and Edge read system-wide)
+# and for the person installing it (which also covers Brave and Vivaldi).
+HELPER="/Library/Application Support/A3EM/a3em-card-helper"
+"$HELPER" install --system
+CONSOLE_USER=$(stat -f %Su /dev/console)
+if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ]; then
+  sudo -u "$CONSOLE_USER" "$HELPER" install || true
+fi
+exit 0

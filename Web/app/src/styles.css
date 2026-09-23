@@ -1860,3 +1860,156 @@ details.card[open] > summary > .summary-note {
   font-size: 12px;
   color: var(--warn);
 }
+
+/* ------------------------------------------------------------------------- */
+/* Cards connected through the card helper                                    */
+/* ------------------------------------------------------------------------- */
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.card-head h2 {
+  margin-bottom: 0;
+}
+.card-help {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.connected-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.connected-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: var(--surface);
+}
+.connected-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.connected-card-head .chip {
+  margin-left: 8px;
+}
+.connected-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.connected-card-actions select {
+  height: 30px;
+}
+.connected-card-task {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.connected-card-task .meter i {
+  background: var(--primary);
+}
+.card-result {
+  margin-top: 10px;
+}
+.card-result .banner {
+  margin-bottom: 8px;
+}
+.readiness-verdict {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+.readiness-verdict.ready {
+  color: var(--ok);
+}
+.readiness-verdict.attention {
+  color: var(--warn);
+}
+.readiness-verdict.not-ready {
+  color: var(--crit);
+}
+.readiness-checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+.readiness-check {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  color: var(--ink-2);
+}
+.readiness-check strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.readiness-mark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 99px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+.readiness-check.pass .readiness-mark {
+  background: var(--ok-wash);
+  color: var(--ok);
+}
+.readiness-check.warn .readiness-mark {
+  background: var(--warn-wash);
+  color: var(--warn);
+}
+.readiness-check.fail .readiness-mark {
+  background: var(--crit-wash);
+  color: var(--crit);
+}
+.readiness-check.unknown .readiness-mark {
+  background: var(--sunken);
+  color: var(--ink-3);
+}
+.confirm-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.confirm-list label {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 13px;
+  cursor: pointer;
+}
+.confirm-list input {
+  margin-top: 3px;
+}
+.install-link {
+  display: inline-block;
+  margin-top: 6px;
+  text-decoration: none;
+}
+.connected-card-batch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}

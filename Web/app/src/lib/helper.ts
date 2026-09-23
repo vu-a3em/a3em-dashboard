@@ -1,4 +1,10 @@
-import type { CardGeometry, CompatibilityReport } from '@a3em/config-schema';
+import {
+  judgeCardFormat,
+  type CardGeometry,
+  type CardReadinessReport,
+  type CompatibilityReport,
+  type PartitionScheme,
+} from '@a3em/config-schema';
 
 /**
  * Talking to the card helper extension.
@@ -26,7 +32,7 @@ import type { CardGeometry, CompatibilityReport } from '@a3em/config-schema';
  */
 export const HELPER_EXTENSION_ID =
   (import.meta.env?.VITE_A3EM_HELPER_EXTENSION_ID as string | undefined) ??
-  'felbcgjkphldokgcjildnmnclokfngnh';
+  'fccaomdnpebkiakcflkdgidnnodpalik';
 
 /**
  * How long to wait with **no word at all** before giving up.
@@ -48,12 +54,17 @@ const HANDSHAKE_TIMEOUT_MS = 2000;
 
 export interface HelperVolume {
   id: string;
+  node: string;
   label: string | null;
   filesystem: string | null;
   sizeBytes: number;
   mountPoint: string | null;
   allocationUnitBytes: number | null;
   mountable: boolean;
+  partitionOffsetBytes?: number;
+  freeBytes?: number;
+  /** Derived from the volume serial number, so a new format gives a new one. */
+  uuid?: string;
 }
 
 export interface HelperDevice {
@@ -61,9 +72,38 @@ export interface HelperDevice {
   node: string;
   sizeBytes: number;
   bus: string;
-  partitionScheme: string;
+  removable: boolean;
+  virtual: boolean;
+  partitionScheme: PartitionScheme;
+  /** The card's lock switch, or a reader that reports the medium read-only. */
+  writeProtected: boolean;
   volumes: HelperVolume[];
+  /**
+   * The firmware verdict on the card as it stands.
+   *
+   * Judged here, from the geometry the helper reports, rather than by the helper: the rules
+   * live in the schema package, tested once, and a second copy in the helper could drift.
+   */
   compatibility: CompatibilityReport | null;
+}
+
+/** A device's first volume as the firmware would judge it. */
+function withCompatibility(device: Omit<HelperDevice, 'compatibility'>): HelperDevice {
+  const first = device.volumes[0];
+  const geometry: CardGeometry = {
+    partitionScheme: device.partitionScheme,
+    filesystem: first?.filesystem ?? null,
+    bytesPerSector: null,
+    allocationUnitBytes: first?.allocationUnitBytes ?? null,
+    mountable: first?.mountable ?? false,
+  };
+  let compatibility: CompatibilityReport | null = null;
+  try {
+    compatibility = judgeCardFormat(geometry);
+  } catch {
+    compatibility = null;
+  }
+  return { ...device, compatibility };
 }
 
 export interface HelperChallenge {
@@ -84,6 +124,11 @@ export interface HelperChallenge {
 export interface TaskProgress {
   op: string;
   note: string;
+  /** Which part of a long operation: `capacity`, `latency`, `format`, `verify`, `image`, … */
+  stage?: string;
+  /** The card this concerns, in an operation on several. */
+  device?: string;
+  /** How far along the stage is. Bytes for a copy or a format; probes for the capacity test. */
   bytesCopied?: number;
   totalBytes?: number;
   badSectors?: number;
@@ -351,9 +396,14 @@ async function callOverPort<T>(
 export interface HelperIdentity {
   version: string;
   platform: string;
-  /** Operations this build actually implements here. Empty on a stubbed platform. */
+  /** Operations this build implements here. */
   implemented: string[];
+  /** Changes when a reply changes shape. Absent from the first, TypeScript helper. */
+  protocol?: number;
 }
+
+/** The protocol this page speaks. An older helper is reported as needing an update. */
+export const HELPER_PROTOCOL = 2;
 
 export async function helperHello(): Promise<HelperIdentity> {
   // Short deadline: an absent extension must not hold the page's capability check open.
@@ -361,15 +411,16 @@ export async function helperHello(): Promise<HelperIdentity> {
 }
 
 export async function listDevices(): Promise<HelperDevice[]> {
-  const result = await call<{ devices: HelperDevice[] }>({ op: 'listDevices' });
-  return result.devices;
+  const result = await call<{ devices: Array<Omit<HelperDevice, 'compatibility'>> }>({ op: 'listDevices' });
+  return result.devices.map(withCompatibility);
 }
 
 export async function inspectVolume(
   volume: string,
   recommendedAllocationUnitBytes?: number | null,
 ): Promise<{ geometry: CardGeometry; compatibility: CompatibilityReport }> {
-  return call({ op: 'inspect', volume, recommendedAllocationUnitBytes });
+  const { geometry } = await call<{ geometry: CardGeometry }>({ op: 'inspect', volume });
+  return { geometry, compatibility: judgeCardFormat(geometry, recommendedAllocationUnitBytes ?? null) };
 }
 
 export async function mountVolume(volume: string): Promise<void> {
@@ -384,10 +435,9 @@ export async function ejectDevice(device: string): Promise<void> {
   await call({ op: 'eject', device });
 }
 
-export async function requestChallenge(
-  device: string,
-  operation: 'format' | 'repair',
-): Promise<HelperChallenge> {
+export type HelperOperation = 'format' | 'repair' | 'prepare';
+
+export async function requestChallenge(device: string, operation: HelperOperation): Promise<HelperChallenge> {
   return call<HelperChallenge>({ op: 'challenge', device, operation });
 }
 
@@ -397,6 +447,108 @@ export async function formatDevice(
 ): Promise<CardGeometry> {
   const result = await call<{ geometry: CardGeometry }>({ op: 'format', ...options }, { onProgress });
   return result.geometry;
+}
+
+export interface CapacityReport {
+  claimedBytes: number;
+  verifiedBytes: number;
+  genuine: boolean;
+  verdict: 'genuine' | 'wraps' | 'loses-data';
+  probes: number;
+  seconds: number;
+}
+
+export interface LatencyReport {
+  chunkBytes: number;
+  chunks: number;
+  mbPerSecond: number;
+  medianMs: number;
+  p99Ms: number;
+  maxMs: number;
+  verdict: 'ok' | 'slow' | 'stalls';
+  seconds: number;
+}
+
+export type LayoutCheck = NonNullable<CardReadinessReport['layout']>;
+
+/** One card to prepare: tested, formatted, verified, and given its configuration. */
+export interface PrepareTarget {
+  device: string;
+  grant: string;
+  allocationUnitBytes: number;
+  /** The volume label. */
+  label: string;
+  /** The `_a3em.cfg` to write once the card is formatted. */
+  config: string;
+}
+
+/** What happened to one card. A card that failed carries `error`; the others still ran. */
+export interface PreparedCard {
+  device: string;
+  volume?: string;
+  formatted: boolean;
+  configWritten: boolean;
+  capacity?: CapacityReport;
+  latency?: LatencyReport;
+  layout?: LayoutCheck;
+  geometry?: CardGeometry;
+  volumeSerial?: string;
+  error?: string;
+  code?: string;
+}
+
+/**
+ * Tests, formats, verifies and configures one or more cards as a single operation.
+ *
+ * One operation so that a batch costs one administrator prompt, not one per card. Each card
+ * still needs its own grant, so each is confirmed individually.
+ */
+export async function prepareCards(
+  targets: PrepareTarget[],
+  options: { skipCapacityProbe?: boolean; skipLatencyTest?: boolean } = {},
+  onProgress?: (progress: TaskProgress) => void,
+): Promise<PreparedCard[]> {
+  const result = await call<{ results: PreparedCard[] }>(
+    { op: 'prepare', targets, ...options },
+    // A heartbeat keeps this alive; the worker's own progress arrives far more often.
+    { onProgress: onProgress ?? (() => undefined) },
+  );
+  return result.results;
+}
+
+/**
+ * Everything the helper can find out about a card without writing to it.
+ *
+ * `deep` includes the byte-for-byte layout comparison, which reads the raw card and so may
+ * raise the system's administrator prompt.
+ */
+export async function checkReadiness(
+  device: string,
+  deep: boolean,
+  onProgress?: (progress: TaskProgress) => void,
+): Promise<CardReadinessReport> {
+  const result = await call<{ readiness: CardReadinessReport }>(
+    { op: 'readiness', device, deep },
+    { onProgress: onProgress ?? (() => undefined) },
+  );
+  return result.readiness;
+}
+
+/** `checkReadiness` for several cards at once: one administrator prompt covers all their layouts. */
+export async function checkReadinessOfCards(
+  devices: string[],
+  deep: boolean,
+  onProgress?: (progress: TaskProgress) => void,
+): Promise<CardReadinessReport[]> {
+  const result = await call<{ readiness: CardReadinessReport[] }>(
+    { op: 'readiness', devices, deep },
+    { onProgress: onProgress ?? (() => undefined) },
+  );
+  return result.readiness;
+}
+
+export async function writeCardConfig(volume: string, text: string): Promise<void> {
+  await call({ op: 'writeConfig', volume, text });
 }
 
 export interface FsckReport {
@@ -410,7 +562,7 @@ export async function diagnoseVolume(
   volume: string,
   onProgress?: (progress: TaskProgress) => void,
 ): Promise<FsckReport> {
-  const result = await call<{ report: FsckReport }>({ op: 'diagnose', volume }, { onProgress });
+  const result = await call<{ report: FsckReport }>({ op: 'diagnose', volume }, { onProgress: onProgress ?? (() => undefined) });
   return result.report;
 }
 
@@ -418,7 +570,7 @@ export async function repairVolume(
   options: { device: string; volume: string; grant: string },
   onProgress?: (progress: TaskProgress) => void,
 ): Promise<FsckReport> {
-  const result = await call<{ report: FsckReport }>({ op: 'repair', ...options }, { onProgress });
+  const result = await call<{ report: FsckReport }>({ op: 'repair', ...options }, { onProgress: onProgress ?? (() => undefined) });
   return result.report;
 }
 
@@ -432,17 +584,17 @@ export interface ImageReport {
 /**
  * Sector-level image of a card, with progress.
  *
- * Progress arrives as separate messages from the extension rather than through the reply,
- * so a listener is attached for the duration and removed afterwards.
+ * With no destination the helper saves it in Documents/A3EM card images, since the page has
+ * no way to name a path on this computer.
  */
 export async function imageDevice(
   device: string,
-  destination: string,
+  destination?: string,
   onProgress?: (progress: TaskProgress) => void,
 ): Promise<ImageReport> {
   const result = await call<{ report: ImageReport }>(
-    { op: 'image', device, destination },
-    { onProgress },
+    { op: 'image', device, ...(destination ? { destination } : {}) },
+    { onProgress: onProgress ?? (() => undefined) },
   );
   return result.report;
 }

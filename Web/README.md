@@ -18,9 +18,9 @@ Chrome, Edge, or Opera for direct SD card access.
 | --- | --- |
 | [`packages/config-schema`](packages/config-schema) | Everything that understands an A3EM card: config, device info, IMU files, logs, self-test results, plus the forecast model and validation. No UI. |
 | [`app`](app) | The interface. Vite, React, TypeScript. |
-| [`packages/card-helper`](packages/card-helper) | Native messaging host for direct card management — enumerate, inspect, format at a chosen allocation unit, image, repair. macOS implemented; Windows and Linux stubbed. |
+| [`card-helper`](card-helper) | The native card helper, in Go, for macOS, Windows and Linux: lists the cards plugged in, checks one is ready to deploy, and prepares cards — capacity test, write test, the reference exFAT layout, verification, configuration — in one step. Installers are published as GitHub releases. |
 | [`extension`](extension) | The Chromium extension that bridges the page to that host. A relay, nothing more. |
-| [`tools`](tools) | Snapshot extractors for the firmware and the planner spreadsheet, plus `check-card.mjs` and `install-card-helper.mjs`. See [MAINTENANCE.md](MAINTENANCE.md). |
+| [`tools`](tools) | Snapshot extractors for the firmware and the planner spreadsheet, plus `check-card.mjs` and `helper.mjs`, which builds and registers the card helper. See [MAINTENANCE.md](MAINTENANCE.md). |
 | [`reference`](reference) | The planner spreadsheet and the generated snapshots. |
 
 ## What exists so far
@@ -150,5 +150,5 @@ rather than importing the Tkinter application.
 - [NATIVE-HELPER-PLAN.md](NATIVE-HELPER-PLAN.md) — proposed Chromium extension and native host for mounting, formatting, and recovering cards directly
 - [MAINTENANCE.md](MAINTENANCE.md) — keeping the app in step with firmware and the power model
 - `npm run check-card -- <directory>` — runs the integrity check over a card outside the browser, for a mounted image or a copied folder
-- `npm run helper-doctor` — checks whether the card helper is installed and actually runs
+- `npm run helper-doctor` — checks whether the card helper is installed and actually runs (`npm run test:helper` runs its tests; both need Go)
 - `npm --workspace @a3em/config-schema run open-items` — everything still unmeasured or unresolved

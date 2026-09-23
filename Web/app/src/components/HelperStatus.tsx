@@ -82,9 +82,13 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
     <>
       <div className="rail-foot-row">
         <span className="rail-foot-label">Card tools</span>
-        {helper.status === 'absent' ? (
-          <button className="rail-foot-action" onClick={() => setShowGuide(true)}>
-            Enable…
+        {helper.status === 'absent' || helper.status === 'outdated' ? (
+          <button
+            className="rail-foot-action"
+            title={helper.status === 'outdated' ? `Card helper ${helper.identity?.version} is older than this dashboard.` : undefined}
+            onClick={() => setShowGuide(true)}
+          >
+            {helper.status === 'outdated' ? 'Update…' : 'Enable…'}
           </button>
         ) : (
           <span
@@ -99,7 +103,7 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
           </span>
         )}
       </div>
-      {showGuide ? <InstallGuideDialog onClose={() => setShowGuide(false)} /> : null}
+      {showGuide ? <InstallGuideDialog outdated={helper.status === 'outdated'} onClose={() => setShowGuide(false)} /> : null}
     </>
   );
 }
@@ -111,7 +115,7 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
  * installation steps to reach a tool that cannot do anything yet would rightly be annoyed,
  * and finding that out at the end is worse than being told at the start.
  */
-function InstallGuideDialog({ onClose }: Readonly<{ onClose: () => void }>) {
+function InstallGuideDialog({ outdated, onClose }: Readonly<{ outdated: boolean; onClose: () => void }>) {
   const guide = installGuide();
   const dialog = useRef<HTMLDialogElement>(null);
 
@@ -135,12 +139,18 @@ function InstallGuideDialog({ onClose }: Readonly<{ onClose: () => void }>) {
     <dialog className="modal" ref={dialog} aria-label="Enable card tools">
       <h2>Enable card tools</h2>
       <p className="hint">
-        These tools provide low-level access to an SD card, allowing this dashboard to format
-        correctly, recover one that will not mount, eject safely, and warn you when a card may be
-        unusable for deployment. Everything in the dashboard works without these tools, but it may
-        require additional steps to get your cards properly configured. Instructions to enable these
-        tools are as follows:
+        These tools give the dashboard low-level access to SD cards: they test that a card really holds
+        what it claims, format it with the exact layout the recorder expects, check a card is ready to
+        deploy, and eject it safely. Everything else in the dashboard works without them. Two pieces are
+        needed, a small program and a browser extension:
       </p>
+
+      {outdated ? (
+        <div className="banner warn" style={{ marginTop: 12 }}>
+          The card helper on this computer is older than this dashboard. Install the current one below; it
+          replaces the old one.
+        </div>
+      ) : null}
 
       {guide.caveat ? (
         <div className="banner warn" style={{ marginTop: 12 }}>
@@ -158,6 +168,11 @@ function InstallGuideDialog({ onClose }: Readonly<{ onClose: () => void }>) {
             <strong>{step.title}</strong>
             <div className="hint">{step.detail}</div>
             {step.command ? <code className="install-command">{step.command}</code> : null}
+            {step.link ? (
+              <a className="btn small install-link" href={step.link.href} target="_blank" rel="noreferrer">
+                {step.link.label}
+              </a>
+            ) : null}
           </li>
         ))}
       </ol>
