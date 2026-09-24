@@ -37,7 +37,9 @@
     },
     "signInProviders": [
       "google",
-      "github"
+      "github",
+      "apple",
+      "password"
     ]
   }
 }

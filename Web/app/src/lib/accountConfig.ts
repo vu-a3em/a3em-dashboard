@@ -18,4 +18,4 @@ export const FIREBASE_CONFIG: FirebaseWebConfig | null = {
   "appId": "1:48538828681:web:d6b06ca33a79073a96eb58"
 };
 
-export const SIGN_IN_PROVIDERS: SignInProvider[] = ["google","github"];
+export const SIGN_IN_PROVIDERS: SignInProvider[] = ["google","github","apple","password"];
