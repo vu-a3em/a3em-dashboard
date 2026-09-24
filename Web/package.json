@@ -4,7 +4,8 @@
   "type": "module",
   "workspaces": [
     "packages/*",
-    "app"
+    "app",
+    "firebase"
   ],
   "scripts": {
     "dev": "npm --workspace @a3em/config-schema run build && npm --workspace app run dev",
@@ -21,7 +22,10 @@
     "sync:extension": "node tools/sync-extension-manifest.mjs",
     "package:extension": "node tools/package-extension.mjs",
     "lint": "eslint .",
-    "check:solar": "node tools/check-solar-parity.mjs"
+    "check:solar": "node tools/check-solar-parity.mjs",
+    "test:rules": "npm --workspace @a3em/config-schema run build && npm --workspace @a3em/firebase test",
+    "deploy:rules": "node tools/firebase.mjs deploy --only firestore:rules",
+    "firebase": "node tools/firebase.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

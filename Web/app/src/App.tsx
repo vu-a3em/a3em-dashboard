@@ -8,6 +8,7 @@ import { CardLoading } from './components/CardLoading';
 import { Wordmark } from './components/Wordmark';
 import { CardStatus } from './components/CardStatus';
 import { HelperRailStatus, HelperTaskChip } from './components/HelperStatus';
+import { AccountDialog, AccountRailStatus } from './components/Account';
 import { BatchPrepare, type BatchUnit } from './views/BatchPrepare';
 import { CardOverview } from './views/CardOverview';
 import { DeploymentEditor } from './views/DeploymentEditor';
@@ -15,6 +16,7 @@ import { ClipBrowser } from './views/ClipBrowser';
 import { OffloadCard } from './views/OffloadCard';
 import { useOffloadTask } from './lib/useOffloadTask';
 import { useHelper } from './lib/useHelper';
+import { useAccount } from './lib/useAccount';
 
 type View = 'configure' | 'batch' | 'review' | 'clips' | 'offload';
 
@@ -80,7 +82,9 @@ export default function App() {
   // Both views keep their state here. React unmounts whichever is not showing, so
   // anything held inside them is discarded the moment you look at the other one.
   const draft = useDeploymentDraft();
-  const library = useProtocols();
+  /** Optional sign-in, which moves the protocol library into the person's account. */
+  const account = useAccount();
+  const library = useProtocols(account);
   const [selectedPhase, setSelectedPhase] = useState(0);
   /**
    * Which activation the review and listen views are looking at, null for all of them.
@@ -141,7 +145,9 @@ export default function App() {
             )}
           </div>
           <HelperRailStatus helper={helper} />
+          <AccountRailStatus account={account} />
         </div>
+        <AccountDialog account={account} protocolCount={library.saved.length} />
       </nav>
 
       <div className="main">

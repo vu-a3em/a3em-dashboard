@@ -1,0 +1,42 @@
+name: Account database rules
+
+# The Firestore rules are the whole of the accounts' server side, so they are tested against the
+# emulator whenever they, or the record format they check, change. This does not deploy them;
+# `npm run deploy:rules` does, from a computer signed in to the Firebase project.
+
+on:
+  push:
+    paths:
+      - 'Web/firebase/**'
+      - 'Web/packages/config-schema/src/protocol*.ts'
+      - '.github/workflows/accounts.yml'
+  pull_request:
+    paths:
+      - 'Web/firebase/**'
+      - 'Web/packages/config-schema/src/protocol*.ts'
+      - '.github/workflows/accounts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: Web/package-lock.json
+      # The Firestore emulator needs Java 21 or later.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci
+      - run: npm run test:rules

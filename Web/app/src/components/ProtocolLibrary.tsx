@@ -6,6 +6,7 @@ import {
   type Protocol,
   type ProtocolProvenance,
 } from '@a3em/config-schema';
+import type { LibrarySync } from '../lib/useProtocols';
 
 /**
  * The protocol library, as a disclosure whose default state follows the workflow.
@@ -33,6 +34,7 @@ import {
 export function ProtocolLibrary({
   config,
   protocols,
+  sync,
   basedOn,
   onApply,
   onRemove,
@@ -41,6 +43,8 @@ export function ProtocolLibrary({
 }: Readonly<{
   config: DeploymentConfig;
   protocols: Protocol[];
+  /** Where saved protocols are kept, and whether they have reached the account. */
+  sync?: LibrarySync;
   basedOn: ProtocolProvenance | null;
   onApply: (protocol: Protocol) => void;
   onRemove: (id: string) => void;
@@ -55,8 +59,8 @@ export function ProtocolLibrary({
   /**
    * The protocol a delete has been asked for but not yet confirmed.
    *
-   * Saved protocols live only in this browser, so a deleted one is gone for good; the
-   * button asks once, in place, rather than acting on the first click.
+   * A deleted protocol is gone for good, from this browser or from the account; the button
+   * asks once, in place, rather than acting on the first click.
    */
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
@@ -111,6 +115,7 @@ export function ProtocolLibrary({
             recording setting except the device label, deployment start and end dates, and the timezone,
             which are always kept as you have them.
           </p>
+          {sync ? <LibraryStorage sync={sync} /> : null}
 
           {basedOn ? (
             <div className={`banner ${drifted ? 'warn' : 'ok'}`} style={{ marginBottom: 14 }}>
@@ -192,5 +197,45 @@ export function ProtocolLibrary({
           </div>
       </div>
     </Pane>
+  );
+}
+
+/**
+ * Where saved protocols are kept, said once, plainly.
+ *
+ * Signed out that is this browser alone, which is worth knowing before clearing it or moving
+ * computers; signed in it is the account, and anything still on its way there says so.
+ */
+function LibraryStorage({ sync }: Readonly<{ sync: LibrarySync }>) {
+  const plural = (count: number) => `${count} protocol${count === 1 ? '' : 's'}`;
+  return (
+    <>
+      <p className="library-storage">
+        {sync.storage === 'account' ? (
+          <>
+            Your protocols are saved in your account{sync.email ? ` (${sync.email})` : ''}
+            {!sync.loaded ? ' — loading…' : sync.pending ? ' — saving…' : '.'}
+            {sync.joined ? ` ${plural(sync.joined)} from this browser ${sync.joined === 1 ? 'was' : 'were'} added to it.` : ''}
+            {sync.hidden.length
+              ? ` ${plural(sync.hidden.length)} saved by a different version of the dashboard ${sync.hidden.length === 1 ? 'is' : 'are'} not shown.`
+              : ''}
+          </>
+        ) : (
+          <>
+            Your protocols are saved in this browser only.{' '}
+            {sync.offerSignIn ? (
+              <button className="link-button" onClick={sync.offerSignIn}>
+                Sign in to keep them in an account
+              </button>
+            ) : null}
+          </>
+        )}
+      </p>
+      {sync.error ? (
+        <div className="banner crit" role="alert" style={{ marginBottom: 14 }}>
+          {sync.error}
+        </div>
+      ) : null}
+    </>
   );
 }

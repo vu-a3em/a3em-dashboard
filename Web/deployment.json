@@ -3,7 +3,7 @@
     "Where the dashboard is served from, and the extension that may talk to it.",
     "",
     "THIS IS THE ONLY PLACE THESE VALUES ARE WRITTEN BY HAND. The extension manifest and",
-    "the app both derive from this file \u2014 run `npm run sync:extension` after editing it,",
+    "the app both derive from this file — run `npm run sync:extension` after editing it,",
     "and `npm run ci` fails if the two have drifted or if the placeholder below is still",
     "in place. Same arrangement as the firmware and planner snapshots: one source, a sync",
     "step, and a check that makes forgetting it impossible rather than merely unlikely.",
@@ -13,10 +13,31 @@
     "served from this machine, which is a real if small exposure: running a local web",
     "server already implies code execution here, and every destructive operation still",
     "requires a native confirmation the page cannot fake. Remove it from",
-    "tools/sync-extension-manifest.mjs for a hardened build."
+    "tools/sync-extension-manifest.mjs for a hardened build.",
+    "",
+    "accounts.firebase is the Firebase web app's configuration, pasted from the Firebase console",
+    "(Project settings > Your apps > SDK setup and configuration > Config). These values are",
+    "public by design: what protects each person's data is firebase/firestore.rules. Leave it",
+    "null and the dashboard offers no sign-in at all. accounts.signInProviders lists the sign-in",
+    "methods to offer, from google, github and microsoft; each must also be enabled in the",
+    "Firebase console (Authentication > Sign-in method)."
   ],
   "dashboardOrigin": "https://config.a3em.com",
   "extensionId": "fccaomdnpebkiakcflkdgidnnodpalik",
   "extensionPublicKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlYaxO50NB+OM+++X/55gGoHojSt0KpBgWaxOwNnBWCJwme7IcHsLJv7DJ/iGjuIurJT6/cLazMeZcLz525SmSZQ0HNbsiMvLlHnApP9d9cAkOW3HO7Ure/AQJkWSi6eQJRgzKBDyVIdvDLU2OTm/N3An6Jo5lNZg3uWMKMGbgg+Dxnh59eFWHEQKDpQH6Y897bCzZwJqJnPbjvisz3TMsXcZBftUSoKZ2ZvKrxAKT1Fq5TeuhUBxnyA2wSXpXxOcEmwCr80GuxJ/i/KSrQEStAqVWh4rY1VMk9QjYWezpjwSAIV8DzP2tIeErxFjra/aeiX2s9WGIzPifbQjAWpTPQIDAQAB",
-  "helperDownloadUrl": "https://github.com/vu-a3em/a3em-dashboard/releases/latest"
+  "helperDownloadUrl": "https://github.com/vu-a3em/a3em-dashboard/releases/latest",
+  "accounts": {
+    "firebase": {
+      "apiKey": "AIzaSyAq4RMjDBN7TF-TZ8rpV3a1xynmGrZSB3A",
+      "authDomain": "a3em-679d7.firebaseapp.com",
+      "projectId": "a3em-679d7",
+      "storageBucket": "a3em-679d7.firebasestorage.app",
+      "messagingSenderId": "48538828681",
+      "appId": "1:48538828681:web:d6b06ca33a79073a96eb58"
+    },
+    "signInProviders": [
+      "google",
+      "github"
+    ]
+  }
 }

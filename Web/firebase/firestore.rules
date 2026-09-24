@@ -1,0 +1,44 @@
+rules_version = '2';
+
+// Who may read and write what in the dashboard's account database.
+//
+// These rules are the whole of the server side: the dashboard talks to the database straight
+// from the browser, so everything that keeps one person's data from another is here. Each
+// person has one folder, users/<their uid>, and only they can read or change what is in it.
+// Everything else is closed.
+//
+// Deploy with:  npm run deploy:rules   (from Web/; see firebase/README.md)
+// Tested by:    npm run test:rules     against the local emulator.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedInAs(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // Mirrors PROTOCOL_RECORD_LIMITS and ProtocolRecord in
+    // packages/config-schema/src/protocol-sync.ts.
+    function isProtocolRecord(id) {
+      let data = request.resource.data;
+      return id.size() <= 100
+        && data.keys().hasOnly(['schemaVersion', 'name', 'version', 'updatedAt', 'json'])
+        && data.keys().hasAll(['schemaVersion', 'name', 'version', 'updatedAt', 'json'])
+        && data.schemaVersion is int
+        && data.version is int && data.version >= 1
+        && data.name is string && data.name.size() <= 200
+        && data.updatedAt is string && data.updatedAt.size() <= 40
+        && data.json is string && data.json.size() <= 262144;
+    }
+
+    match /users/{uid}/protocols/{protocolId} {
+      allow read, delete: if signedInAs(uid);
+      allow create, update: if signedInAs(uid) && isProtocolRecord(protocolId);
+    }
+
+    // Anything not named above — other people's folders, new collections — is refused.
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

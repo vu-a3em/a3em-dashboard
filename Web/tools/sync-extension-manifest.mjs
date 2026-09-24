@@ -39,6 +39,60 @@ function idFromKey(key) {
 }
 
 /**
+ * The dashboard's account settings, as a generated module.
+ *
+ * Generated whole rather than patched, so what the app is built with is exactly what
+ * deployment.json says, and a hand edit to the generated file shows up as drift.
+ */
+const ACCOUNT_MODULE = resolve(here, '..', 'app', 'src', 'lib', 'accountConfig.ts');
+const PROVIDERS = ['google', 'github', 'microsoft'];
+const FIREBASE_KEYS = ['apiKey', 'authDomain', 'projectId', 'appId'];
+
+function accountProblems() {
+  const accounts = config.accounts ?? { firebase: null, signInProviders: [] };
+  const problems = [];
+  if (accounts.firebase !== null) {
+    for (const key of FIREBASE_KEYS) {
+      if (typeof accounts.firebase?.[key] !== 'string' || !accounts.firebase[key]) {
+        problems.push(`accounts.firebase.${key} is missing. Paste the whole config object from the Firebase console.`);
+      }
+    }
+  }
+  const providers = accounts.signInProviders ?? [];
+  for (const provider of providers) {
+    if (!PROVIDERS.includes(provider)) problems.push(`accounts.signInProviders: "${provider}" is not one of ${PROVIDERS.join(', ')}.`);
+  }
+  if (accounts.firebase !== null && providers.length === 0) problems.push('accounts.signInProviders is empty, so nobody could sign in.');
+  return problems;
+}
+
+function accountModule() {
+  const accounts = config.accounts ?? { firebase: null, signInProviders: [] };
+  const firebase = accounts.firebase
+    ? Object.fromEntries(FIREBASE_KEYS.map((key) => [key, accounts.firebase[key]]))
+    : null;
+  return [
+    '// Generated from deployment.json by tools/sync-extension-manifest.mjs. Do not edit;',
+    '// change deployment.json and run `npm run sync:extension`.',
+    '',
+    "export type SignInProvider = 'google' | 'github' | 'microsoft';",
+    '',
+    'export interface FirebaseWebConfig {',
+    '  apiKey: string;',
+    '  authDomain: string;',
+    '  projectId: string;',
+    '  appId: string;',
+    '}',
+    '',
+    '/** Null when this deployment offers no accounts. */',
+    `export const FIREBASE_CONFIG: FirebaseWebConfig | null = ${JSON.stringify(firebase, null, 2)};`,
+    '',
+    `export const SIGN_IN_PROVIDERS: SignInProvider[] = ${JSON.stringify(accounts.signInProviders ?? [])};`,
+    '',
+  ].join('\n');
+}
+
+/**
  * Everywhere else the extension ID is written: the native helper will only answer an
  * extension it names, and the page only calls the one it names.
  */
@@ -83,6 +137,20 @@ if (check) {
     console.error(`✗ deployment.json's extensionId is not the ID of its extensionPublicKey, which is ${derived}.`);
     failed = true;
   }
+  for (const problem of accountProblems()) {
+    console.error(`✗ deployment.json: ${problem}`);
+    failed = true;
+  }
+  let generated = '';
+  try {
+    generated = readFileSync(ACCOUNT_MODULE, 'utf8');
+  } catch {
+    // Reported below as drift.
+  }
+  if (generated !== accountModule()) {
+    console.error('✗ app/src/lib/accountConfig.ts is out of step with deployment.json. Run: npm run sync:extension');
+    failed = true;
+  }
   for (const { file, pattern } of CONSUMERS) {
     const found = readFileSync(resolve(here, '..', file), 'utf8').match(pattern)?.[2];
     if (found !== config.extensionId) {
@@ -111,7 +179,18 @@ if (check) {
     console.error('  Copy both from the same place: the Chrome Web Store Developer Dashboard, Package tab.');
     process.exit(1);
   }
+  const problems = accountProblems();
+  if (problems.length) {
+    for (const problem of problems) console.error(`✗ deployment.json: ${problem}`);
+    process.exit(1);
+  }
   writeFileSync(MANIFEST, `${wanted}\n`, 'utf8');
+  writeFileSync(ACCOUNT_MODULE, accountModule(), 'utf8');
+  console.log(
+    config.accounts?.firebase
+      ? `Wrote app/src/lib/accountConfig.ts (Firebase project ${config.accounts.firebase.projectId}; ${config.accounts.signInProviders.join(', ')})`
+      : 'Wrote app/src/lib/accountConfig.ts (no accounts: accounts.firebase is null)',
+  );
   for (const { file, pattern } of CONSUMERS) {
     const path = resolve(here, '..', file);
     const text = readFileSync(path, 'utf8');

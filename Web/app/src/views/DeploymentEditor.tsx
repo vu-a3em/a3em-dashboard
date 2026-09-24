@@ -259,6 +259,7 @@ export function DeploymentEditor({
         <ProtocolLibrary
           config={config}
           protocols={library.protocols}
+          sync={library.sync}
           basedOn={draft.basedOn}
           onApply={useProtocol}
           onDetach={draft.clearBasis}

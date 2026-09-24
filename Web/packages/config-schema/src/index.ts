@@ -50,3 +50,4 @@ export * from './card-format.js';
 export * from './schedule.js';
 export * from './card-capacity.js';
 export * from './card-readiness.js';
+export * from './protocol-sync.js';

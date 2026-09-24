@@ -2013,3 +2013,45 @@ details.card[open] > summary > .summary-note {
   gap: 8px;
   margin-top: 12px;
 }
+
+/* ------------------------------------------------------------------------- */
+/* Accounts                                                                   */
+/* ------------------------------------------------------------------------- */
+
+/* Where the protocol library is kept, under its introduction. */
+.library-storage {
+  margin: -4px 0 14px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+/* An action inside a sentence: reads as a link, behaves as a button. */
+.link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.link-button:hover {
+  color: var(--primary-deep);
+}
+.account-modal {
+  max-width: 460px;
+}
+.account-providers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0;
+}
+.account-providers .btn {
+  justify-content: center;
+}
+.account-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}

@@ -20,6 +20,7 @@ Chrome, Edge, or Opera for direct SD card access.
 | [`app`](app) | The interface. Vite, React, TypeScript. |
 | [`card-helper`](card-helper) | The native card helper, in Go, for macOS, Windows and Linux: lists the cards plugged in, checks one is ready to deploy, and prepares cards — capacity test, write test, the reference exFAT layout, verification, configuration — in one step. Installers are published as GitHub releases. |
 | [`extension`](extension) | The Chromium extension that bridges the page to that host. A relay, nothing more. |
+| [`firebase`](firebase) | Optional accounts: the Firestore security rules that are their whole server side, their tests, and how to set up the Firebase project. |
 | [`tools`](tools) | Snapshot extractors for the firmware and the planner spreadsheet, plus `check-card.mjs` and `helper.mjs`, which builds and registers the card helper. See [MAINTENANCE.md](MAINTENANCE.md). |
 | [`reference`](reference) | The planner spreadsheet and the generated snapshots. |
 
