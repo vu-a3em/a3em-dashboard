@@ -20,7 +20,7 @@ ever worked on macOS.
 | `diagnose` | [This helper's own check](#the-filesystem-check) of an exFAT card, read-only, the same on every platform; what is wrong in words, with the files it touches. A card that is not exFAT goes to the system's checker. |
 | `repair` | This helper's own repair where the check shows it fixes everything — the allocation bitmap rebuilt from the files, or a boot region restored from its intact copy — saving what it replaces first; otherwise the system's tool, `fsck_exfat` / `fsck.exfat` / `chkdsk`. |
 | `image` | A sector-by-sector copy to a file, continuing past unreadable sectors. |
-| `chooseImage` | The system's own save dialog for a card's image (AppleScript on macOS, zenity or kdialog on Linux, Windows Forms on Windows), then whether the image fits there: free space, and the 4 GB file limit of a FAT32 drive. `image` makes the same check itself before reading a byte, writes to `<name>.partial`, and moves it into place only once it is whole. Without a dialog — a Linux desktop with neither zenity nor kdialog — the image goes in `Documents/A3EM card images`. |
+| `chooseImage` | The system's own save dialog for a card's image (AppleScript on macOS, the desktop portal's — GNOME's, KDE's — on Linux, else zenity or kdialog, Windows Forms on Windows), then whether the image fits there: free space, and the 4 GB file limit of a FAT32 drive. `image` makes the same check itself before reading a byte, writes to `<name>.partial`, and moves it into place only once it is whole. Without a dialog — a Linux session with no portal, zenity or kdialog — the image goes in `Documents/A3EM card images`. |
 | `stop` | Stops a running `image` or `diagnose`, named by its request id; a stopped image's unfinished file is deleted. The page sends it for its Stop button, and the page closing stops them too. A `prepare`, `format` or `repair` is never stopped partway: a half-written card is worse than a slow one. |
 | `hello` | The version, platform and operations, and anything this computer lacks that the tools rely on — on Linux, `pkexec`, a polkit agent, `udisks2`, the exFAT driver, a save dialog — which `doctor` prints too, and the dashboard shows beside "Card tools". |
 | `mount`, `unmount`, `eject`, `inspect`, `identify`, `writeConfig` | The small ones. |
@@ -123,7 +123,7 @@ checker satisfied and every file byte for byte as it was.
 | Raw access | `/dev/rdiskN`, `F_NOCACHE` | `/dev/sdX`, `O_DIRECT` | `\\.\PhysicalDriveN`, unbuffered |
 | Elevation | `security authorize` once, then `authopen` per device | `pkexec` | `Start-Process -Verb RunAs` |
 | Filesystem check | this helper's own; `fsck_exfat` for other filesystems and repairs | the same; `fsck.exfat` (exfatprogs) | the same; `chkdsk` |
-| Save dialog | AppleScript `choose file name` | zenity or kdialog | Windows Forms `SaveFileDialog` |
+| Save dialog | AppleScript `choose file name` | the XDG desktop portal's file chooser, over D-Bus ([`internal/dbus`](internal/dbus)); else zenity or kdialog | Windows Forms `SaveFileDialog` |
 | Card identity | CID, in the built-in reader | CID, in a native SD slot | reader only |
 
 Each file in [`internal/platform`](internal/platform) opens with what that system does that its

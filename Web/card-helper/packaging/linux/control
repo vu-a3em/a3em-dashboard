@@ -4,7 +4,7 @@ Architecture: @ARCH@
 Maintainer: A3EM <a3em@users.noreply.github.com>
 Installed-Size: @SIZE@
 Depends: util-linux
-Recommends: udisks2, pkexec | policykit-1, zenity | kdialog
+Recommends: udisks2, pkexec | policykit-1, xdg-desktop-portal-gtk | xdg-desktop-portal-gnome | xdg-desktop-portal-kde | zenity | kdialog
 Suggests: exfatprogs
 Section: utils
 Priority: optional

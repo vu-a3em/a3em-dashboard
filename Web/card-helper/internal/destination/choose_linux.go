@@ -7,9 +7,13 @@ import (
 	"strings"
 )
 
-// choose uses the desktop's own dialog: zenity (GNOME and most others) or kdialog (KDE). With
-// neither, the image goes to the default folder, and the page says so.
+// choose uses the desktop's own dialog: the portal's (see portal.go), where the desktop has one,
+// else zenity (GNOME and most others) or kdialog (KDE). With none, the image goes to the
+// default folder, and the page says so.
 func choose(dir, name, prompt string) (string, error) {
+	if path, err := choosePortal(dir, name, prompt); !errors.Is(err, errNoPortal) {
+		return path, err
+	}
 	var cmd *exec.Cmd
 	switch {
 	case have("zenity"):

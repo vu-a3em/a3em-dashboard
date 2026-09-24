@@ -25,7 +25,7 @@ administrator prompts and privacy permissions need a real card and a person.
 Run in the order `configure,recover,prepare,review,match` (the default): `match` ejects the prepared card.
 
 The harness answers the helper's save dialog itself, through `A3EM_HELPER_SAVE_AS_DIR` (cards.json's
-`imageDir`), so no dialog opens. The real dialogs — AppleScript's, zenity or kdialog, Windows Forms —
+`imageDir`), so no dialog opens. The real dialogs — AppleScript's, the Linux desktop portal's (or zenity or kdialog), Windows Forms —
 need a person to see them.
 
 ## The cards

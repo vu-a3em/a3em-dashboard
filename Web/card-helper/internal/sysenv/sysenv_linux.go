@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/destination"
 )
 
 func have(tool string) bool {
@@ -33,8 +35,8 @@ func check() []Issue {
 	if !have("fsck.exfat") {
 		issues = append(issues, Issue{"note", "exfatprogs is not installed. The card helper finds and repairs the usual damage itself; damage it cannot repair needs exfatprogs' fsck.exfat."})
 	}
-	if !have("zenity") && !have("kdialog") {
-		issues = append(issues, Issue{"note", "Neither zenity nor kdialog is installed, so a card's image is saved in Documents/A3EM card images rather than wherever you choose. Install zenity (GNOME and most desktops) or kdialog (KDE)."})
+	if !have("zenity") && !have("kdialog") && !destination.HasPortal() {
+		issues = append(issues, Issue{"note", "This desktop has no save dialog the card helper can show — no desktop portal, zenity or kdialog — so a card's image is saved in Documents/A3EM card images rather than wherever you choose. Install xdg-desktop-portal with your desktop's backend, or zenity."})
 	}
 	if sandboxedOnly() {
 		issues = append(issues, Issue{"problem", "The only Chromium browser here is a Snap or Flatpak, whose sandbox may not let it start the card helper. Install Google Chrome, Chromium or Edge from its own package."})
