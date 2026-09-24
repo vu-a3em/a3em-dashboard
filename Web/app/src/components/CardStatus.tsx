@@ -60,15 +60,31 @@ export function CardStatus({ card }: Readonly<{ card: Card }>) {
     );
   }
 
+  /*
+    A card used before, offered back beside the ordinary way in rather than instead of it.
+
+    After a reload the browser forgets its permission to the card's folder, though the dashboard
+    remembers which folder it was. Reopening asks for that permission again, which saves a trip
+    through the folder picker; Connect opens the picker for any card. With only Reopen on offer,
+    reaching a different card meant reopening the old one first, only to disconnect it.
+  */
   if (card.status === 'reconnectable') {
     return (
       <>
-        <span className="chip">
-          <span className="dot" />
-          {card.name}
-        </span>
-        <button className="btn primary" onClick={() => void card.reconnect()}>
-          Reconnect
+        {card.error ? (
+          <span className="chip warn" title="Insert it and choose Reopen, or connect a different card.">
+            {card.error}
+          </span>
+        ) : null}
+        <button
+          className="btn"
+          title={`Open ${card.name} again, the card you used last time, without choosing it from the folder picker`}
+          onClick={() => void card.reconnect()}
+        >
+          Reopen {card.name}
+        </button>
+        <button className="btn primary" onClick={() => void card.connect()}>
+          Connect SD card
         </button>
       </>
     );

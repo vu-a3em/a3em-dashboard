@@ -140,8 +140,8 @@ function InstallGuideDialog({ outdated, onClose }: Readonly<{ outdated: boolean;
       <h2>Enable card tools</h2>
       <p className="hint">
         These tools give the dashboard low-level access to SD cards: they test that a card really holds
-        what it claims, format it with the exact layout the recorder expects, check a card is ready to
-        deploy, and eject it safely. Everything else in the dashboard works without them. Two pieces are
+        what it claims, format it with the exact layout the recorder expects, check that a card is ready to
+        deploy, and eject it safely. Everything else in the dashboard works without these tools. Two pieces are
         needed, a small program and a browser extension. Neither sends anything over the internet; see the{' '}
         <a href="privacy.html" target="_blank" rel="noopener">
           privacy policy

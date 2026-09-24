@@ -50,7 +50,7 @@ export interface InstallGuide {
  * Null until the extension is actually published — and rendered as "not yet available"
  * rather than as a dead link, because a link that 404s is worse than an honest absence.
  */
-export const EXTENSION_STORE_URL: string | null = null;
+export const EXTENSION_STORE_URL: string | null = "https://chromewebstore.google.com/detail/a3em-card-helper/fccaomdnpebkiakcflkdgidnnodpalik";
 
 /**
  * Where the helper's installers are published: GitHub releases of this repository, built and
@@ -67,7 +67,7 @@ export const HELPER_DOWNLOAD_URL: string | null = HELPER_RELEASES_URL;
 const extensionStep: InstallStep = {
   title: 'Install the browser extension',
   detail: EXTENSION_STORE_URL
-    ? 'From the Chrome Web Store. It is a small relay — it holds no card logic of its own.'
+    ? 'Available on the Chrome Web Store. It interacts with the card helper and holds no logic of its own.'
     : 'Not yet published to the Chrome Web Store. For now, load it unpacked: download the ' +
       'dashboard source, open chrome://extensions (edge://extensions in Edge), turn on Developer ' +
       'mode, choose "Load unpacked", and select its Web/extension folder.',
@@ -76,13 +76,13 @@ const extensionStep: InstallStep = {
 
 const reloadStep: InstallStep = {
   title: 'Reload this page',
-  detail: 'Card tools should then show as ready at the bottom of the menu.',
+  detail: 'Card tools should show as ready at the bottom of the menu.',
 };
 
 function doctorStep(command: string): InstallStep {
   return {
-    title: 'If it does not appear',
-    detail: 'This reports which browsers the helper is registered with, and whether it runs:',
+    title: 'If there is a problem',
+    detail: 'Use the following command to report which browsers the helper is registered with, and whether it runs:',
     command,
   };
 }
@@ -99,7 +99,7 @@ export function installGuide(os: HostOs = detectOs()): InstallGuide {
           {
             title: 'Install the card helper',
             detail:
-              'Open the downloaded installer and follow it. It is signed and notarized by Apple, and ' +
+              'Open the downloaded installer and follow the instructions. It is signed and notarized by Apple, and ' +
               'registers the helper with Chrome, Edge, Chromium, Brave, Vivaldi, Opera, and Arc. The helper asks ' +
               'for your password each time it writes to a card.',
             link: { label: 'Download for macOS', href: download('A3EM-Card-Helper-macOS.pkg') },

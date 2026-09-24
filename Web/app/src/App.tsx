@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CorrectionMethod } from '@a3em/config-schema';
 import { useCard } from './lib/useCard';
 import { useDeploymentDraft } from './lib/useDraft';
@@ -8,7 +8,10 @@ import { CardLoading } from './components/CardLoading';
 import { Wordmark } from './components/Wordmark';
 import { CardStatus } from './components/CardStatus';
 import { HelperRailStatus, HelperTaskChip } from './components/HelperStatus';
-import { AccountDialog, AccountRailStatus } from './components/Account';
+import { AccountButton } from './components/Account';
+
+/** Loaded the first time someone opens it: most visits never do. */
+const AccountDialog = lazy(() => import('./components/AccountDialog').then((module) => ({ default: module.AccountDialog })));
 import { BatchPrepare, type BatchUnit } from './views/BatchPrepare';
 import { CardOverview } from './views/CardOverview';
 import { DeploymentEditor } from './views/DeploymentEditor';
@@ -145,13 +148,16 @@ export default function App() {
             )}
           </div>
           <HelperRailStatus helper={helper} />
-          <AccountRailStatus account={account} />
           {/* A new tab, so a card operation or an unsaved edit in this one is never interrupted. */}
           <a className="rail-foot-link" href="privacy.html" target="_blank" rel="noopener">
             Privacy policy
           </a>
         </div>
-        <AccountDialog account={account} protocolCount={library.saved.length} />
+        {account.dialogOpen ? (
+          <Suspense fallback={null}>
+            <AccountDialog account={account} protocolCount={library.saved.length} />
+          </Suspense>
+        ) : null}
       </nav>
 
       <div className="main">
@@ -160,6 +166,7 @@ export default function App() {
           <span className="spacer" />
           <CardStatus card={card} />
           <HelperTaskChip helper={helper} />
+          <AccountButton account={account} />
         </header>
         <main className="content">
           {card.status === 'scanning' ? <CardLoading progress={card.progress} /> : null}

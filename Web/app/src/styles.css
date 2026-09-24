@@ -251,6 +251,7 @@ button:disabled {
   font-size: 9px;
   letter-spacing: 0.07em;
   color: var(--ink-3);
+  margin-bottom: -3px;
 }
 .rail-foot-value {
   font-size: 11px;
@@ -2047,18 +2048,23 @@ details.card[open] > summary > .summary-note {
   gap: 8px;
   margin: 14px 0;
 }
-.account-providers .btn {
-  justify-content: center;
-}
 .account-actions {
   display: flex;
   gap: 8px;
   margin-top: 10px;
 }
 
-/* The privacy policy, last in the rail foot: always reachable, never competing for attention. */
+/* The privacy policy, last in the rail foot and set apart from the status rows above it:
+   always reachable, never mistaken for one of them. */
 .rail-foot-link {
-  margin-top: 4px;
+  display: block;
+  margin-top: 6px;
+  padding-top: 8px;
+  /* The rail's own 20px bottom padding sits below this. Taking some back leaves the same
+     space below the text as between the rule and the text (10px each, measured). */
+  margin-bottom: -10px;
+  border-top: 1px solid var(--line-2);
+  text-align: center;
   font-size: 10px;
   color: var(--ink-3);
   text-decoration: underline;
@@ -2094,12 +2100,6 @@ details.card[open] > summary > .summary-note {
   text-align: center;
   color: var(--ink-3);
 }
-/* Apple asks for its sign-in button in black and white. */
-.account-providers .btn.apple {
-  background: #000;
-  border-color: #000;
-  color: #fff;
-}
 .account-delete-password {
   display: block;
   width: 100%;
@@ -2110,4 +2110,250 @@ details.card[open] > summary > .summary-note {
 .hint a {
   color: var(--primary);
   text-underline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------------- */
+/* The account button, at the right of the top bar                            */
+/* ------------------------------------------------------------------------- */
+
+.account-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: 99px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.account-trigger:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.account-trigger:disabled {
+  opacity: 0.5;
+}
+.account-menu-wrap {
+  position: relative;
+}
+.account-avatar {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 99px;
+  border: 2px solid var(--surface);
+  background: var(--primary);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+.account-avatar:hover,
+.account-avatar[aria-expanded='true'] {
+  box-shadow: 0 0 0 2px var(--primary);
+}
+/* An address still to confirm. */
+.account-avatar-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 99px;
+  background: var(--warn);
+  border: 2px solid var(--rail-bg);
+}
+.account-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 40;
+  width: 260px;
+  padding: 6px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+.account-menu-who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+/* Long addresses wrap inside the menu rather than running out of it. */
+.account-menu-who strong,
+.account-menu-who span,
+.account-email {
+  overflow-wrap: anywhere;
+}
+.account-menu-who span {
+  color: var(--ink-3);
+}
+.account-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.account-menu button:hover,
+.account-menu button:focus-visible {
+  background: var(--surface-2);
+}
+
+/* ------------------------------------------------------------------------- */
+/* Sign-in buttons, in each service's own look (see ProviderButton.tsx)       */
+/* ------------------------------------------------------------------------- */
+
+.provider-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+.provider-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.provider-logo {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+}
+.provider-google {
+  background: #fff;
+  border-color: #747775;
+  color: #1f1f1f;
+}
+.provider-google:hover:not(:disabled) {
+  background: #f7f8f8;
+}
+.provider-microsoft {
+  background: #fff;
+  border-color: #8c8c8c;
+  color: #5e5e5e;
+  font-weight: 600;
+}
+.provider-microsoft:hover:not(:disabled) {
+  background: #f7f7f7;
+}
+.provider-apple {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+}
+.provider-apple:hover:not(:disabled) {
+  background: #1d1d1f;
+}
+.provider-github {
+  background: #24292f;
+  border-color: #24292f;
+  color: #fff;
+}
+.provider-github:hover:not(:disabled) {
+  background: #32383f;
+}
+@media (prefers-color-scheme: dark) {
+  .provider-google {
+    background: #131314;
+    border-color: #8e918f;
+    color: #e3e3e3;
+  }
+  .provider-google:hover:not(:disabled) {
+    background: #1f1f20;
+  }
+  .provider-microsoft {
+    background: #2f2f2f;
+    border-color: #2f2f2f;
+    color: #fff;
+  }
+  .provider-apple {
+    background: #fff;
+    border-color: #fff;
+    color: #000;
+  }
+  .provider-apple:hover:not(:disabled) {
+    background: #f2f2f2;
+  }
+  /* GitHub's own dark: its dark button would vanish into a dark dialog. */
+  .provider-github {
+    border-color: #6e7681;
+  }
+}
+.account-providers.compact .provider-button {
+  height: 34px;
+  font-size: 13px;
+}
+
+/* Every way into the account. */
+.account-methods {
+  margin: 16px 0 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.account-methods h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.account-methods ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.account-methods li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 14px;
+}
+.account-methods li .link-button {
+  margin-left: auto;
+  font-size: 12px;
+}
+.account-method-logo {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.account-add {
+  margin-top: 8px;
+}
+.account-add .account-providers {
+  margin: 6px 0 8px;
+}
+.account-add-password {
+  font-size: 13px;
 }

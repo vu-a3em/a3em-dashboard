@@ -42,8 +42,7 @@
         margin: 0 auto;
         padding: 40px 20px 64px;
       }
-      header a { color: var(--ink-3); font-size: 14px; }
-      h1 { font-size: 30px; line-height: 1.2; margin: 18px 0 4px; letter-spacing: -0.01em; }
+      h1 { font-size: 30px; line-height: 1.2; margin: 0 0 4px; letter-spacing: -0.01em; }
       .effective { color: var(--ink-3); font-size: 14px; margin: 0 0 28px; }
       h2 { font-size: 20px; margin: 36px 0 8px; }
       h3 { font-size: 16px; margin: 22px 0 4px; }
@@ -76,13 +75,11 @@
   </head>
   <body>
     <main>
-      <header><a href="./">← Back to the A3EM Dashboard</a></header>
-
       <h1>Privacy policy</h1>
-      <p class="effective">Effective 23 September 2026</p>
+      <p class="effective">Effective 24 September 2026</p>
 
       <p>
-        This policy covers the <strong>A3EM Dashboard</strong> at <a href="https://config.a3em.com">config.a3em.com</a>,
+        This policy covers the <strong>A3EM Dashboard</strong> at config.a3em.com,
         the <strong>A3EM Card Helper</strong> browser extension, and the <strong>A3EM card helper</strong> program that
         the extension talks to. They are made by the A3EM project, whose source code is public at
         <a href="https://github.com/vu-a3em/a3em-dashboard">github.com/vu-a3em/a3em-dashboard</a>.
@@ -132,8 +129,8 @@
         <tr><th>Your email address and name</th><td>From the service you sign in with, or as you enter them.</td></tr>
         <tr>
           <th>How you sign in</th>
-          <td>Which sign-in service you use, its identifier for your account, and when you created the account and last
-            signed in. If you sign in with an email address and password, Firebase stores the password only in a
+          <td>Which sign-in services you use (you can add more than one to the same account), their identifiers for
+            your account, and when you created the account and last signed in. If you sign in with an email address and password, Firebase stores the password only in a
             scrambled (hashed) form; the A3EM project never sees it.</td>
         </tr>
         <tr><th>Your saved protocols</th><td>Their names, descriptions, versions, dates and recording settings.</td></tr>
@@ -176,7 +173,8 @@
 
       <h3>Deleting your account</h3>
       <p>
-        Choose <strong>Account</strong> at the bottom of the dashboard's menu, then <strong>Delete account</strong>. This
+        Choose your account button at the top right of the dashboard, then <strong>Account settings</strong>, then
+        <strong>Delete account</strong>. This
         deletes your saved protocols and your account at once. Google then removes them from its backup systems within
         180 days. Accounts are not deleted for inactivity. You can also ask us to delete an account, using the contact
         details below.
@@ -234,7 +232,8 @@
         continue privately.
       </p>
 
-      <footer>A3EM Dashboard · <a href="./">config.a3em.com</a></footer>
+      <!-- No link back: every link to this page opens it in a new tab, beside the dashboard. -->
+      <footer>A3EM Dashboard · config.a3em.com</footer>
     </main>
   </body>
 </html>

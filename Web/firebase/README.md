@@ -122,8 +122,8 @@ For people with no Google, GitHub or Apple account to use.
    *Email link (passwordless sign-in)* off: on the free plan it can send only five emails a day.
    *Save*.
 2. *Authentication → Templates*: set the sender name to `A3EM Dashboard` in the email
-   address verification and password reset templates. The mail comes from
-   `noreply@a3em-679d7.firebaseapp.com`; tell people to check their spam folder the first time.
+   address verification and password reset templates, and send the emails' links to the
+   dashboard (see [Account emails](#account-emails) below).
 3. *Authentication → Settings → User account management*: leave *Email enumeration protection*
    on. It stops the sign-in form telling a stranger which addresses have accounts.
 4. Add `"password"` to `accounts.signInProviders`.
@@ -139,6 +139,55 @@ For university accounts. Needs an app registered in Microsoft Entra, whose clien
 expires within two years and must then be renewed in Entra and in Firebase. Follow
 <https://firebase.google.com/docs/auth/web/microsoft-oauth>, then add `"microsoft"` to
 `accounts.signInProviders`.
+
+### One account, several ways in
+
+Firebase keeps one account per email address (*Authentication → Settings → User account linking*:
+leave it on *Link accounts that use the same email*). So someone who signed up with Google and
+later tries GitHub with the same address is refused; the dashboard then holds the GitHub sign-in,
+asks them to sign in the way they did before, and adds GitHub to that account, so either works
+from then on. Their account settings list every way in, with *Add* and *Remove*; the last one
+cannot be removed.
+
+## Account emails
+
+Confirmation and password-reset emails are sent by Firebase from `noreply@a3em.com`, the custom
+domain set up under *Authentication → Templates*.
+
+**Send their links to the dashboard.** In *Authentication → Templates*, edit any template, choose
+*Customize action URL*, and enter `https://config.a3em.com/`; it applies to every template.
+Firebase then adds `?mode=…&oobCode=…` to that address, and the dashboard completes the step in
+its account dialog. Two reasons:
+
+- **Mail scanners.** Microsoft's Safe Links, used by most university and company mail, opens every
+  link in an email before delivering it. On Firebase's own page that visit uses the link up, so
+  the owner later hears it "has expired or has already been used". The dashboard only reads the
+  link until its owner presses *Confirm my email address* or sets a new password.
+- **Spam filters.** Links to `*.firebaseapp.com` are common in phishing, so filters distrust them.
+  Links to `config.a3em.com` match the sending domain.
+
+Deploy the dashboard before changing the action URL: an older dashboard ignores the links.
+
+**Keep the domain's records whole.** The DNS for `a3em.com` needs, and on 24 September 2026 had:
+
+| Record | Name | Value |
+| --- | --- | --- |
+| TXT | `a3em.com` | `v=spf1 include:_spf.firebasemail.com -all` (one `v=spf1` record only; merge any others into it) |
+| TXT | `a3em.com` | `firebase=a3em-679d7` |
+| CNAME | `firebase1._domainkey` | `mail-a3em-com.dkim1._domainkey.firebasemail.com` |
+| CNAME | `firebase2._domainkey` | `mail-a3em-com.dkim2._domainkey.firebasemail.com` |
+| TXT | `_dmarc` | `v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s` |
+
+It had no MX record, so the sending domain could not receive mail — which filters also count
+against it. Adding email forwarding for an address such as `support@a3em.com` in Squarespace
+creates one; if that adds a second `v=spf1` record, merge its `include:` into the one above. Then
+set that address as the templates' reply-to.
+
+**When a message is still flagged,** open it in the quarantine or junk folder and view its
+headers. `Authentication-Results` should read `spf=pass`, `dkim=pass header.d=a3em.com` and
+`dmarc=pass`. A DKIM signature for any other domain means the custom domain has not been applied
+(*Templates → Apply custom domain*). Marking the message *Not junk* or *Not phishing* teaches the
+filter; for a whole organisation's mail, its IT administrators can allow `a3em.com`.
 
 ## Keeping it running
 

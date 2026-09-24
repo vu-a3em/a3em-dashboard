@@ -180,6 +180,19 @@ export function useCard() {
       }));
       return;
     }
+    // A card that has been taken out cannot be reopened. Say so plainly, and keep offering both
+    // ways back, rather than reporting a missing directory as a failure to read the card.
+    try {
+      // Typed by hand, as card.ts does: the DOM library here does not declare directory iteration.
+      await (handle as unknown as { entries: () => AsyncIterableIterator<[string, FileSystemHandle]> }).entries().next();
+    } catch {
+      setState((previous) => ({
+        ...previous,
+        status: 'reconnectable',
+        error: `${handle.name} is not inserted`,
+      }));
+      return;
+    }
     await ingest(handle);
   }, [handle, ingest]);
 
