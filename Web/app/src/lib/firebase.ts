@@ -22,24 +22,11 @@ import {
   type AuthProvider,
   type User,
 } from 'firebase/auth';
-import {
-  clearIndexedDbPersistence,
-  collection,
-  connectFirestoreEmulator,
-  deleteDoc,
-  doc,
-  getDocsFromServer,
-  initializeFirestore,
-  onSnapshot,
-  persistentLocalCache,
-  persistentMultipleTabManager,
-  setDoc,
-  terminate,
-  writeBatch,
-  type Firestore,
-} from 'firebase/firestore';
-import { protocolFromRecord, protocolToRecord, type Protocol, type ProtocolRecord } from '@a3em/config-schema';
+import type { Protocol } from '@a3em/config-schema';
 import type { FirebaseWebConfig, SignInProvider } from './accountConfig';
+import type { RemoteLibrary, Store } from './firestore';
+
+export type { RemoteLibrary } from './firestore';
 
 /**
  * Everything that talks to Firebase, in one module the rest of the app loads only when this
@@ -47,13 +34,9 @@ import type { FirebaseWebConfig, SignInProvider } from './accountConfig';
  *
  * There is no server of our own. Sign-in is Firebase Authentication, in a popup rather than a
  * redirect: the dashboard is not served from Firebase Hosting, and a redirect sign-in breaks in
- * browsers that block third-party storage. Protocols are kept in Cloud Firestore under
- * `users/<uid>/protocols/<id>`, and `firebase/firestore.rules` is what stops one person reading
- * another's.
- *
- * Firestore keeps a copy in this browser (IndexedDB), so an account's protocols stay readable,
- * and edits queue, while offline. Signing out clears that copy, so a shared lab computer does
- * not keep someone's library after they leave.
+ * browsers that block third-party storage. Protocols are kept in Cloud Firestore, by
+ * `firestore.ts`, which is loaded only once someone signs in: it is four times the size of
+ * sign-in, and a signed-out visitor never needs it.
  */
 
 export interface AccountUser {
@@ -63,18 +46,6 @@ export interface AccountUser {
   provider: SignInProvider | 'other';
   /** False for an email-and-password account whose address has not been confirmed yet. */
   emailVerified: boolean;
-}
-
-/** An account's library, as the database last reported it. */
-export interface RemoteLibrary {
-  protocols: Protocol[];
-  /** Names of protocols saved by a dashboard built for another schema, which are not shown. */
-  otherSchema: string[];
-  unreadable: number;
-  /** False while what is shown came from this browser's copy, before the server has answered. */
-  fromServer: boolean;
-  /** True while edits made here have not yet reached the server. */
-  pendingWrites: boolean;
 }
 
 export interface Connection {
@@ -126,32 +97,18 @@ export function connect(config: FirebaseWebConfig | null): Connection | null {
   const auth: Auth = getAuth(app);
   if (EMULATOR) connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
 
-  let firestore: Firestore | null = null;
-  const database = (): Firestore => {
-    if (!firestore) {
-      firestore = initializeFirestore(app, {
-        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+  /** The account database, fetched the first time it is needed. */
+  let loading: Promise<Store> | null = null;
+  const store = (): Promise<Store> => {
+    if (!loading) {
+      loading = import('./firestore').then((module) => module.createStore(app, EMULATOR));
+      // A failed load (offline, say) is not remembered, so the next attempt tries again.
+      loading.catch(() => {
+        loading = null;
       });
-      if (EMULATOR) connectFirestoreEmulator(firestore, '127.0.0.1', 8080);
     }
-    return firestore;
+    return loading;
   };
-
-  /** Forgets this browser's copy of the account's data. */
-  const clearLocalCopy = async () => {
-    const current = firestore;
-    firestore = null;
-    if (!current) return;
-    await terminate(current);
-    try {
-      await clearIndexedDbPersistence(current);
-    } catch {
-      // Another tab of the dashboard still has it open. It is cleared the next time the last
-      // tab signs out; nothing in it is readable without signing in as this person anyway.
-    }
-  };
-
-  const protocols = (uid: string) => collection(database(), 'users', uid, 'protocols');
 
   const listeners = new Set<(user: AccountUser | null) => void>();
   connection = {
@@ -200,7 +157,11 @@ export function connect(config: FirebaseWebConfig | null): Connection | null {
 
     async signOut() {
       await firebaseSignOut(auth);
-      await clearLocalCopy();
+      // Signed out either way. If the database code cannot be fetched to clear this browser's
+      // copy, the copy stays until the next sign-out; it is unreadable without signing in.
+      await store()
+        .then((database) => database.clear())
+        .catch(() => undefined);
     },
 
     async deleteAccount(password) {
@@ -218,50 +179,35 @@ export function connect(config: FirebaseWebConfig | null): Connection | null {
         const result = await reauthenticateWithPopup(user, providerFor(provider));
         appleToken = provider === 'apple' ? (OAuthProvider.credentialFromResult(result)?.accessToken ?? undefined) : undefined;
       }
-      const snapshot = await getDocsFromServer(protocols(user.uid));
-      for (let start = 0; start < snapshot.docs.length; start += 400) {
-        const batch = writeBatch(database());
-        for (const entry of snapshot.docs.slice(start, start + 400)) batch.delete(entry.ref);
-        await batch.commit();
-      }
+      const database = await store();
+      await database.removeAll(user.uid);
       // Apple asks that an app deleting an account also withdraw its access to the Apple ID, so
       // the person's Apple settings stop listing the dashboard as signed in.
       if (appleToken) await revokeAccessToken(auth, appleToken).catch(() => undefined);
       await deleteUser(user);
-      await clearLocalCopy();
+      await database.clear();
     },
 
     watchProtocols(uid, onChange, onError) {
-      return onSnapshot(
-        protocols(uid),
-        { includeMetadataChanges: true },
-        (snapshot) => {
-          const library: RemoteLibrary = {
-            protocols: [],
-            otherSchema: [],
-            unreadable: 0,
-            fromServer: !snapshot.metadata.fromCache,
-            pendingWrites: snapshot.metadata.hasPendingWrites,
-          };
-          for (const entry of snapshot.docs) {
-            const reading = protocolFromRecord(entry.id, entry.data() as Partial<ProtocolRecord>);
-            if (reading.kind === 'protocol') library.protocols.push(reading.protocol);
-            else if (reading.kind === 'other-schema') library.otherSchema.push(reading.name);
-            else library.unreadable += 1;
-          }
-          library.protocols.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-          onChange(library);
-        },
-        onError,
-      );
+      let unsubscribe: (() => void) | null = null;
+      let stopped = false;
+      store()
+        .then((database) => {
+          if (!stopped) unsubscribe = database.watch(uid, onChange, onError);
+        })
+        .catch(onError);
+      return () => {
+        stopped = true;
+        unsubscribe?.();
+      };
     },
 
     async saveProtocol(uid, protocol) {
-      await setDoc(doc(protocols(uid), protocol.id), protocolToRecord(protocol));
+      await (await store()).save(uid, protocol);
     },
 
     async deleteProtocol(uid, id) {
-      await deleteDoc(doc(protocols(uid), id));
+      await (await store()).remove(uid, id);
     },
   };
   return connection;
