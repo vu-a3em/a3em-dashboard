@@ -2055,3 +2055,59 @@ details.card[open] > summary > .summary-note {
   gap: 8px;
   margin-top: 10px;
 }
+
+/* The privacy policy, last in the rail foot: always reachable, never competing for attention. */
+.rail-foot-link {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--ink-3);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rail-foot-link:hover {
+  color: var(--primary);
+}
+.account-or {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+  text-align: center;
+}
+.account-password {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.account-password .field {
+  margin: 0;
+}
+.account-password .btn.primary {
+  justify-content: center;
+}
+.account-password .help.problem {
+  color: var(--crit);
+}
+.account-modes {
+  margin: 0;
+  font-size: 12px;
+  text-align: center;
+  color: var(--ink-3);
+}
+/* Apple asks for its sign-in button in black and white. */
+.account-providers .btn.apple {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+}
+.account-delete-password {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+/* Links inside the small print of dialogs and panes, in the app's own colour. */
+.card-help a,
+.hint a {
+  color: var(--primary);
+  text-underline-offset: 2px;
+}

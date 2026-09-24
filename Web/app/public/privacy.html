@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>Privacy policy — A3EM Dashboard</title>
+    <meta name="description" content="What the A3EM Dashboard, its browser extension and its card helper do with your data." />
+    <style>
+      :root {
+        --paper: #f4f7f5;
+        --surface: #ffffff;
+        --ink: #0f1613;
+        --ink-2: #4b5854;
+        --ink-3: #5c6863;
+        --line: #d9e2dc;
+        --primary: #2f6f5e;
+        --primary-wash: #e2efe9;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #0c1210;
+          --surface: #141c18;
+          --ink: #e7efea;
+          --ink-2: #9caba4;
+          --ink-3: #75837c;
+          --line: #243029;
+          --primary: #5dae86;
+          --primary-wash: #16302a;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 40px 20px 64px;
+      }
+      header a { color: var(--ink-3); font-size: 14px; }
+      h1 { font-size: 30px; line-height: 1.2; margin: 18px 0 4px; letter-spacing: -0.01em; }
+      .effective { color: var(--ink-3); font-size: 14px; margin: 0 0 28px; }
+      h2 { font-size: 20px; margin: 36px 0 8px; }
+      h3 { font-size: 16px; margin: 22px 0 4px; }
+      p, li { color: var(--ink-2); }
+      strong { color: var(--ink); }
+      a { color: var(--primary); text-underline-offset: 2px; }
+      ul { padding-left: 22px; }
+      li + li { margin-top: 4px; }
+      .summary {
+        background: var(--primary-wash);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px 20px;
+      }
+      .summary ul { margin: 6px 0 0; }
+      code {
+        font-family: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+        font-size: 13px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 1px 5px;
+        overflow-wrap: anywhere;
+      }
+      table { width: 100%; border-collapse: collapse; font-size: 15px; margin: 8px 0; }
+      th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-top: 1px solid var(--line); color: var(--ink-2); }
+      th { color: var(--ink); font-weight: 600; width: 34%; }
+      footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header><a href="./">← Back to the A3EM Dashboard</a></header>
+
+      <h1>Privacy policy</h1>
+      <p class="effective">Effective 23 September 2026</p>
+
+      <p>
+        This policy covers the <strong>A3EM Dashboard</strong> at <a href="https://config.a3em.com">config.a3em.com</a>,
+        the <strong>A3EM Card Helper</strong> browser extension, and the <strong>A3EM card helper</strong> program that
+        the extension talks to. They are made by the A3EM project, whose source code is public at
+        <a href="https://github.com/vu-a3em/a3em-dashboard">github.com/vu-a3em/a3em-dashboard</a>.
+      </p>
+
+      <div class="summary">
+        <strong>In short</strong>
+        <ul>
+          <li>The dashboard runs in your browser. What is on your SD cards — recordings, logs, GPS tracks — is read
+            there and never sent anywhere.</li>
+          <li>You can use everything without an account. If you create one, it holds your email address, your name,
+            and the protocols you save, kept by Google's Firebase service so you can use them on any computer.</li>
+          <li>There are no advertisements, no analytics, and no tracking. Nothing is sold or shared for marketing.</li>
+          <li>The browser extension and the card helper program send nothing over the internet.</li>
+        </ul>
+      </div>
+
+      <h2>What stays on your computer</h2>
+      <p>
+        <strong>Your SD cards.</strong> When you open a card, the dashboard reads its files in your browser to show you
+        its settings, recordings, logs, device information and any GPS tracks. None of this is uploaded. When you copy a
+        card, the files go to a folder on your computer that you choose. Configuration files you write go onto the card
+        itself. Because a card may hold the locations of animals being studied, this matters: those locations stay with
+        the card and with you.
+      </p>
+      <p><strong>What the dashboard remembers in your browser</strong>, so your work is still there next time:</p>
+      <ul>
+        <li>the deployment you are configuring, including any site coordinates and dates you enter;</li>
+        <li>the protocols you save, when you are not signed in;</li>
+        <li>which sections of the page you have opened or closed;</li>
+        <li>permission to reopen the card folder you last chose.</li>
+      </ul>
+      <p>
+        These are kept in your browser's own storage for this site. They never leave your computer, and clearing this
+        site's data in your browser removes them. The dashboard sets no cookies of its own.
+      </p>
+
+      <h2>If you create an account</h2>
+      <p>
+        Accounts are optional. Their only purpose is to keep your saved protocols, so they are there on any computer you
+        sign in on. They are provided through <a href="https://firebase.google.com">Firebase</a>, a Google service:
+        Firebase Authentication handles signing in, and Cloud Firestore stores your protocols.
+      </p>
+
+      <h3>What an account holds</h3>
+      <table>
+        <tr><th>Your email address and name</th><td>From the service you sign in with, or as you enter them.</td></tr>
+        <tr>
+          <th>How you sign in</th>
+          <td>Which sign-in service you use, its identifier for your account, and when you created the account and last
+            signed in. If you sign in with an email address and password, Firebase stores the password only in a
+            scrambled (hashed) form; the A3EM project never sees it.</td>
+        </tr>
+        <tr><th>Your saved protocols</th><td>Their names, descriptions, versions, dates and recording settings.</td></tr>
+      </table>
+      <p>
+        An account holds nothing about your cards, recordings, GPS tracks or deployments, other than what you choose to
+        put in a protocol's name or description.
+      </p>
+
+      <h3>Signing in with Google, GitHub, Apple or Microsoft</h3>
+      <p>
+        When you sign in with one of these services, it tells us your email address and name, and nothing else from your
+        account with it. Signing in happens in a window on the project's Firebase sign-in page. Your use of that service
+        is covered by its own privacy policy. If you sign in with Apple and choose to hide your email address, Apple gives
+        us a private relay address instead of your real one.
+      </p>
+
+      <h3>What Google processes</h3>
+      <p>
+        Google runs Firebase on the A3EM project's behalf, as a data processor under Google's
+        <a href="https://firebase.google.com/terms/data-processing-terms">Firebase Data Processing and Security Terms</a>.
+        To sign you in and protect accounts from abuse, Firebase also processes your IP address and your browser's user
+        agent; Google keeps logged IP addresses for a few weeks. See
+        <a href="https://firebase.google.com/support/privacy">Privacy and Security in Firebase</a>. Account data is stored
+        in Google's data centres in the United States.
+      </p>
+
+      <h3>Who can see it</h3>
+      <p>
+        Only you can read or change your protocols through the dashboard: the database refuses anyone else. The people who
+        run the A3EM project can see the database through Firebase's administration console, and use that access only to
+        keep the service working. We do not sell, rent or share account information with anyone.
+      </p>
+
+      <h3>On your computer while you are signed in</h3>
+      <p>
+        Firebase keeps you signed in, and keeps a copy of your protocols in your browser so they work without an internet
+        connection. Signing out removes that copy from the computer; your protocols stay in your account.
+      </p>
+
+      <h3>Deleting your account</h3>
+      <p>
+        Choose <strong>Account</strong> at the bottom of the dashboard's menu, then <strong>Delete account</strong>. This
+        deletes your saved protocols and your account at once. Google then removes them from its backup systems within
+        180 days. Accounts are not deleted for inactivity. You can also ask us to delete an account, using the contact
+        details below.
+      </p>
+
+      <h2>The website itself</h2>
+      <p>
+        The dashboard's pages are served by <a href="https://pages.github.com">GitHub Pages</a>, and the card helper is
+        downloaded from GitHub. Like any web server, GitHub receives your IP address when you visit or download, and
+        handles it under the
+        <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub General
+        Privacy Statement</a>. The A3EM project does not receive these logs.
+      </p>
+
+      <h2>The browser extension and the card helper</h2>
+      <p>
+        The optional <strong>A3EM Card Helper extension</strong> passes messages between the dashboard and the card helper
+        program on the same computer. It collects nothing, keeps nothing, and makes no network requests of its own.
+      </p>
+      <p>
+        The <strong>card helper</strong> program has no network code at all: it works only with the browser that starts
+        it and the cards and disks on your computer. It keeps two things in your user settings folder
+        (<code>~/Library/Application Support/A3EM/card-helper</code> on macOS, <code>%APPDATA%\A3EM\card-helper</code> on
+        Windows, <code>~/.config/A3EM/card-helper</code> on Linux):
+      </p>
+      <ul>
+        <li>a key it uses to sign the confirmations you give before it erases a card, and a record of which it has used;</li>
+        <li>a record of the cards it has prepared — their size, format, label and test results — so that a later check can
+          report them.</li>
+      </ul>
+      <p>
+        If you ask it to copy a whole card to a file, the copy is saved on your computer, in the <code>A3EM card
+        images</code> folder in your Documents. Uninstalling the program leaves the settings folder in place; delete it to
+        remove those records.
+      </p>
+
+      <h2>Children</h2>
+      <p>
+        The dashboard is a tool for researchers and is not directed at children. We do not knowingly create accounts for
+        children under 13.
+      </p>
+
+      <h2>Changes to this policy</h2>
+      <p>
+        If what the dashboard, extension or card helper do with data changes, this page will change first, with a new
+        effective date at the top. Past versions are in the project's
+        <a href="https://github.com/vu-a3em/a3em-dashboard/commits/main/Web/app/public/privacy.html">public history</a>.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Questions, or a request to see or delete your data: open an issue at
+        <a href="https://github.com/vu-a3em/a3em-dashboard/issues">github.com/vu-a3em/a3em-dashboard/issues</a>. Please do
+        not include personal details in a public issue; say that you have a privacy request, and we will arrange to
+        continue privately.
+      </p>
+
+      <footer>A3EM Dashboard · <a href="./">config.a3em.com</a></footer>
+    </main>
+  </body>
+</html>

@@ -146,6 +146,10 @@ export default function App() {
           </div>
           <HelperRailStatus helper={helper} />
           <AccountRailStatus account={account} />
+          {/* A new tab, so a card operation or an unsaved edit in this one is never interrupted. */}
+          <a className="rail-foot-link" href="privacy.html" target="_blank" rel="noopener">
+            Privacy policy
+          </a>
         </div>
         <AccountDialog account={account} protocolCount={library.saved.length} />
       </nav>

@@ -45,7 +45,7 @@ function idFromKey(key) {
  * deployment.json says, and a hand edit to the generated file shows up as drift.
  */
 const ACCOUNT_MODULE = resolve(here, '..', 'app', 'src', 'lib', 'accountConfig.ts');
-const PROVIDERS = ['google', 'github', 'microsoft'];
+const PROVIDERS = ['google', 'github', 'apple', 'microsoft', 'password'];
 const FIREBASE_KEYS = ['apiKey', 'authDomain', 'projectId', 'appId'];
 
 function accountProblems() {
@@ -75,7 +75,7 @@ function accountModule() {
     '// Generated from deployment.json by tools/sync-extension-manifest.mjs. Do not edit;',
     '// change deployment.json and run `npm run sync:extension`.',
     '',
-    "export type SignInProvider = 'google' | 'github' | 'microsoft';",
+    "export type SignInProvider = 'google' | 'github' | 'apple' | 'microsoft' | 'password';",
     '',
     'export interface FirebaseWebConfig {',
     '  apiKey: string;',
