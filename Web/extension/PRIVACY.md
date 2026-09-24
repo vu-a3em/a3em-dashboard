@@ -1,5 +1,9 @@
 # Privacy policy — A3EM Card Helper extension
 
+This is the extension's part of the full policy for the A3EM Dashboard, its extension and its
+card helper, published at https://config.a3em.com/privacy.html. Where they differ, that page is
+current.
+
 The A3EM Card Helper extension collects no data, and sends nothing anywhere.
 
 **What it does.** It passes messages between the A3EM dashboard (https://config.a3em.com, or a copy

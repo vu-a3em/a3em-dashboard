@@ -25,6 +25,8 @@ export interface AccountState {
   user: AccountUser | null;
   /** Something that went wrong, in words, for the account dialog. */
   error: string | null;
+  /** Something that went right and is worth saying, such as a reset link having been sent. */
+  notice: string | null;
   busy: boolean;
   dialogOpen: boolean;
 }
@@ -37,6 +39,7 @@ export function useAccount() {
     status: AVAILABLE ? 'loading' : 'unavailable',
     user: null,
     error: null,
+    notice: null,
     busy: false,
     dialogOpen: false,
   });
@@ -71,16 +74,16 @@ export function useAccount() {
     };
   }, []);
 
-  /** Runs an account action, keeping `busy` and `error` up to date. Starts it synchronously. */
+  /**
+   * Runs an account action, keeping `busy` and `error` up to date, and applies `onSuccess` to
+   * the state once it has worked. Starts the action synchronously.
+   */
   const run = useCallback(
-    (action: (connected: Connection) => Promise<void>, after?: () => void) => {
+    (action: (connected: Connection) => Promise<void>, onSuccess: Partial<AccountState> = {}) => {
       if (!connection) return;
-      setState((previous) => ({ ...previous, busy: true, error: null }));
+      setState((previous) => ({ ...previous, busy: true, error: null, notice: null }));
       action(connection)
-        .then(() => {
-          setState((previous) => ({ ...previous, busy: false }));
-          after?.();
-        })
+        .then(() => setState((previous) => ({ ...previous, busy: false, ...onSuccess })))
         .catch((error: unknown) => {
           const message = describe ? describe(error) : String(error);
           setState((previous) => ({ ...previous, busy: false, error: message }));
@@ -90,23 +93,40 @@ export function useAccount() {
   );
 
   const signIn = useCallback(
-    (provider: SignInProvider) =>
+    (provider: Exclude<SignInProvider, 'password'>) => run((connected) => connected.signIn(provider), { dialogOpen: false }),
+    [run],
+  );
+  const signInWithPassword = useCallback(
+    (email: string, password: string) => run((connected) => connected.signInWithPassword(email, password), { dialogOpen: false }),
+    [run],
+  );
+  const createAccount = useCallback(
+    (email: string, password: string) =>
+      // No notice of its own: the account dialog already asks for the address to be confirmed.
+      run((connected) => connected.createAccount(email, password)),
+    [run],
+  );
+  const resetPassword = useCallback(
+    (email: string) =>
       run(
-        (connected) => connected.signIn(provider),
-        () => setState((previous) => ({ ...previous, dialogOpen: false })),
+        (connected) => connected.resetPassword(email),
+        { notice: `If ${email.trim()} has an account, a link to choose a new password is on its way. Check spam if it does not arrive.` },
       ),
     [run],
   );
-  const signOut = useCallback(
-    () => run((connected) => connected.signOut(), () => setState((previous) => ({ ...previous, dialogOpen: false }))),
+  const resendVerification = useCallback(
+    () => run((connected) => connected.resendVerification(), { notice: 'Sent again. Open the link in the email, then choose “I have confirmed it”.' }),
     [run],
   );
+  const refreshUser = useCallback(() => run((connected) => connected.refreshUser()), [run]);
+  const signOut = useCallback(() => run((connected) => connected.signOut(), { dialogOpen: false }), [run]);
   const deleteAccount = useCallback(
-    () => run((connected) => connected.deleteAccount(), () => setState((previous) => ({ ...previous, dialogOpen: false }))),
+    (password?: string) =>
+      run((connected) => connected.deleteAccount(password), { dialogOpen: false }),
     [run],
   );
-  const openDialog = useCallback(() => setState((previous) => ({ ...previous, dialogOpen: true, error: null })), []);
-  const closeDialog = useCallback(() => setState((previous) => ({ ...previous, dialogOpen: false, error: null })), []);
+  const openDialog = useCallback(() => setState((previous) => ({ ...previous, dialogOpen: true, error: null, notice: null })), []);
+  const closeDialog = useCallback(() => setState((previous) => ({ ...previous, dialogOpen: false, error: null, notice: null })), []);
 
   return {
     ...state,
@@ -114,6 +134,11 @@ export function useAccount() {
     connection,
     describeError: describe,
     signIn,
+    signInWithPassword,
+    createAccount,
+    resetPassword,
+    resendVerification,
+    refreshUser,
     signOut,
     deleteAccount,
     openDialog,

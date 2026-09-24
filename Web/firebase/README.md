@@ -7,7 +7,7 @@ requests fail until the next day.
 
 | | |
 | --- | --- |
-| Sign-in | Firebase Authentication, in a popup: Google and GitHub (`accounts.signInProviders` in [`deployment.json`](../deployment.json)) |
+| Sign-in | Firebase Authentication: Google, GitHub, Apple or Microsoft in a popup, or an email address and password; whichever `accounts.signInProviders` in [`deployment.json`](../deployment.json) lists |
 | Storage | Cloud Firestore, one record per protocol at `users/<uid>/protocols/<id>` |
 | Server side | [`firestore.rules`](firestore.rules), and nothing else: each person can read and write only their own folder |
 | App code | [`app/src/lib/firebase.ts`](../app/src/lib/firebase.ts), loaded only when accounts are configured; [`useAccount.ts`](../app/src/lib/useAccount.ts); the sync in [`useProtocols.ts`](../app/src/lib/useProtocols.ts) |
@@ -56,8 +56,9 @@ person.
 7. **Check the Google sign-in screen is published.** At <https://console.cloud.google.com>, with
    this project selected: *Google Auth Platform → Audience*. If the publishing status is *Testing*,
    choose *Publish app* (only the basic sign-in scopes are used, so no review is needed). Under
-   *Branding*, set the app name and support email. Leave the logo empty: a logo sends the app
-   into Google's verification review. Until the branding is verified, Google's sign-in screen names
+   *Branding*, set the app name, the support email, the home page `https://config.a3em.com`, and
+   the privacy policy `https://config.a3em.com/privacy.html`. Leave the logo empty: a logo sends
+   the app into Google's verification review. Until the branding is verified, Google's sign-in screen names
    the project's `firebaseapp.com` address rather than the app.
 8. **Give the dashboard the configuration.** In [`deployment.json`](../deployment.json), replace
    `"firebase": null` with the object from step 2 (quote the keys, as JSON requires). Then, in
@@ -78,6 +79,67 @@ person.
 To try it: on <https://config.a3em.com>, *Account → Sign in…* at the bottom of the menu, save a
 protocol, and find it in the Firebase console under *Firestore Database → Data → users*.
 
+## Adding sign-in methods
+
+The dashboard supports `google`, `github`, `apple`, `microsoft` and `password` (an email address
+and password). Each is offered only when it is both listed in `accounts.signInProviders` in
+[`deployment.json`](../deployment.json) and enabled in the Firebase console. After changing the
+list, run `npm run sync:extension` and `npm run ci` from `Web/`, then commit and push.
+
+### Apple
+
+Needs the Apple Developer Program membership (team `D3TVN67UY9`). In
+<https://developer.apple.com/account/resources>, *Certificates, Identifiers & Profiles*:
+
+1. **An App ID** to hang it on. *Identifiers → + → App IDs → App*. Description `A3EM Dashboard`,
+   explicit Bundle ID `com.a3em.dashboard`. Under *Capabilities* tick *Sign In with Apple*.
+   *Continue → Register*.
+2. **A Services ID**, which is what the web sign-in uses. *Identifiers → + → Services IDs*.
+   Description `A3EM Dashboard` (Apple shows it on its sign-in screen), identifier
+   `com.a3em.dashboard.signin`. *Continue → Register*. Open it from the list, tick
+   *Sign In with Apple*, *Configure*: primary App ID `A3EM Dashboard`; *Domains and Subdomains*
+   `a3em-679d7.firebaseapp.com`; *Return URLs*
+   `https://a3em-679d7.firebaseapp.com/__/auth/handler`. *Next → Done → Continue → Save*.
+3. **A key.** *Keys → +*. Name `A3EM Dashboard sign-in`, tick *Sign in with Apple*, *Configure*,
+   primary App ID `A3EM Dashboard`, *Save → Continue → Register*. Note the Key ID and *Download*
+   the `.p8` file. It can be downloaded only once: keep it with the project's other private
+   credentials. It does not expire.
+4. **In Firebase**: *Authentication → Sign-in method → Add new provider → Apple → Enable*.
+   Services ID `com.a3em.dashboard.signin`. Under *OAuth code flow configuration*: Apple team ID
+   `D3TVN67UY9`, the Key ID, and the private key (open the `.p8` in a text editor and paste all of
+   it, including the BEGIN and END lines). *Save*.
+5. Add `"apple"` to `accounts.signInProviders`.
+
+The key in step 4 is also what lets the dashboard withdraw its access to someone's Apple ID when
+they delete their account, as Apple asks. People who choose *Hide My Email* sign in with an Apple
+relay address; the dashboard sends Apple users no email, so the relay needs no setting up.
+
+### Email address and password
+
+For people with no Google, GitHub or Apple account to use.
+
+1. *Authentication → Sign-in method → Add new provider → Email/Password → Enable*. Leave
+   *Email link (passwordless sign-in)* off: on the free plan it can send only five emails a day.
+   *Save*.
+2. *Authentication → Templates*: set the sender name to `A3EM Dashboard` in the email
+   address verification and password reset templates. The mail comes from
+   `noreply@a3em-679d7.firebaseapp.com`; tell people to check their spam folder the first time.
+3. *Authentication → Settings → User account management*: leave *Email enumeration protection*
+   on. It stops the sign-in form telling a stranger which addresses have accounts.
+4. Add `"password"` to `accounts.signInProviders`.
+
+The dashboard asks for passwords of at least eight characters, sends a confirmation link when an
+account is created, offers a reset link from *Forgot the password?*, and asks for the password
+again before deleting an account. The free plan sends up to 150 reset and 1,000 confirmation
+emails a day.
+
+### Microsoft
+
+For university accounts. Needs an app registered in Microsoft Entra, whose client secret
+expires within two years and must then be renewed in Entra and in Firebase. Follow
+<https://firebase.google.com/docs/auth/web/microsoft-oauth>, then add `"microsoft"` to
+`accounts.signInProviders`.
+
 ## Keeping it running
 
 - **Rules** change only with the record format. `npm run test:rules` checks them against the
@@ -85,9 +147,6 @@ protocol, and find it in the Firebase console under *Firestore Database → Data
   workflow runs it on every change), and `npm run deploy:rules` publishes them.
 - **Google deletes an unused sign-in client after six months** with no sign-ins, emailing the
   owners 30 days first. Any sign-in resets the clock; a deleted client can be restored for 30 days.
-- **Adding Microsoft sign-in** (for university accounts) needs an app registered in Microsoft
-  Entra, whose client secret expires within two years and must then be renewed. Add `microsoft`
-  to `accounts.signInProviders`, run `npm run sync:extension`, and enable it in *Sign-in method*.
 - **Storing files** (audio, say) would need Cloud Storage, which since October 2024 requires the
   Blaze plan and a payment method. Everything else can stay in Firestore on Spark.
 - **Local development against the emulators**, with no project at all:
@@ -97,5 +156,7 @@ protocol, and find it in the Firebase console under *Firestore Database → Data
 
 ## What an account stores
 
-Its email address and name, from Google or GitHub, and the protocols its owner saves. Nothing
-about cards, recordings, or deployments. The sign-in dialog says the same.
+Its email address and name, and the protocols its owner saves. Nothing about cards, recordings,
+or deployments. The sign-in dialog says the same, and links to the dashboard's privacy policy,
+[`app/public/privacy.html`](../app/public/privacy.html), served at
+<https://config.a3em.com/privacy.html>. Change the policy first if what is stored ever changes.

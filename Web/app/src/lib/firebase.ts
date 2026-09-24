@@ -1,7 +1,9 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import {
   connectAuthEmulator,
+  createUserWithEmailAndPassword,
   deleteUser,
+  EmailAuthProvider,
   getAuth,
   GithubAuthProvider,
   GoogleAuthProvider,
@@ -9,7 +11,11 @@ import {
   OAuthProvider,
   reauthenticateWithCredential,
   reauthenticateWithPopup,
+  revokeAccessToken,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithCredential,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
   type Auth,
@@ -55,6 +61,8 @@ export interface AccountUser {
   email: string | null;
   name: string | null;
   provider: SignInProvider | 'other';
+  /** False for an email-and-password account whose address has not been confirmed yet. */
+  emailVerified: boolean;
 }
 
 /** An account's library, as the database last reported it. */
@@ -72,15 +80,29 @@ export interface RemoteLibrary {
 export interface Connection {
   onUser(listener: (user: AccountUser | null) => void): () => void;
   /** Must be called straight from a click: the popup is opened before anything is awaited. */
-  signIn(provider: SignInProvider): Promise<void>;
+  signIn(provider: Exclude<SignInProvider, 'password'>): Promise<void>;
+  signInWithPassword(email: string, password: string): Promise<void>;
+  /** Creates an email-and-password account, signs in, and sends the address a confirmation link. */
+  createAccount(email: string, password: string): Promise<void>;
+  /** Sends a reset link. Says nothing about whether the address has an account. */
+  resetPassword(email: string): Promise<void>;
+  resendVerification(): Promise<void>;
+  /** Re-reads the signed-in account, to notice an address confirmed in another tab. */
+  refreshUser(): Promise<void>;
   signOut(): Promise<void>;
-  /** Also straight from a click: it asks the person to sign in once more first. */
-  deleteAccount(): Promise<void>;
+  /**
+   * Also straight from a click: it asks the person to sign in once more first — with a popup,
+   * or with `password` for an email-and-password account.
+   */
+  deleteAccount(password?: string): Promise<void>;
   watchProtocols(uid: string, onChange: (library: RemoteLibrary) => void, onError: (error: unknown) => void): () => void;
   /** Resolves once the server has the protocol, which offline is not until back online. */
   saveProtocol(uid: string, protocol: Protocol): Promise<void>;
   deleteProtocol(uid: string, id: string): Promise<void>;
 }
+
+/** The shortest password an email account may have. Firebase itself allows six. */
+export const MIN_PASSWORD_LENGTH = 8;
 
 /** Set only in builds made to run against the local emulators (`VITE_FIREBASE_EMULATOR=1`). */
 export const EMULATOR = import.meta.env.VITE_FIREBASE_EMULATOR === '1';
@@ -131,9 +153,22 @@ export function connect(config: FirebaseWebConfig | null): Connection | null {
 
   const protocols = (uid: string) => collection(database(), 'users', uid, 'protocols');
 
+  const listeners = new Set<(user: AccountUser | null) => void>();
   connection = {
     onUser(listener) {
-      return onAuthStateChanged(auth, (user) => listener(user ? describeUser(user) : null));
+      listeners.add(listener);
+      const unsubscribe = onAuthStateChanged(auth, (user) => listener(user ? describeUser(user) : null));
+      return () => {
+        listeners.delete(listener);
+        unsubscribe();
+      };
+    },
+
+    async refreshUser() {
+      const user = auth.currentUser;
+      if (!user) return;
+      await user.reload();
+      for (const listener of listeners) listener(describeUser(user));
     },
 
     async signIn(provider) {
@@ -144,24 +179,54 @@ export function connect(config: FirebaseWebConfig | null): Connection | null {
       await signInWithPopup(auth, providerFor(provider));
     },
 
+    async signInWithPassword(email, password) {
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+    },
+
+    async createAccount(email, password) {
+      const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      // Not a condition of using the account: the address is confirmed so that a mistyped one
+      // is noticed while it can still be fixed, and so a password reset has somewhere to go.
+      await sendEmailVerification(user, { url: continueUrl() }).catch(() => undefined);
+    },
+
+    async resetPassword(email) {
+      await sendPasswordResetEmail(auth, email.trim(), { url: continueUrl() });
+    },
+
+    async resendVerification() {
+      if (auth.currentUser) await sendEmailVerification(auth.currentUser, { url: continueUrl() });
+    },
+
     async signOut() {
       await firebaseSignOut(auth);
       await clearLocalCopy();
     },
 
-    async deleteAccount() {
+    async deleteAccount(password) {
       const user = auth.currentUser;
       if (!user) return;
+      const provider = describeUser(user).provider;
       // Firebase refuses to delete an account signed into more than a few minutes ago, so ask
       // for the sign-in first, while this is still the click, rather than after the data is gone.
-      if (EMULATOR) await reauthenticateWithCredential(user, emulatorCredential());
-      else await reauthenticateWithPopup(user, providerFor(describeUser(user).provider));
+      let appleToken: string | undefined;
+      if (provider === 'password') {
+        await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email ?? '', password ?? ''));
+      } else if (EMULATOR) {
+        await reauthenticateWithCredential(user, emulatorCredential());
+      } else {
+        const result = await reauthenticateWithPopup(user, providerFor(provider));
+        appleToken = provider === 'apple' ? (OAuthProvider.credentialFromResult(result)?.accessToken ?? undefined) : undefined;
+      }
       const snapshot = await getDocsFromServer(protocols(user.uid));
       for (let start = 0; start < snapshot.docs.length; start += 400) {
         const batch = writeBatch(database());
         for (const entry of snapshot.docs.slice(start, start + 400)) batch.delete(entry.ref);
         await batch.commit();
       }
+      // Apple asks that an app deleting an account also withdraw its access to the Apple ID, so
+      // the person's Apple settings stop listing the dashboard as signed in.
+      if (appleToken) await revokeAccessToken(auth, appleToken).catch(() => undefined);
       await deleteUser(user);
       await clearLocalCopy();
     },
@@ -208,6 +273,12 @@ function providerFor(provider: AccountUser['provider']): AuthProvider {
       return new GithubAuthProvider();
     case 'microsoft':
       return new OAuthProvider('microsoft.com');
+    case 'apple': {
+      const apple = new OAuthProvider('apple.com');
+      apple.addScope('email');
+      apple.addScope('name');
+      return apple;
+    }
     default: {
       const google = new GoogleAuthProvider();
       google.setCustomParameters({ prompt: 'select_account' });
@@ -216,15 +287,29 @@ function providerFor(provider: AccountUser['provider']): AuthProvider {
   }
 }
 
+const PROVIDER_IDS: Record<string, SignInProvider> = {
+  'google.com': 'google',
+  'github.com': 'github',
+  'apple.com': 'apple',
+  'microsoft.com': 'microsoft',
+  password: 'password',
+};
+
 function describeUser(user: User): AccountUser {
-  const provider = user.providerData[0]?.providerId;
+  const provider = PROVIDER_IDS[user.providerData[0]?.providerId ?? ''] ?? 'other';
   return {
     uid: user.uid,
     email: user.email ?? user.providerData.find((entry) => entry.email)?.email ?? null,
     name: user.displayName,
-    provider:
-      provider === 'google.com' ? 'google' : provider === 'github.com' ? 'github' : provider === 'microsoft.com' ? 'microsoft' : 'other',
+    provider,
+    // Only a password account's address can be unconfirmed; the others vouch for their own.
+    emailVerified: provider !== 'password' || user.emailVerified,
   };
+}
+
+/** Where the links in confirmation and reset emails return to: this dashboard. */
+function continueUrl(): string {
+  return `${location.origin}${location.pathname}`;
 }
 
 /**
@@ -260,6 +345,23 @@ export function describeFirebaseError(error: unknown): string | null {
       return 'The account service could not be reached. Check the connection and try again.';
     case 'auth/user-mismatch':
       return 'That was a different account. Sign in as the account you are deleting.';
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'That email address and password do not match an account.';
+    case 'auth/email-already-in-use':
+      return 'That email address already has an account. Sign in instead, or reset its password.';
+    case 'auth/invalid-email':
+      return 'That is not a valid email address.';
+    case 'auth/missing-password':
+      return 'Enter the password.';
+    case 'auth/weak-password':
+    case 'auth/password-does-not-meet-requirements':
+      return `Choose a longer password: at least ${MIN_PASSWORD_LENGTH} characters.`;
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Wait a few minutes, or reset the password.';
+    case 'auth/requires-recent-login':
+      return 'Sign in again, then try once more.';
     case 'permission-denied':
       return 'The account service refused the request.';
     case 'resource-exhausted':

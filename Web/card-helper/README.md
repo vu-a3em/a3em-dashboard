@@ -219,4 +219,4 @@ every signing request is approved by hand in SignPath.
 Privacy: this program will not transfer any information to other networked systems unless
 specifically requested by the user or the person installing or operating it. It has no network
 code at all: it talks only to the browser that starts it and to the cards and disks on this
-computer. See also the [extension's privacy policy](../extension/PRIVACY.md).
+computer. The full privacy policy is at https://config.a3em.com/privacy.html.

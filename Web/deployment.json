@@ -19,8 +19,8 @@
     "(Project settings > Your apps > SDK setup and configuration > Config). These values are",
     "public by design: what protects each person's data is firebase/firestore.rules. Leave it",
     "null and the dashboard offers no sign-in at all. accounts.signInProviders lists the sign-in",
-    "methods to offer, from google, github and microsoft; each must also be enabled in the",
-    "Firebase console (Authentication > Sign-in method)."
+    "methods to offer, from google, github, apple, microsoft and password (an email address and",
+    "password); each must also be enabled in the Firebase console (Authentication > Sign-in method)."
   ],
   "dashboardOrigin": "https://config.a3em.com",
   "extensionId": "fccaomdnpebkiakcflkdgidnnodpalik",
