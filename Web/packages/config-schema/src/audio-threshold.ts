@@ -5,7 +5,7 @@ import { ADC_CODE_MAX, TRIGGER_DIGIPOT_STEPS } from './firmware-constants.js';
  * the decibels an ecologist can reason about.
  *
  * `AUDIO_TRIGGER_THRESHOLD` in the config is a fraction of full scale in 0..1.
- * The desktop dashboard labelled it "dB" and passed the raw number straight
+ * The desktop dashboard labeled it "dB" and passed the raw number straight
  * through, so anyone who typed a real dB value got nonsense.
  *
  * Three hardware facts shape what the UI can honestly offer:

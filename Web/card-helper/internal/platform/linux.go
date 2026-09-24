@@ -127,6 +127,29 @@ func linuxScheme(pt string) PartitionScheme {
 	return SchemeUnknown
 }
 
+// probeScheme fills in the partition table type lsblk leaves empty without udev, as
+// probeFilesystem does for filesystems. A disk the kernel found partitions on has a table even
+// when nothing can say which, so it is unknown then, not absent: "no partition map" would tell
+// the dashboard the card needs formatting.
+func probeScheme(disk lsblkDevice) PartitionScheme {
+	if pt := text(disk.PTType); pt != "" {
+		return linuxScheme(pt)
+	}
+	if out, err := Run(30*time.Second, "blkid", []string{"-p", "-o", "export", disk.Name}, 0, 2); err == nil {
+		for _, line := range strings.Split(out.Stdout, "\n") {
+			if key, value, ok := strings.Cut(line, "="); ok && key == "PTTYPE" {
+				return linuxScheme(strings.TrimSpace(value))
+			}
+		}
+	}
+	for _, child := range disk.Children {
+		if child.Type == "part" {
+			return SchemeUnknown
+		}
+	}
+	return SchemeNone
+}
+
 func (linux) ListDevices() ([]Device, error) {
 	tree, err := lsblk()
 	if err != nil {
@@ -142,7 +165,7 @@ func (linux) ListDevices() ([]Device, error) {
 			ID: name, Node: disk.Name, SizeBytes: int64(disk.Size), Removable: bool(disk.RM) || bool(disk.Hotplug),
 			Bus: nonEmpty(strings.ToUpper(text(disk.Tran)), "unknown"), IsBootDevice: holdsSystem(disk),
 			Virtual:         disk.Type == "loop" || strings.HasPrefix(name, "nbd") || strings.HasPrefix(name, "zram") || strings.HasPrefix(name, "ram"),
-			PartitionScheme: linuxScheme(text(disk.PTType)), WriteProtected: bool(disk.RO), Volumes: []Volume{},
+			PartitionScheme: probeScheme(disk), WriteProtected: bool(disk.RO), Volumes: []Volume{},
 		}
 		if strings.HasPrefix(name, "mmcblk") {
 			// The kernel does not mark an SD card removable; the card's own type says what it is.
@@ -388,9 +411,12 @@ func (p linux) Repair(volumeID string) (FsckReport, error) {
 	return fsckReport(out, true), nil
 }
 
+// fsckReport is clean at 0 — and, after a repair, at 1, which is exfatprogs's "errors were
+// corrected". Only 4, errors left uncorrected, or worse is a repair that did not finish the job.
 func fsckReport(out Output, modified bool) FsckReport {
 	code := out.Code
-	return FsckReport{Clean: code == 0, Modified: modified, Output: strings.TrimSpace(out.Stdout + out.Stderr), ExitCode: &code}
+	clean := code == 0 || (modified && code == 1)
+	return FsckReport{Clean: clean, Modified: modified, Output: strings.TrimSpace(out.Stdout + out.Stderr), ExitCode: &code}
 }
 
 func (linux) Identity(device Device) Identity {

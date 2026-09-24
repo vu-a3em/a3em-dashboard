@@ -20,7 +20,7 @@ import type { LibrarySync } from '../lib/useProtocols';
  * open state is derived from where they are:
  *
  *  - **Nothing chosen yet** — open. This is the "first thing used rather than a filing
- *    cabinet visited afterwards" case the feature exists for.
+ *    cabinet visited afterward" case the feature exists for.
  *  - **A choice made** — collapsed, automatically, to a summary line that still says what
  *    the deployment is based on and whether it has drifted since.
  *

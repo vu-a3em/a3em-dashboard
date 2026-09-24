@@ -78,7 +78,7 @@ export interface TelemetrySample {
    * recording. It is the last word on what a recording's timebase actually was.
    */
   measuredSampleRateHz: number | null;
-  /** Whether that measurement has stabilised. An unsettled estimate is still moving. */
+  /** Whether that measurement has stabilized. An unsettled estimate is still moving. */
   sampleRateSettled: boolean | null;
 }
 
@@ -215,7 +215,7 @@ export interface ParsedLog {
    *
    * The number worth looking at is `fallbackDays`. A solar schedule cannot be resolved on a
    * day with no sunrise, and the device quietly uses its fixed windows instead — correct
-   * behaviour, but it means the recordings for those days are not the ones that were asked
+   * behavior, but it means the recordings for those days are not the ones that were asked
    * for. Above the Arctic circle that is most of the summer, and nothing else on the card
    * would say so.
    */
@@ -414,7 +414,7 @@ export function parseLogs(
      * Whether this log's firmware stamps its events with a time at all.
      *
      * Where it does, a missing `t=` is the firmware saying outright that the clock could
-     * not be trusted at that moment, and carrying a neighbouring time onto the line would
+     * not be trusted at that moment, and carrying a neighboring time onto the line would
      * erase precisely that signal. Where it never does, the log simply predates the
      * feature and the nearest known time is the best available answer.
      */

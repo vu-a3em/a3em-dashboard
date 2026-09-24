@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildTrack, distanceMetres, projectTrack, scaleBar, STATIONARY_RADIUS_METRES } from './geo.js';
+import { buildTrack, distanceMeters, projectTrack, scaleBar, STATIONARY_RADIUS_METERS } from './geo.js';
 
 const sample = (timestamp: string, latitude: number | null, longitude: number | null, altitudeM: number | null = 100) => ({
   timestamp,
@@ -12,18 +12,18 @@ const sample = (timestamp: string, latitude: number | null, longitude: number | 
 describe('distance between positions', () => {
   it('matches a known separation', () => {
     // One degree of latitude is about 111.2 km anywhere on the globe.
-    const metres = distanceMetres({ latitude: 0, longitude: 0 }, { latitude: 1, longitude: 0 });
-    assert.ok(Math.abs(metres - 111_195) < 100, `got ${metres}`);
+    const meters = distanceMeters({ latitude: 0, longitude: 0 }, { latitude: 1, longitude: 0 });
+    assert.ok(Math.abs(meters - 111_195) < 100, `got ${meters}`);
   });
 
   it('narrows with latitude for a degree of longitude', () => {
-    const atEquator = distanceMetres({ latitude: 0, longitude: 0 }, { latitude: 0, longitude: 1 });
-    const atSixty = distanceMetres({ latitude: 60, longitude: 0 }, { latitude: 60, longitude: 1 });
+    const atEquator = distanceMeters({ latitude: 0, longitude: 0 }, { latitude: 0, longitude: 1 });
+    const atSixty = distanceMeters({ latitude: 60, longitude: 0 }, { latitude: 60, longitude: 1 });
     assert.ok(Math.abs(atSixty / atEquator - 0.5) < 0.01, 'a degree of longitude halves by 60 degrees');
   });
 
   it('is zero for the same point', () => {
-    assert.equal(distanceMetres({ latitude: 4.36, longitude: 18.55 }, { latitude: 4.36, longitude: 18.55 }), 0);
+    assert.equal(distanceMeters({ latitude: 4.36, longitude: 18.55 }, { latitude: 4.36, longitude: 18.55 }), 0);
   });
 });
 
@@ -65,20 +65,20 @@ describe('building a track', () => {
   });
 
   it('measures displacement and path length separately', () => {
-    // Out and back: the device travelled, but ended where it started. Reporting only
+    // Out and back: the device traveled, but ended where it started. Reporting only
     // one number would either hide the journey or invent a move that did not happen.
     const track = buildTrack([
       sample('2026-04-01T00:00:00.000Z', 4.36, 18.55),
       sample('2026-04-01T01:00:00.000Z', 4.37, 18.55),
       sample('2026-04-01T02:00:00.000Z', 4.36, 18.55),
     ]);
-    assert.ok(track.displacementMetres < 1);
-    assert.ok(track.pathMetres > 2000);
+    assert.ok(track.displacementMeters < 1);
+    assert.ok(track.pathMeters > 2000);
   });
 
   describe('telling a stationary device from a moving one', () => {
     it('calls receiver scatter stationary', () => {
-      // A few metres of jitter around one point is GPS error. Zoomed to its own extent
+      // A few meters of jitter around one point is GPS error. Zoomed to its own extent
       // it looks like a journey, so it has to be named for what it is.
       const track = buildTrack([
         sample('2026-04-01T00:00:00.000Z', 4.36, 18.55),
@@ -94,7 +94,7 @@ describe('building a track', () => {
         sample('2026-04-01T01:00:00.000Z', 4.38, 18.57),
       ]);
       assert.equal(track.stationary, false);
-      assert.ok(track.displacementMetres > STATIONARY_RADIUS_METRES);
+      assert.ok(track.displacementMeters > STATIONARY_RADIUS_METERS);
     });
   });
 });
@@ -117,7 +117,7 @@ describe('projecting a track for drawing', () => {
     assert.ok(north.y < south.y, 'the higher latitude should sit higher on screen');
   });
 
-  it('keeps a metre north and a metre east the same size on screen', () => {
+  it('keeps a meter north and a meter east the same size on screen', () => {
     // Without scaling longitude by the cosine of latitude, a track at high latitude comes
     // out stretched sideways and a straight walk looks like a diagonal.
     const square = buildTrack([
@@ -152,7 +152,7 @@ describe('the scale bar', () => {
       sample('2026-04-01T01:00:00.000Z', 4.37, 18.56),
     ]);
     const bar = scaleBar(track)!;
-    assert.ok([1, 2, 5].includes(bar.metres / 10 ** Math.floor(Math.log10(bar.metres))));
+    assert.ok([1, 2, 5].includes(bar.meters / 10 ** Math.floor(Math.log10(bar.meters))));
     assert.ok(bar.fraction > 0 && bar.fraction < 1);
   });
 

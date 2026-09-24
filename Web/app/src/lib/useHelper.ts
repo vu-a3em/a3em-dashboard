@@ -167,12 +167,22 @@ export function useHelper() {
     [],
   );
 
-  /** Re-enumerate without re-running the handshake. For after a format or an eject. */
+  /**
+   * Re-enumerate without re-running the handshake. For after a format or an eject, and for
+   * `useDeviceWatch`.
+   *
+   * An unchanged list keeps the array it had, so a poll that finds nothing new re-renders
+   * nothing and restarts nothing that depends on the devices.
+   */
   const rescan = useCallback(async () => {
     if (!isChromium()) return;
     try {
       const devices = await listDevices();
-      setState((previous) => ({ ...previous, devices, error: null }));
+      setState((previous) => ({
+        ...previous,
+        devices: JSON.stringify(devices) === JSON.stringify(previous.devices) ? previous.devices : devices,
+        error: null,
+      }));
     } catch (error) {
       setState((previous) => ({
         ...previous,
@@ -185,3 +195,37 @@ export function useHelper() {
 }
 
 export type Helper = ReturnType<typeof useHelper>;
+
+/** How often a screen showing the connected cards asks the helper for them again. */
+const WATCH_INTERVAL_MS = 5000;
+
+/**
+ * Keeps the device list current while a screen that shows it is open, so a card appears when
+ * it is inserted and goes when it is taken out, without anyone pressing Rescan.
+ *
+ * Polled: each platform reports a disk arriving in its own way, and a listing already works
+ * on all three. Every listing starts a fresh helper process, so this runs only while `active`,
+ * only while the tab is in front, and never while the helper is busy with something else.
+ * Coming back to the tab asks at once.
+ */
+export function useDeviceWatch(helper: Helper, active: boolean) {
+  const { status, rescan } = helper;
+  const idle = helper.task === null;
+  const inFlight = useRef(false);
+  useEffect(() => {
+    if (status !== 'ready' || !active || !idle) return undefined;
+    const ask = () => {
+      if (document.visibilityState !== 'visible' || inFlight.current) return;
+      inFlight.current = true;
+      void rescan().finally(() => {
+        inFlight.current = false;
+      });
+    };
+    const timer = window.setInterval(ask, WATCH_INTERVAL_MS);
+    document.addEventListener('visibilitychange', ask);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', ask);
+    };
+  }, [status, active, idle, rescan]);
+}

@@ -48,17 +48,26 @@ func image(job Job, plat platform.Platform, report Reporter) Result {
 	}
 	defer dev.Close()
 
-	out, err := os.OpenFile(job.Destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	// Written beside the destination and moved into place at the end, so a copy that fails
+	// leaves nothing half-made there, and replaces an older image only once it is whole.
+	partial := job.Destination + ".partial"
+	os.Remove(partial)
+	out, err := os.OpenFile(partial, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return failure(&safety.Refused{Message: fmt.Sprintf("Could not create %s: %v", job.Destination, err), Code: "bad-destination"})
 	}
-	chown(job.Destination, job.Owner)
+	chown(partial, job.Owner)
 	sink := bufio.NewWriterSize(out, imageChunk)
 	buffer := blockdev.Aligned(imageChunk)
 	total := dev.Size()
 	var position, bad int64
 	last := time.Time{}
 	for position < total {
+		if job.Stopped() {
+			out.Close()
+			os.Remove(partial)
+			return Result{Error: "The copy was stopped, and the unfinished image deleted.", Code: "stopped"}
+		}
 		want := int64(imageChunk)
 		if total-position < want {
 			want = total - position
@@ -75,6 +84,7 @@ func image(job Job, plat platform.Platform, report Reporter) Result {
 		}
 		if _, err := sink.Write(chunk); err != nil {
 			out.Close()
+			os.Remove(partial)
 			return failure(&Failed{fmt.Sprintf("Could not write the image: %v", err), "bad-destination", ""})
 		}
 		position += want
@@ -83,12 +93,21 @@ func image(job Job, plat platform.Platform, report Reporter) Result {
 			report(Update{Device: target.Device.ID, Stage: "image", Note: notes["image"], Done: position, Total: total, BadSectors: bad})
 		}
 	}
-	if err := sink.Flush(); err != nil {
-		out.Close()
-		return failure(err)
+	// On the drive, not in its cache, before it takes the image's name: the destination may be
+	// a card or a stick about to be pulled out.
+	err = sink.Flush()
+	if err == nil {
+		err = out.Sync()
 	}
-	if err := out.Close(); err != nil {
-		return failure(err)
+	if closeErr := out.Close(); err == nil {
+		err = closeErr
+	}
+	if err == nil {
+		err = os.Rename(partial, job.Destination)
+	}
+	if err != nil {
+		os.Remove(partial)
+		return failure(&Failed{fmt.Sprintf("Could not write the image: %v", err), "bad-destination", ""})
 	}
 	return Result{Image: &ImageReport{DestinationPath: job.Destination, BytesCopied: position, BadSectors: bad, Complete: bad == 0 && position == total}}
 }

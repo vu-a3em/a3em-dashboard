@@ -305,9 +305,12 @@ func (windows) Repair(volumeID string) (FsckReport, error) {
 	return fsckReport(out, true), nil
 }
 
+// fsckReport is clean at 0 — and, after chkdsk /f, at 1 (errors found and fixed) or 2 (cleanup
+// performed). 3 is a check that could not finish or errors it could not fix.
 func fsckReport(out Output, modified bool) FsckReport {
 	code := out.Code
-	return FsckReport{Clean: code == 0, Modified: modified, Output: strings.TrimSpace(out.Stdout + out.Stderr), ExitCode: &code}
+	clean := code == 0 || (modified && (code == 1 || code == 2))
+	return FsckReport{Clean: clean, Modified: modified, Output: strings.TrimSpace(out.Stdout + out.Stderr), ExitCode: &code}
 }
 
 // Identity is the reader only: Windows does not pass a card's CID register through a USB reader.

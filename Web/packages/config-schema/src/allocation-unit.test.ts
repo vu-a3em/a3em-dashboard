@@ -212,7 +212,7 @@ test('summaries say what to do and never promise capacity back for a fragmented 
   assert.match(forCard(524_288), /Reformat at 32 kB/);
 });
 
-test('an unmodelled cluster size still yields a verdict', () => {
+test('an unmodeled cluster size still yields a verdict', () => {
   // exFAT permits sizes we do not offer; a card carrying one should not crash the advice.
   const advice = recommendAllocationUnit({
     config: configWith(REFERENCE),

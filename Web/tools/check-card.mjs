@@ -82,9 +82,9 @@ for (const file of files) {
   totalBytes += size;
 
   const lower = file.toLowerCase();
-  let judgement;
+  let judgment;
   if (lower.endsWith('.imu')) {
-    judgement = judgeImuFile(size);
+    judgment = judgeImuFile(size);
   } else if (lower.endsWith('.wav')) {
     let header = null;
     if (size > 0) {
@@ -100,16 +100,16 @@ for (const file of files) {
         continue;
       }
     }
-    judgement = judgeWavFile(size, header, { correctWavChunkSize });
+    judgment = judgeWavFile(size, header, { correctWavChunkSize });
   } else {
     continue;
   }
 
-  tally[judgement.verdict] = (tally[judgement.verdict] ?? 0) + 1;
-  if (judgement.verdict !== 'ok' && !examples.has(judgement.verdict)) {
-    examples.set(judgement.verdict, { file: path.relative(root, file), detail: judgement.detail });
+  tally[judgment.verdict] = (tally[judgment.verdict] ?? 0) + 1;
+  if (judgment.verdict !== 'ok' && !examples.has(judgment.verdict)) {
+    examples.set(judgment.verdict, { file: path.relative(root, file), detail: judgment.detail });
   }
-  if (judgement.repair) repairable.push({ path: path.relative(root, file), repair: judgement.repair });
+  if (judgment.repair) repairable.push({ path: path.relative(root, file), repair: judgment.repair });
 }
 
 note('');

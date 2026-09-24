@@ -34,8 +34,8 @@ for now, in the shape that will sync when accounts exist.
 
 **Configure** — device, schedule, recording, and motion settings, with live storage and
 battery forecasting and inline validation. Writes `_a3em.cfg` directly to a connected
-card, or downloads it. Validation is parameterised by firmware version, read from the
-card when available and otherwise assumed to be the older, more dangerous behaviour.
+card, or downloads it. Validation is parameterized by firmware version, read from the
+card when available and otherwise assumed to be the older, more dangerous behavior.
 
 **Listen** — browse a card's recordings by day at corrected times, with each file's own
 sample rate shown, since the device patches the rate it measured into every header and a
@@ -110,7 +110,7 @@ only talk to a page served from that exact origin, so card tools — format, rec
 
 - **Custom domain** (what `deployment.json` currently says: `https://config.a3em.com`).
   Point a DNS `CNAME` record for that name at `<owner>.github.io`, set it under
-  Settings → Pages → Custom domain, and tick **Enforce HTTPS** once the certificate is
+  Settings → Pages → Custom domain, and check **Enforce HTTPS** once the certificate is
   issued. Nothing in the repository changes.
 - **The default project URL.** Set `dashboardOrigin` in `deployment.json` to
   `https://<owner>.github.io`, run `npm run sync:extension`, and reload the unpacked

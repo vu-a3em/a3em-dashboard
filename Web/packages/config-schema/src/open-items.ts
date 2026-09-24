@@ -170,7 +170,7 @@ export const OPEN_ITEMS: OpenItem[] = [
     status: 'resolved',
     title: 'No examples of the corrupt files that cause real data loss',
     currentBehavior:
-      'A full 250 GB image of SAM_elephant_08 was analysed: 419,761 files, 194.72 GB. ' +
+      'A full 250 GB image of SAM_elephant_08 was analyzed: 419,761 files, 194.72 GB. ' +
       'Three distinct failure modes appeared, and the checker classified all of them ' +
       'correctly without being changed to fit.',
     blocks: 'Nothing.',

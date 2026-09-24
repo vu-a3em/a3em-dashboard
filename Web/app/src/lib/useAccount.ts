@@ -83,11 +83,11 @@ export function useAccount() {
 
   useEffect(() => {
     if (!AVAILABLE) return undefined;
-    let cancelled = false;
+    let canceled = false;
     let unsubscribe: (() => void) | undefined;
     import('./firebase')
       .then((module) => {
-        if (cancelled) return;
+        if (canceled) return;
         const connected = module.connect(FIREBASE_CONFIG);
         if (!connected) {
           setState((previous) => ({ ...previous, status: 'unavailable' }));
@@ -103,19 +103,48 @@ export function useAccount() {
         if (link) {
           setState((previous) => ({ ...previous, dialogOpen: true, emailAction: { stage: 'checking', mode: link.mode } }));
           void connected.readEmailAction(link.mode, link.code).then((action) => {
-            if (!cancelled) setState((previous) => ({ ...previous, emailAction: { stage: 'ready', action } }));
+            if (!canceled) setState((previous) => ({ ...previous, emailAction: { stage: 'ready', action } }));
           });
         }
       })
       .catch(() => {
         // The chunk did not load — offline on a first visit, say. Accounts are simply absent.
-        if (!cancelled) setState((previous) => ({ ...previous, status: 'unavailable' }));
+        if (!canceled) setState((previous) => ({ ...previous, status: 'unavailable' }));
       });
     return () => {
-      cancelled = true;
+      canceled = true;
       unsubscribe?.();
     };
   }, []);
+
+  /*
+    An address still to confirm is checked again whenever the person comes back to this tab.
+
+    Confirming happens elsewhere — in the email, on Firebase's own page — so without this the
+    dashboard would keep asking until someone thought to press "I have confirmed it". When it
+    turns out confirmed while the account dialog is open, the dialog says so.
+  */
+  const unconfirmed = state.status === 'signed-in' && state.user !== null && !state.user.emailVerified;
+  useEffect(() => {
+    if (!connection || !unconfirmed) return undefined;
+    const check = () => {
+      if (document.visibilityState !== 'visible') return;
+      connection
+        .refreshUser()
+        .then((user) => {
+          if (user?.emailVerified) {
+            setState((previous) => ({ ...previous, notice: previous.dialogOpen ? 'Your email address is confirmed.' : previous.notice }));
+          }
+        })
+        .catch(() => undefined);
+    };
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      window.removeEventListener('focus', check);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, [connection, unconfirmed]);
 
   /**
    * Runs an account action, keeping `busy` and `error` up to date, and applies what `onSuccess`
@@ -147,10 +176,24 @@ export function useAccount() {
   );
   // No notice of its own: the account dialog already asks for the address to be confirmed.
   const createAccount = useCallback(
-    (email: string, password: string) =>
+    (email: string, password: string, name?: string) =>
       run(
-        (connected) => connected.createAccount(email, password),
+        (connected) => connected.createAccount(email, password, name),
         () => ({ pendingLink: null }),
+      ),
+    [run],
+  );
+  const setName = useCallback(
+    (name: string) =>
+      run(
+        (connected) => connected.setName(name),
+        (user) => ({
+          notice: name.trim()
+            ? 'Your name is saved.'
+            : user.name
+              ? `Your name is back to the one your sign-in service gave: ${user.name}.`
+              : 'Your name is removed.',
+        }),
       ),
     [run],
   );
@@ -255,6 +298,7 @@ export function useAccount() {
     signIn,
     signInWithPassword,
     createAccount,
+    setName,
     resetPassword,
     resendVerification,
     refreshUser,

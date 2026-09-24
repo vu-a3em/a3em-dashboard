@@ -237,7 +237,7 @@ function stripPhaseTimes(phase: PhaseConfig): PhaseConfig {
  * is a starting point chosen against a stated question, which is how each of these is
  * named and described.
  *
- * They are organised by what you are trying to MEASURE rather than by species. A protocol
+ * They are organized by what you are trying to MEASURE rather than by species. A protocol
  * called "African elephant" would promise a calibration nobody here has done; a protocol
  * called "low-frequency continuous" promises only what its settings actually deliver, and
  * leaves the ecologist to decide whether it suits their animal.
@@ -296,7 +296,7 @@ export const STARTER_PROTOCOLS: Protocol[] = [
     'starter.low-frequency-continuous',
     'Low-frequency continuous',
     'Continuous 8 kHz, uncompressed, for the low-frequency calls of large mammals, such as elephant ' +
-      'rumble harmonics and the vocalisations of bears and caribou. Nothing above 3.8 kHz is captured.',
+      'rumble harmonics and the vocalizations of bears and caribou. Nothing above 3.8 kHz is captured.',
     (config) => ({
       ...config,
       /*
@@ -475,7 +475,7 @@ export const STARTER_PROTOCOLS: Protocol[] = [
           audioClipLengthSeconds: 60,
           maxFrequencyHz: maxFrequencyCeilingHz(16000),
           minFrequencyHz: SILENCE_LOW_HZ,
-          // Synchronised rather than motion-triggered: an activity budget needs the quiet
+          // Synchronized rather than motion-triggered: an activity budget needs the quiet
           // intervals too, and a gap means "not moving" only if it was recorded as one.
           imuRecordingMode: 'AUDIO',
           imuSampleRateHz: 200,

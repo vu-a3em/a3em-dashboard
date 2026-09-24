@@ -210,7 +210,7 @@ def extract_config_keys(source: str) -> list[str]:
     key must be tested first or it swallows the longer one.
     """
     # The parser is split in two: parse_line() tests the device-scoped keys and then
-    # delegates anything it does not recognise to parse_phase_setting(). Both have to be
+    # delegates anything it does not recognize to parse_phase_setting(). Both have to be
     # scanned, in that order, or the phase keys silently drop out of drift detection.
     device_start = source.find("static void parse_line(")
     if device_start < 0:
@@ -328,7 +328,7 @@ def build_snapshot(firmware: Path) -> dict:
         enums.update(extract_enums(read(firmware, relative), names))
 
     # Every function the firmware defines, so prose and comments naming one can be checked
-    # against reality. A sentence that describes device behaviour goes stale silently: no
+    # against reality. A sentence that describes device behavior goes stale silently: no
     # constant moves, no grammar changes, and the claim just stops being true.
     # FatFs, Opus and SEGGER RTT are vendored but comments cite their functions (f_open,
     # f_mkdir, opus_encode, SEGGER_RTT_Init, ...) as the authority for how the device

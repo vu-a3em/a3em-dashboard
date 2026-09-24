@@ -6,7 +6,7 @@ import type { DeploymentConfig, PhaseConfig } from './types.js';
  *
  * These exist so a collapsed pane still answers its own question. A pane that shuts to a
  * bare title has only hidden something; one that shuts to "Continuous · 16 kHz · 10 s
- * clips" has summarised it, which is what makes collapsing a long configuration page into
+ * clips" has summarized it, which is what makes collapsing a long configuration page into
  * an overview worth doing at all.
  *
  * Rules they all follow, because a column of summaries only reads as a column if they
@@ -33,7 +33,7 @@ function frequency(hz: number): string {
  * cutoff of nothing, it means the device records to exhaustion, and a summary is the
  * wrong place to explain that. The pane's own help text does.
  */
-export function summariseDevice(config: DeploymentConfig): string {
+export function summarizeDevice(config: DeploymentConfig): string {
   const label = config.deviceLabel.trim() || 'No label';
   const mic = (MIC_TYPES[config.micType] ?? config.micType).toLowerCase();
   const parts = [label, `${mic} mic at ${config.micAmplificationDb} dB`];
@@ -42,33 +42,33 @@ export function summariseDevice(config: DeploymentConfig): string {
 }
 
 /** How long it runs and where, which is what the dates in the pane work out to. */
-export function summariseSchedule(config: DeploymentConfig): string {
+export function summarizeSchedule(config: DeploymentConfig): string {
   const days = (Date.parse(config.endTime) - Date.parse(config.startTime)) / 86_400_000;
   const length = Number.isFinite(days) && days > 0 ? `${days < 1 ? days.toFixed(1) : Math.round(days)} days` : 'No span';
   return `${length} · ${config.timezone.replace(/_/g, ' ')}`;
 }
 
-export function summarisePhases(config: DeploymentConfig): string {
+export function summarizePhases(config: DeploymentConfig): string {
   if (!config.isPhased || config.phases.length <= 1) return 'Single phase';
   return `${config.phases.length} phases`;
 }
 
 /** Mode, rate, clip length — the three settings that decide what the files look like. */
-export function summariseAudio(phase: PhaseConfig): string {
+export function summarizeAudio(phase: PhaseConfig): string {
   const mode = AUDIO_RECORDING_MODES[phase.audioRecordingMode] ?? phase.audioRecordingMode;
   const parts = [mode, frequency(phase.audioSampleRateHz), `${phase.audioClipLengthSeconds} s clips`];
   if (phase.useOpusEncoding) parts.push('Opus');
   return parts.join(' · ');
 }
 
-export function summariseMotion(phase: PhaseConfig): string {
+export function summarizeMotion(phase: PhaseConfig): string {
   const mode = IMU_RECORDING_MODES[phase.imuRecordingMode] ?? phase.imuRecordingMode;
   if (phase.imuRecordingMode === 'NONE') return mode;
   return `${mode} · ${phase.imuSampleRateHz} Hz`;
 }
 
 /** Which corners are in force, named the way the filter-type select names them. */
-export function summariseFilter(phase: PhaseConfig): string {
+export function summarizeFilter(phase: PhaseConfig): string {
   switch (phase.audioFilterType) {
     case 'NONE':
       return AUDIO_FILTER_TYPES.NONE;
@@ -85,7 +85,7 @@ export function summariseFilter(phase: PhaseConfig): string {
  * The threshold first, because it is what switches the feature on — the band below it is
  * inert at zero and the pane hides it there, so the summary does not mention it either.
  */
-export function summariseSilence(phase: PhaseConfig): string {
+export function summarizeSilence(phase: PhaseConfig): string {
   if (phase.silenceThreshold <= 0) return 'Off';
   return `${Math.round(phase.silenceThreshold * 100)}% · ${frequency(phase.minFrequencyHz)} – ${frequency(
     phase.maxFrequencyHz,
@@ -93,7 +93,7 @@ export function summariseSilence(phase: PhaseConfig): string {
 }
 
 /** Errors before warnings, because only one of the two stops a write. */
-export function summariseReadiness(counts: { errors: number; warnings: number }): string {
+export function summarizeReadiness(counts: { errors: number; warnings: number }): string {
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   if (counts.errors) {
     return counts.warnings

@@ -37,14 +37,14 @@ import {
   forecastIssues,
   formatList,
   dstChangesAffectingSchedule,
-  summariseSchedule as summariseScheduleLine,
+  summarizeSchedule as summarizeScheduleLine,
   BYTES_PER_MARKETED_GB,
   recommendAllocationUnit,
   serializeConfig,
-  summariseAudio,
-  summariseDevice,
-  summariseMotion,
-  summariseSchedule,
+  summarizeAudio,
+  summarizeDevice,
+  summarizeMotion,
+  summarizeSchedule,
   extendClipApplies,
   validateConfig,
   type DeploymentConfig,
@@ -58,6 +58,7 @@ import { AudioFilter, SilenceDetection } from '../components/SilenceDetection';
 import { PhaseTimeline } from '../components/PhaseTimeline';
 import { TimezoneField } from '../components/TimezoneField';
 import type { useCard } from '../lib/useCard';
+import type { CardDevice } from '../lib/useCardDevice';
 import type { useDeploymentDraft } from '../lib/useDraft';
 import type { useProtocols } from '../lib/useProtocols';
 import { ProtocolLibrary } from '../components/ProtocolLibrary';
@@ -85,6 +86,8 @@ export function DeploymentEditor({
   onSelectPhase: setSelectedPhase,
   draft,
   library,
+  cardDevice,
+  onPrepareDevices,
 }: Readonly<{
   card: Card;
   config: DeploymentConfig;
@@ -93,6 +96,10 @@ export function DeploymentEditor({
   onSelectPhase: (index: number) => void;
   draft: ReturnType<typeof useDeploymentDraft>;
   library: ReturnType<typeof useProtocols>;
+  /** The physical card the open folder is on, where the card helper can tell. */
+  cardDevice?: CardDevice;
+  /** Opens "Prepare devices", where the card tools format cards. */
+  onPrepareDevices?: () => void;
 }>) {
   // Transient, so it belongs here rather than being hoisted with the draft.
   const [writeState, setWriteState] = useState<'idle' | 'writing' | 'written' | 'error'>('idle');
@@ -129,7 +136,7 @@ export function DeploymentEditor({
 
     Adjusted during render rather than in an effect, so the forecast never draws a frame
     for the wrong card. Only when the reported size changes: choosing another size by hand
-    afterwards is respected.
+    afterward is respected.
   */
   const connectedCapacity = card.deviceInfo?.cardCapacityBytes ?? null;
   const [seenCapacity, setSeenCapacity] = useState<number | null>(null);
@@ -212,7 +219,23 @@ export function DeploymentEditor({
     written into whatever that folder is now.
   */
   const cardReady = card.status === 'ready' && Boolean(card.handle);
-  const checks = useMemo(() => (cardReady ? checkCard(card.contents) : []), [cardReady, card.contents]);
+  /*
+    What the card helper knows that the folder cannot say: that the recorder would erase this
+    card as it is formatted, taking the configuration with it. A warning rather than a refusal,
+    since the verdict is about the card, and the configuration may be meant for another one.
+  */
+  const erasing = cardDevice?.device?.compatibility && !cardDevice.device.compatibility.usable ? cardDevice.device.compatibility : null;
+  const checks = useMemo(() => {
+    if (!cardReady) return [];
+    const found = checkCard(card.contents);
+    if (erasing) {
+      found.push({
+        severity: 'warning',
+        message: `The recorder would erase this card when it starts, configuration and all: ${erasing.issues[0]?.message ?? 'its format does not suit the firmware.'} Prepare it under “Prepare devices” first.`,
+      });
+    }
+    return found;
+  }, [cardReady, card.contents, erasing]);
   const [writtenSummary, setWrittenSummary] = useState<string | null>(null);
 
   const write = async () => {
@@ -222,7 +245,7 @@ export function DeploymentEditor({
       const text = serializeConfig(config);
       if (cardReady && card.handle) {
         await writeConfig(card.handle, text);
-        setWrittenSummary(`Wrote ${config.deviceLabel} · ${summariseScheduleLine(config)} to ${card.name}.`);
+        setWrittenSummary(`Wrote ${config.deviceLabel} · ${summarizeScheduleLine(config)} to ${card.name}.`);
       } else {
         downloadConfig(text);
         setWrittenSummary(null);
@@ -275,7 +298,7 @@ export function DeploymentEditor({
           }}
         />
 
-        <Pane id="device-details" title="Device details" note={summariseDevice(config)}>
+        <Pane id="device-details" title="Device details" note={summarizeDevice(config)}>
           {card.deviceInfo ? (
             <p className="hint">
               Connected device reports firmware <strong>{card.deviceInfo.firmwareVersion}</strong>.
@@ -412,7 +435,7 @@ export function DeploymentEditor({
             </div>
           </div>
         </Pane>
-        <Pane id="schedule" title="Schedule" note={summariseSchedule(config)}>
+        <Pane id="schedule" title="Schedule" note={summarizeSchedule(config)}>
           <div className="row">
             <TimezoneField value={config.timezone} onChange={(timezone) => update({ timezone })} />
             <div className="field">
@@ -464,7 +487,7 @@ export function DeploymentEditor({
               {config.setRtcAtMagnetDetect
                 ? 'When the magnet activates the device, its clock is set to the start time above. Every recorded ' +
                   'time is off by however early or late it was activated. Note the exact time each device is ' +
-                  'activated, and you can correct the times in the "Review Card" tab afterwards.'
+                  'activated, and you can correct the times in the "Review Card" tab afterward.'
                 : 'The device keeps the clock it already has. After activation, it records one minute for voice ' +
                   'notes, then waits for the start time before recording. Use this only when the clock is already ' +
                   'set, such as on a unit with GPS.'}
@@ -553,7 +576,7 @@ export function DeploymentEditor({
         <Pane
           id="audio-details"
           title={`Audio recording details${config.isPhased ? ` — ${phase.name}` : ''}`}
-          note={summariseAudio(phase)}
+          note={summarizeAudio(phase)}
         >
           <div className="row">
             <div className="field">
@@ -617,7 +640,7 @@ export function DeploymentEditor({
                   record at <strong>{clock.actualHz.toLocaleString()} Hz</strong> —{' '}
                   {Math.abs(clock.errorFraction * 100).toFixed(2)}%{' '}
                   {clock.errorFraction > 0 ? 'fast' : 'slow'} — and label the files with that rate, so
-                  nothing is mislabelled. Choose another rate if the exact figure matters to your analysis.
+                  nothing is mislabeled. Choose another rate if the exact figure matters to your analysis.
                 </p>
               ) : null}
             </div>
@@ -818,7 +841,7 @@ export function DeploymentEditor({
         <Pane
           id="motion-details"
           title={`Motion recording details${config.isPhased ? ` — ${phase.name}` : ''}`}
-          note={summariseMotion(phase)}
+          note={summarizeMotion(phase)}
         >
           <div className="row">
             <div className="field">
@@ -911,6 +934,7 @@ export function DeploymentEditor({
         cardChecks={checks}
         writtenSummary={writtenSummary}
         timezone={config.timezone}
+        onPrepareDevices={cardDevice?.available ? onPrepareDevices : undefined}
         protocolPanel={
           <ProtocolSave
             config={config}
@@ -1027,6 +1051,7 @@ function Forecast({
   writtenSummary,
   timezone,
   protocolPanel,
+  onPrepareDevices,
 }: Readonly<{
   plan: ReturnType<typeof forecast>;
   allocation: ReturnType<typeof recommendAllocationUnit>;
@@ -1051,6 +1076,8 @@ function Forecast({
   timezone: string;
   /** Saving lives here so it stays on screen beside the action that ends the task. */
   protocolPanel: React.ReactNode;
+  /** With the card tools, where formatting is done: in their place of the manual steps. */
+  onPrepareDevices?: () => void;
 }>) {
   const usedPercent = Math.min(100, plan.cardUsedFraction * 100);
   const fillsEarly = plan.cardFullAt !== null;
@@ -1145,7 +1172,7 @@ function Forecast({
             average only a little. */}
         <p className="daily-summary">
           {plan.perPhase.length > 1 ? 'Averaged across all phases, each day produces ' : 'Each day produces '}
-          <strong>{Math.round(plan.clipsPerDay).toLocaleString()}</strong> audio clips, totalling{' '}
+          <strong>{Math.round(plan.clipsPerDay).toLocaleString()}</strong> audio clips, totaling{' '}
           <strong>{formatBytes(plan.bytesPerDay)}</strong>. Daily energy consumption will be
           approximately <strong>{(plan.averageCurrentMa * 24).toFixed(0)} mAh</strong>.
         </p>
@@ -1207,7 +1234,16 @@ function Forecast({
         <div className="stat-value">{formatAllocationUnit(allocation.recommendedBytes)} exFAT</div>
         <div className="stat-note">
           {allocation.summary}
-          {allocation.verdict === 'wasteful' || allocation.actualBytes === null ? (
+          {/* With the card tools, formatting is theirs: one step, done right, instead of commands to type. */}
+          {(allocation.verdict === 'wasteful' || allocation.actualBytes === null) && onPrepareDevices ? (
+            <p className="format-steps">
+              Format the card as exFAT with {formatAllocationUnit(allocation.recommendedBytes)} clusters using the{' '}
+              <button className="link-button" onClick={onPrepareDevices}>
+                Prepare devices
+              </button>{' '}
+              page.
+            </p>
+          ) : allocation.verdict === 'wasteful' || allocation.actualBytes === null ? (
             <ol className="format-steps">
               {formatSteps.map((step) => (
                 <li key={step.detail}>

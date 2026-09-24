@@ -364,7 +364,7 @@ export function validateConfig(
 
     /*
       Every phase carries its OWN audio and motion settings, and the editor shows one at a
-      time. Summarising them here is more use than telling someone to go and look: a phase
+      time. Summarizing them here is more use than telling someone to go and look: a phase
       left on the defaults is visible in the line rather than a click away.
     */
     if (config.phases.length > 1) {
@@ -471,7 +471,7 @@ function validatePhase(
    * every message is noise. With several phases it is the only way to know where to look.
    */
   const namesPhase = config.isPhased && config.phases.length > 1;
-  /** Prefixes the phase where that is worth saying, and capitalises whatever leads. */
+  /** Prefixes the phase where that is worth saying, and capitalizes whatever leads. */
   const inPhase = (body: string) =>
     namesPhase ? `Phase "${phase.name}": ${body}` : `${body.charAt(0).toUpperCase()}${body.slice(1)}`;
   /*
@@ -762,7 +762,7 @@ function validatePhase(
 
   // The hardware cannot produce every rate exactly, and which ones it misses depends on
   // the microphone. The firmware writes the achieved rate into the WAV header, so nothing
-  // is mislabelled -- but the label will not be the number that was asked for, and that
+  // is mislabeled -- but the label will not be the number that was asked for, and that
   // is worth knowing before a card is written rather than after a field season.
   const clock = achievableSampleRate(phase.audioSampleRateHz, config.micType);
   if (!clock.reachable) {
@@ -904,7 +904,7 @@ function hasPosition(config: DeploymentConfig): boolean {
 }
 
 /** "An analog microphone" or "A digital microphone" — the article follows the word. */
-function micPhrase(micType: DeploymentConfig['micType'], capitalised = false): string {
+function micPhrase(micType: DeploymentConfig['micType'], capitalized = false): string {
   const phrase = micType === 'ANALOG' ? 'an analog microphone' : 'a digital microphone';
-  return capitalised ? phrase.charAt(0).toUpperCase() + phrase.slice(1) : phrase;
+  return capitalized ? phrase.charAt(0).toUpperCase() + phrase.slice(1) : phrase;
 }

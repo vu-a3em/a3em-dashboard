@@ -112,7 +112,7 @@ describe('limits that come from the config file rather than the device', () => {
     assert.deepEqual(
       validateConfig(config, FIRMWARE_CURRENT).filter((i) => i.path === 'phases.0.audioFilterHighHz'),
       [],
-      '7900 Hz is a corner the device honours at 16 kHz',
+      '7900 Hz is a corner the device honors at 16 kHz',
     );
     assert.match(serializeConfig(config), /FILTER_HIGH_FREQUENCY = "7900"/);
 
@@ -273,7 +273,7 @@ describe('how a phase summary reads', () => {
 
   it('names the motion rate when motion is being recorded', () => {
     const [first] = twoPhases({ imuRecordingMode: 'AUDIO', imuSampleRateHz: 50 });
-    assert.match(first!, /motion recording synchronised with audio at 50 Hz/);
+    assert.match(first!, /motion recording synchronized with audio at 50 Hz/);
   });
 
   it('omits the rate when motion is off', () => {
@@ -364,7 +364,7 @@ describe('selecting a high-pass filter', () => {
       FIRMWARE_CURRENT,
     ).filter((issue) => issue.path.endsWith('audioFilterLowHz'));
 
-  it('is valid straight away on the defaults', () => {
+  it('is valid right away on the defaults', () => {
     // Choosing High-pass used to paint the corner red before the user had touched it,
     // because a new phase started at 0 and 0 is not a corner the firmware can design for.
     assert.deepEqual(withFilter({ audioFilterType: 'HIGH' }), []);
@@ -386,7 +386,7 @@ describe('selecting a high-pass filter', () => {
 describe('input bounds agree with the rules that judge them', () => {
   // The controls carry min/max, but those only bind the spinner arrows — a typed value is
   // judged here. Where the two disagree the user is either offered a value that is then
-  // rejected, or stopped from entering one the device would honour. Both have happened.
+  // rejected, or stopped from entering one the device would honor. Both have happened.
   const rejects = (config: ReturnType<typeof defaultConfig>, field: string) =>
     validateConfig(config, FIRMWARE_CURRENT).some(
       (issue) => issue.path.endsWith(field) && issue.severity === 'error',

@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   CONFIG_FILE_NAME,
   DEVICE_LABEL_MAX_LEN,
   deviceLabelProblems,
   serializeConfig,
-  summariseAudio,
-  summariseMotion,
-  summariseSchedule,
+  summarizeAudio,
+  summarizeMotion,
+  summarizeSchedule,
   validateConfig,
   type DeploymentConfig,
   type ProtocolProvenance,
@@ -16,9 +16,13 @@ import { quickCardChecks } from '../lib/cardChecks';
 import { buildZip, downloadBlob } from '../lib/zip';
 import type { useCard } from '../lib/useCard';
 import type { Helper } from '../lib/useHelper';
-import { ConnectedCards, type PreparedUnit } from '../components/ConnectedCards';
+import type { PreparedUnit } from '../components/ConnectedCards';
+import { loadConnectedCards } from '../lib/helperViews';
 
 type Card = ReturnType<typeof useCard>;
+
+/** Only with the card helper, so loaded separately: see `helperViews`. */
+const ConnectedCards = lazy(() => loadConnectedCards().then((module) => ({ default: module.ConnectedCards })));
 
 export interface BatchUnit {
   label: string;
@@ -49,6 +53,7 @@ export function BatchPrepare({
   units,
   onUnitsChange,
   onEditConfiguration,
+  onRecover,
 }: Readonly<{
   card: Card;
   /** The card helper; its panel appears when it is installed. */
@@ -57,8 +62,14 @@ export function BatchPrepare({
   /** The protocol the configuration came from, to say what is being written. */
   basedOn: ProtocolProvenance | null;
   units: BatchUnit[];
-  onUnitsChange: (units: BatchUnit[]) => void;
+  /**
+   * Takes an update as well as a list: cards are prepared one after another within a single
+   * action, and each result must land on the list as the one before left it.
+   */
+  onUnitsChange: Dispatch<SetStateAction<BatchUnit[]>>;
   onEditConfiguration: () => void;
+  /** Opens the recovery screen, for a connected card that cannot be opened. */
+  onRecover: () => void;
 }>) {
   const [prefix, setPrefix] = useState('');
   const [count, setCount] = useState(6);
@@ -109,7 +120,7 @@ export function BatchPrepare({
   });
 
   const setUnit = (index: number, patch: Partial<BatchUnit>) =>
-    onUnitsChange(units.map((unit, i) => (i === index ? { ...unit, ...patch } : unit)));
+    onUnitsChange((current) => current.map((unit, i) => (i === index ? { ...unit, ...patch } : unit)));
 
   const writeUnit = async (index: number) => {
     const unit = units[index];
@@ -175,10 +186,14 @@ export function BatchPrepare({
   /*
     Cards prepared through the helper, recorded against their units by label. The helper
     wrote the configuration itself, onto the freshly formatted card.
+
+    Applied to the list as it is by then, not as it was when the preparation started: erasing
+    some cards and then writing settings to others reports twice within one action, and the
+    second report must not put back what the first recorded.
   */
   const recordPrepared = (prepared: PreparedUnit[]) =>
-    onUnitsChange(
-      units.map((unit) => {
+    onUnitsChange((current) =>
+      current.map((unit) => {
         const match = prepared.find((entry) => entry.label === unit.label);
         if (!match) return unit;
         return match.ok
@@ -191,6 +206,8 @@ export function BatchPrepare({
     .map((unit) => unit.label);
 
   const written = units.filter((unit) => unit.status === 'written').length;
+  // Cards are written through the helper's list above, rather than one by one through the picker.
+  const direct = helper.status === 'ready' && blocking.length === 0;
   const nextPending = units.findIndex((unit) => unit.status === 'pending' || unit.status === 'error');
 
   return (
@@ -217,15 +234,15 @@ export function BatchPrepare({
           <li>
             <strong>{basedOn ? `${basedOn.name} v${basedOn.version}` : 'No protocol'}</strong>
             {' · '}
-            {summariseSchedule(config)}
+            {summarizeSchedule(config)}
             {config.isPhased && config.phases.length > 1 ? ` · ${config.phases.length} phases` : ''}
           </li>
           {(config.isPhased ? config.phases : config.phases.slice(0, 1)).map((phase, index) => (
             <li key={`${phase.name}-${index}`}>
               {config.isPhased ? <strong>{phase.name}: </strong> : null}
-              {/* Each half labelled: "Synchronised with audio" on its own did not say it was about
+              {/* Each half labeled: "Synchronized with audio" on its own did not say it was about
                   the motion sensor at all. */}
-              Audio: {summariseAudio(phase)} · Motion data: {summariseMotion(phase)}
+              Audio: {summarizeAudio(phase)} · Motion data: {summarizeMotion(phase)}
             </li>
           ))}
           <li>
@@ -239,7 +256,15 @@ export function BatchPrepare({
       </div>
 
       <div className="card">
-        <h2>Devices in this batch</h2>
+        <h2>
+          Devices in this batch
+          {units.length ? (
+            <span className="batch-count">
+              {' '}
+              — {written} of {units.length} {units.length === 1 ? 'card' : 'cards'} written
+            </span>
+          ) : null}
+        </h2>
         <p className="hint">
           Every unit gets the same settings with its own label. Labels are numbered from the prefix.
         </p>
@@ -278,87 +303,100 @@ export function BatchPrepare({
             </button>
           </div>
         </div>
+
+        {units.length ? (
+          <div className="batch-units">
+            {/*
+              With the card helper, cards are written from the pane above, where each one is
+              listed by the helper, so no row here needs a button of its own: a second way to
+              write the same card, through the folder picker, only made the two panes look like
+              rivals.
+            */}
+            <p className="hint">
+              {direct
+                ? 'Each unit starts as “No card yet”. It changes to “Card written” when you use “Prepare this card” on a card assigned to it in the “Cards connected to this computer” pane below.'
+                : CARD_ACCESS_SUPPORTED
+                  ? 'Insert a unit’s card and press “Write card”, then choose the card itself when the folder picker opens, so each unit’s settings go onto its own card.'
+                  : `This browser cannot write to a card directly. Download the batch as one archive, then copy each unit's ${CONFIG_FILE_NAME} to the top level of its card.`}
+            </p>
+            {!CARD_ACCESS_SUPPORTED ? (
+              <button className="btn primary" style={{ marginBottom: 14 }} onClick={downloadAll}>
+                Download all as a zip
+              </button>
+            ) : null}
+
+            <div className="meter" style={{ marginBottom: 16 }}>
+              <i style={{ width: `${(written / units.length) * 100}%`, background: 'var(--ok)' }} />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {units.map((unit, index) => (
+                <div
+                  key={index}
+                  className="period-row"
+                  style={{
+                    borderLeft: `3px solid ${STATUS_COLOR[unit.status]}`,
+                    background: index === nextPending ? 'var(--surface-2)' : 'var(--surface)',
+                  }}
+                >
+                  <input
+                    className="batch-label"
+                    value={unit.label}
+                    maxLength={DEVICE_LABEL_MAX_LEN}
+                    aria-label={`Label for unit ${index + 1}`}
+                    aria-invalid={labelProblems[index].length > 0}
+                    onChange={(event) => setUnit(index, { label: event.target.value })}
+                  />
+                  <span className={`chip ${STATUS_CHIP[unit.status]}`}>
+                    {unit.status === 'written' && unit.cardName === 'downloaded' ? 'Downloaded' : STATUS_TEXT[unit.status]}
+                  </span>
+                  {unit.cardName && unit.cardName !== 'downloaded' ? (
+                    <span className="muted mono">{unit.cardName}</span>
+                  ) : null}
+                  {unit.error ? <span className="muted" style={{ color: 'var(--crit)' }}>{unit.error}</span> : null}
+                  {labelProblems[index].length ? (
+                    <span className="batch-label-problem">{labelProblems[index].join(' ')}</span>
+                  ) : null}
+                  {unit.note ? <span className="batch-label-note">{unit.note}</span> : null}
+                  {direct ? null : (
+                    <button
+                      className={`btn ${index === nextPending ? 'primary' : ''}`}
+                      style={{ marginLeft: 'auto', padding: '4px 12px' }}
+                      disabled={busy || blocking.length > 0 || labelProblems[index].length > 0}
+                      onClick={() => (CARD_ACCESS_SUPPORTED ? void writeUnit(index) : downloadUnit(index))}
+                    >
+                      {!CARD_ACCESS_SUPPORTED ? 'Download' : unit.status === 'written' ? 'Write again…' : 'Write card…'}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {written === units.length ? (
+              <div className="banner ok" style={{ marginTop: 16, marginBottom: 0 }}>
+                <strong>All {units.length} units prepared</strong>
+                {config.ledsEnabled
+                  ? 'Each card carries its own label. The device runs its self-test at activation, so check the LED before sealing each unit.'
+                  : 'Each card carries its own label. The LEDs are off in this configuration, so a unit gives no visible sign that it activated or passed its self-test.'}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
+      {/* The cards, after the units they are prepared as: a card is prepared as one of the batch's units. */}
       {helper.status === 'ready' && blocking.length === 0 ? (
-        <ConnectedCards
-          helper={helper}
-          config={config}
-          firmware={card.targetFirmware}
-          labels={waiting}
-          known={units.map((unit) => unit.label)}
-          onPrepared={recordPrepared}
-        />
-      ) : null}
-
-      {units.length ? (
-        <div className="card">
-          <h2>Preparation — {written} of {units.length} written</h2>
-          <p className="hint">
-            {helper.status === 'ready'
-              ? 'Prepare the cards above, or write a unit’s configuration onto a card that is already formatted: insert it, press Write card, and choose the card itself in the folder picker.'
-              : CARD_ACCESS_SUPPORTED
-              ? 'Insert the card for a unit, then write it. The folder picker opens each time — choose the card itself, so each configuration writes to its own card.'
-              : `This browser cannot write to a card directly. Download the batch as one archive, then copy each unit's ${CONFIG_FILE_NAME} to the top level of its card.`}
-          </p>
-          {!CARD_ACCESS_SUPPORTED ? (
-            <button className="btn primary" style={{ marginBottom: 14 }} onClick={downloadAll}>
-              Download all as a zip
-            </button>
-          ) : null}
-
-          <div className="meter" style={{ marginBottom: 16 }}>
-            <i style={{ width: `${(written / units.length) * 100}%`, background: 'var(--ok)' }} />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {units.map((unit, index) => (
-              <div
-                key={index}
-                className="period-row"
-                style={{
-                  borderLeft: `3px solid ${STATUS_COLOR[unit.status]}`,
-                  background: index === nextPending ? 'var(--surface-2)' : 'var(--surface)',
-                }}
-              >
-                <input
-                  className="batch-label"
-                  value={unit.label}
-                  maxLength={DEVICE_LABEL_MAX_LEN}
-                  aria-label={`Label for unit ${index + 1}`}
-                  aria-invalid={labelProblems[index].length > 0}
-                  onChange={(event) => setUnit(index, { label: event.target.value })}
-                />
-                <span className={`chip ${STATUS_CHIP[unit.status]}`}>{STATUS_TEXT[unit.status]}</span>
-                {unit.cardName && unit.cardName !== 'downloaded' ? (
-                  <span className="muted mono">{unit.cardName}</span>
-                ) : null}
-                {unit.error ? <span className="muted" style={{ color: 'var(--crit)' }}>{unit.error}</span> : null}
-                {labelProblems[index].length ? (
-                  <span className="batch-label-problem">{labelProblems[index].join(' ')}</span>
-                ) : null}
-                {unit.note ? <span className="batch-label-note">{unit.note}</span> : null}
-                <button
-                  className={`btn ${index === nextPending ? 'primary' : ''}`}
-                  style={{ marginLeft: 'auto', padding: '4px 12px' }}
-                  disabled={busy || blocking.length > 0 || labelProblems[index].length > 0}
-                  onClick={() => (CARD_ACCESS_SUPPORTED ? void writeUnit(index) : downloadUnit(index))}
-                >
-                  {unit.status === 'written' ? 'Write again' : CARD_ACCESS_SUPPORTED ? 'Write card' : 'Download'}
-                </button>
-              </div>
-            ))}
-          </div>
-
-          {written === units.length ? (
-            <div className="banner ok" style={{ marginTop: 16, marginBottom: 0 }}>
-              <strong>All {units.length} units prepared</strong>
-              {config.ledsEnabled
-                ? 'Each card carries its own label. The device runs its self-test at activation, so check the LED before sealing each unit.'
-                : 'Each card carries its own label. The LEDs are off in this configuration, so a unit gives no visible sign that it activated or passed its self-test.'}
-            </div>
-          ) : null}
-        </div>
+        <Suspense fallback={null}>
+          <ConnectedCards
+            helper={helper}
+            config={config}
+            firmware={card.targetFirmware}
+            labels={waiting}
+            known={units.map((unit) => unit.label)}
+            onPrepared={recordPrepared}
+            onRecover={onRecover}
+          />
+        </Suspense>
       ) : null}
     </>
   );
@@ -379,8 +417,8 @@ const STATUS_CHIP: Record<BatchUnit['status'], string> = {
 };
 
 const STATUS_TEXT: Record<BatchUnit['status'], string> = {
-  pending: 'Not written',
+  pending: 'No card yet',
   writing: 'Writing…',
-  written: 'Written',
+  written: 'Card written',
   error: 'Failed',
 };

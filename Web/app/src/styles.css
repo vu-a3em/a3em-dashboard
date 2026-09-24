@@ -26,7 +26,7 @@
      darker than the page so the frame reads as frame and the white panes as the content.
      The top bar used to be pane-white, which made the title look like one more data pane. */
   --rail-bg: #dce6df;
-  /* The selected item is a white tab, the colour of the panes it opens. */
+  /* The selected item is a white tab, the color of the panes it opens. */
   --rail-active: #ffffff;
   --rail-hover: rgba(255, 255, 255, 0.6);
   --primary: #2f6f5e;
@@ -37,7 +37,7 @@
   --mark-signal: #5dae86;
   --signal: #b4622f;
   --signal-wash: #f6e8dd;
-  /* A grass green, clearly apart from the teal primary: success used to be the brand colour
+  /* A grass green, clearly apart from the teal primary: success used to be the brand color
      at 1.1:1, so "Written" and "Ready" read as ordinary chrome. */
   --ok: #2c7a3a;
   /* 5.5:1 on its wash; the old amber was 3.75:1. */
@@ -119,10 +119,10 @@ button:disabled {
 
 /* ---------- shell ---------- */
 
-/* Rail and content centre together as one unit. Centring only the content column left
+/* Rail and content center together as one unit. Centering only the content column left
    the navigation stranded against the window edge with a band of nothing between it and
    the page it belongs to, which reads worse than the left-aligned layout it replaced. */
-/* Full bleed. Centring the whole shell to cap the reading column also pulled the rail and
+/* Full bleed. Centering the whole shell to cap the reading column also pulled the rail and
    the top bar in off the browser edges, which made the chrome look like a floating card
    rather than the frame of the window. The column width is the content's problem, not the
    frame's. */
@@ -154,7 +154,7 @@ button:disabled {
   It used to be --surface, which made an L of white down the left and across the top with
   the content field set into it: the frame was then the brightest thing on screen and the
   rail ran into the title bar as one shape. Falling back to --paper fixed that but went too
-  far — sharing the field's colour left a 1px line doing all the separating. So the ramp
+  far — sharing the field's color left a 1px line doing all the separating. So the ramp
   now runs rail, field, panes, darkest to lightest, and --surface goes back to meaning one
   thing: a surface you act on.
 */
@@ -218,7 +218,7 @@ button:disabled {
  * Ambient state at the bottom of the rail: firmware version, then card tools.
  *
  * Label-and-value rows rather than bare values. `fw 1.4.2` alone told you neither whose
- * firmware nor where the number came from, and an unlabelled status word is worse.
+ * firmware nor where the number came from, and an unlabeled status word is worse.
  */
 .rail-foot {
   margin-top: auto;
@@ -290,6 +290,9 @@ button:disabled {
 .rail-foot-action:hover {
   color: var(--primary-deep);
 }
+.rail-foot-action.warn {
+  color: var(--warn);
+}
 
 .main {
   min-width: 0;
@@ -324,7 +327,7 @@ button:disabled {
 /* The content column, and the header above it, share one width so the page reads as a
    single column rather than a title floating left of its own content.
 
-   Centred and capped rather than stretched to the viewport. The cap is the point: this
+   Centered and capped rather than stretched to the viewport. The cap is the point: this
    page mixes prose with data, and running a sentence to 200 characters on a 27-inch
    monitor is harder to read than the whitespace it replaces. Data that genuinely wants
    the room -- stat grids, tables, the coverage heatmap -- reflows into it, while prose
@@ -686,6 +689,25 @@ details.card > summary + .field {
 .banner.crit {
   background: var(--crit-wash);
   border-color: var(--crit);
+}
+
+.findings {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.findings > li + li {
+  margin-top: 4px;
+}
+
+.finding-paths {
+  margin: 2px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+  list-style: none;
+  max-height: 160px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
 }
 .banner strong {
   display: block;
@@ -1225,7 +1247,7 @@ table.data td.num {
   background: none;
 }
 /* In the grid an out-of-deployment hour is correctly blank, but a blank swatch in the
-   legend is just a gap where a colour should be. Outline it so the key has a mark to
+   legend is just a gap where a color should be. Outline it so the key has a mark to
    point at without implying the grid draws one. */
 .heat-legend i.unknown {
   background: none;
@@ -1388,7 +1410,7 @@ details.card:not([open]) > summary {
   border-radius: var(--radius);
 }
 /*
-  Only while shut, where the band is the whole card and the title sits centred in it.
+  Only while shut, where the band is the whole card and the title sits centered in it.
 
   An open pane's summary has the card's padding above the title and nothing below, so the
   highlight stopped hard against the text's descenders with the pane's first line of
@@ -1396,7 +1418,7 @@ details.card:not([open]) > summary {
   it out symmetrically would either add 14px under every open title or, with a negative
   margin to claw that back, run the green behind the content below it.
 
-  So an open pane keeps a hover, but expresses it as the heading turning colour (below),
+  So an open pane keeps a hover, but expresses it as the heading turning color (below),
   which needs no box at all. The affordance also matters far less there: shut, the whole
   card is a button and should look like one; open, the caret and the content already say
   what the pane is.
@@ -1529,7 +1551,7 @@ details.card[open] > summary > .summary-note {
  * twice.
  */
 /*
- * A native <dialog>, so focus trapping, Escape, page inertness, and centring come from
+ * A native <dialog>, so focus trapping, Escape, page inertness, and centering come from
  * the platform rather than from a hand-rolled overlay.
  */
 .modal {
@@ -1745,7 +1767,7 @@ details.card[open] > summary > .summary-note {
   margin-top: 4px;
 }
 
-/* A destructive confirmation, in the one colour reserved for things that cannot be undone. */
+/* A destructive confirmation, in the one color reserved for things that cannot be undone. */
 .btn.danger {
   background: var(--crit);
   border-color: var(--crit);
@@ -1846,6 +1868,70 @@ details.card[open] > summary > .summary-note {
 }
 
 /* The batch's "what each card will carry", one line per part of the configuration. */
+/* The card as hardware: facts, not figures, so smaller than the stat panels' numbers. */
+.physical-card .stat-value {
+  font-size: 15px;
+}
+
+/* Recovering a card: the steps in the order they must be taken. */
+.recovery-steps {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.recovery-steps li {
+  padding: 4px 0 6px;
+}
+.recovery-steps li strong {
+  color: var(--ink);
+}
+.recovery-steps li.done::marker {
+  color: var(--ok);
+}
+.recovery-steps li.done strong::after {
+  content: ' ✓';
+  color: var(--ok);
+}
+.recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.confirm-inline {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.confirm-inline input {
+  margin-top: 3px;
+}
+.fsck-output {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  max-height: 240px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  background: var(--sunken);
+  border-radius: var(--radius);
+}
+
+/* The batch's units, below the controls that create them. */
+.batch-units {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.batch-count {
+  font-weight: 400;
+  color: var(--ink-3);
+}
 .batch-summary {
   margin: 0 0 12px;
   padding-left: 18px;
@@ -1911,12 +1997,77 @@ details.card[open] > summary > .summary-note {
 .connected-card-actions select {
   height: 30px;
 }
-.connected-card-task {
+/* What the helper is doing with a card: a spinner on the step under way, check marks on the rest. */
+.card-log {
   margin-top: 8px;
   font-size: 12px;
   color: var(--ink-2);
 }
-.connected-card-task .meter i {
+.card-log summary {
+  cursor: pointer;
+  color: var(--ink-3);
+}
+.card-log summary + .card-log-lines {
+  margin-top: 6px;
+}
+.card-log-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.card-log-lines li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.card-log-lines li.done {
+  color: var(--ink-3);
+}
+.card-log-lines li.failed {
+  color: var(--crit);
+}
+.card-log-mark {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-top: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+.card-log-lines li.done .card-log-mark {
+  color: var(--ok);
+}
+.card-log-lines li.current .card-log-mark {
+  border: 2px solid var(--line-2);
+  border-top-color: var(--primary);
+  border-radius: 99px;
+  animation: card-log-spin 0.8s linear infinite;
+}
+@keyframes card-log-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-log-lines li.current .card-log-mark {
+    animation: none;
+    border-color: var(--primary);
+  }
+}
+.card-log-text {
+  flex: 1;
+  min-width: 0;
+}
+.card-log-text .meter {
+  display: block;
+  margin-top: 4px;
+  max-width: 320px;
+}
+.card-log-text .meter i {
   background: var(--primary);
 }
 .card-result {
@@ -1937,6 +2088,20 @@ details.card[open] > summary > .summary-note {
 }
 .readiness-verdict.not-ready {
   color: var(--crit);
+}
+.readiness-plan {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--sunken);
+  font-size: 13px;
+  color: var(--ink);
+}
+.readiness-plan.erase {
+  background: var(--warn-wash);
+}
+.readiness-plan.blocked {
+  background: var(--crit-wash);
 }
 .readiness-checks {
   list-style: none;
@@ -2058,7 +2223,7 @@ details.card[open] > summary > .summary-note {
    always reachable, never mistaken for one of them. */
 .rail-foot-link {
   display: block;
-  margin-top: 6px;
+  margin-top: 3px;
   padding-top: 8px;
   /* The rail's own 20px bottom padding sits below this. Taking some back leaves the same
      space below the text as between the rule and the text (10px each, measured). */
@@ -2105,7 +2270,7 @@ details.card[open] > summary > .summary-note {
   width: 100%;
   margin-top: 8px;
 }
-/* Links inside the small print of dialogs and panes, in the app's own colour. */
+/* Links inside the small print of dialogs and panes, in the app's own color. */
 .card-help a,
 .hint a {
   color: var(--primary);
@@ -2350,6 +2515,32 @@ details.card[open] > summary > .summary-note {
 }
 .account-add {
   margin-top: 8px;
+}
+/* The name, above the ways to sign in: a divider there too, and none below it. */
+.account-name + .account-methods {
+  margin-top: 0;
+}
+.account-name-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 5px 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.account-name-value .link-button {
+  margin-left: auto;
+  font-size: 12px;
+}
+.account-name-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.account-name-form input {
+  flex: 1;
+  min-width: 0;
 }
 .account-add .account-providers {
   margin: 6px 0 8px;

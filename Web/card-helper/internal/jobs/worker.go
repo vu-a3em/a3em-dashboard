@@ -19,9 +19,13 @@ import (
 )
 
 /*
-	The elevated worker.
+	The elevated worker, on Linux and Windows.
 
-	A card's raw device belongs to root (macOS, Linux) or needs an elevated token (Windows),
+	On macOS there is none: a root worker is refused the card by the privacy protection there,
+	so the job runs in this process on descriptors authopen opens (blockdev/authorize_darwin.go),
+	after one password prompt for all of them.
+
+	A card's raw device belongs to root (Linux) or needs an elevated token (Windows),
 	but the helper Chrome starts runs as the person using it — and must, so that what it
 	mounts belongs to them. So raw-device work is written to a job directory, and a second
 	copy of this executable is started with administrator rights to do it:
@@ -42,6 +46,8 @@ const (
 	jobFile      = "job.json"
 	progressFile = "progress.jsonl"
 	resultFile   = "result.json"
+	// stopFile, once it exists, asks the worker to stop a job that can stop.
+	stopFile = "stop"
 )
 
 // Execute runs a job in this process when it can open everything the job touches, and in an
@@ -62,13 +68,28 @@ func Execute(job Job, plat platform.Platform, paths []string, report Reporter, r
 			here = false
 		}
 	}
-	if here {
+	if here && !blockdev.ForcedAuthopen() {
+		return Run(job, plat, report), nil
+	}
+	if runtime.GOOS == "darwin" {
+		report(Update{Stage: "authorize", Note: "Waiting for an administrator password."})
+		release, err := blockdev.Authorize(paths, writes(job))
+		if err != nil {
+			message, code := describe(err)
+			return Result{}, &Failed{message, code, ""}
+		}
+		defer release()
 		return Run(job, plat, report), nil
 	}
 	return elevated(job, plat, report, reason)
 }
 
-var cancelled = regexp.MustCompile(`(?i)user cancel+ed|\(-128\)|canceled by the user|cancelled by the user|request dismissed|not authorized|authorization could not be obtained`)
+// writes is whether a job opens its devices for writing.
+func writes(job Job) bool {
+	return job.Kind == KindPrepare || job.Kind == KindFix || (job.Kind == KindFsck && job.Repair)
+}
+
+var canceled = regexp.MustCompile(`(?i)user cancel+ed|\(-128\)|canceled by the user|cancelled by the user|request dismissed|not authorized|authorization could not be obtained`)
 
 func elevated(job Job, plat platform.Platform, report Reporter, reason string) (Result, error) {
 	if runtime.GOOS != "windows" {
@@ -100,11 +121,27 @@ func elevated(job Job, plat platform.Platform, report Reporter, reason string) (
 	cmd := exec.Command(command.Name, command.Args...)
 	var output bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
+	// The system's password prompt can open behind the browser, so the page says it is coming.
+	if os.Getenv("A3EM_HELPER_WORKER") != "direct" {
+		report(Update{Stage: "authorize", Note: "Waiting for an administrator password."})
+	}
 	if err := cmd.Start(); err != nil {
 		return Result{}, &platform.CommandError{Message: "Could not ask for administrator access: " + err.Error(), Command: command.Name}
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
+	// The worker cannot be signaled across the privilege line, so asking it to stop is a file.
+	finished := make(chan struct{})
+	defer close(finished)
+	if job.Stop != nil {
+		go func() {
+			select {
+			case <-job.Stop:
+				os.WriteFile(filepath.Join(dir, stopFile), nil, 0o644)
+			case <-finished:
+			}
+		}()
+	}
 
 	var offset int64
 	forward := func() {
@@ -149,7 +186,7 @@ wait:
 		if errors.As(waitErr, &exit) {
 			code = exit.ExitCode()
 		}
-		if cancelled.MatchString(text) || (runtime.GOOS == "linux" && code == 126) {
+		if canceled.MatchString(text) || (runtime.GOOS == "linux" && code == 126) {
 			return Result{}, &Failed{"Administrator access was not given, so nothing was changed.", "cancelled", ""}
 		}
 		return Result{}, &platform.CommandError{Message: "The administrator step did not finish.", Command: command.Name, Code: code, Output: text}
@@ -191,6 +228,17 @@ func RunWorker(dir string, plat platform.Platform) error {
 		line, _ := json.Marshal(update)
 		progress.Write(append(line, '\n'))
 	}
+	stop := make(chan struct{})
+	go func() {
+		for {
+			if _, err := os.Stat(filepath.Join(dir, stopFile)); err == nil {
+				close(stop)
+				return
+			}
+			time.Sleep(250 * time.Millisecond)
+		}
+	}()
+	job.Stop = stop
 	result := Run(job, plat, report)
 	out, _ := json.Marshal(result)
 	temporary := filepath.Join(dir, resultFile+".tmp")

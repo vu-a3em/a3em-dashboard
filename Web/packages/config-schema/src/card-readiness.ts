@@ -12,9 +12,13 @@ import { parseConfig } from './parse.js';
  * lives here, beside `judgeCardFormat`, so the rules are tested once and read the same in the
  * dashboard as in any other tool built on this package.
  *
- * Unknown is not failure. The capacity probe is destructive, so it only runs while a card is
- * being prepared; a card prepared on another computer cannot be vouched for here, and says so
- * rather than passing by default.
+ * Each check's title says what was found ("Card has files on it"), not what was hoped for, so a
+ * title never contradicts the sentence after it.
+ *
+ * The capacity and write-speed tests overwrite the whole card, so they run only while a card is
+ * being prepared, and a check only reports what they found then. A card never tested here gets
+ * a note saying so rather than two checks it could never pass: a check is for something the
+ * person can act on now.
  */
 
 /** What the card helper's readiness operation reports. */
@@ -55,6 +59,8 @@ export interface CardReadinessReport {
   } | null;
   /** Why `layout` is null: `needs-admin`, `cancelled`, or the failure's code. */
   layoutSkipped?: string;
+  /** What went wrong reading the layout, in words, when `layoutSkipped` is a failure. */
+  layoutError?: string;
   /** What this computer recorded when it prepared this very format of the card. */
   prepared: {
     preparedAt: string;
@@ -98,59 +104,86 @@ export interface ReadinessCheck {
   status: ReadinessStatus;
   /** One or two sentences, addressed to the person holding the card. */
   detail: string;
+  /**
+   * What fixes it, where preparing can: `prepare`, only erasing and setting the card up again;
+   * `settings`, writing its configuration, which erasing does too; `relabel`, the card's name,
+   * which erasing sets but is no reason to erase. Absent when it passed, was not checked, or is
+   * something preparing cannot change — a lock switch, a counterfeit, a card too small.
+   */
+  fix?: 'prepare' | 'settings' | 'relabel';
 }
 
 export interface ReadinessVerdict {
   /** `ready`: everything passed. `attention`: nothing failed, but something is unknown or advisory. */
   status: 'ready' | 'attention' | 'not-ready';
   checks: ReadinessCheck[];
+  /** Things worth knowing that are not checks and do not affect the status. */
+  notes: string[];
 }
 
 function size(bytes: number): string {
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(1)} TB`;
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
-  return `${Math.max(0, Math.round(bytes / 1e6))} MB`;
+  if (bytes >= 1e6) return `${Math.round(bytes / 1e6)} MB`;
+  // A few small files read as "0 MB", which looks like nothing at all.
+  return bytes >= 1e3 ? `${Math.round(bytes / 1e3)} kB` : `${Math.max(0, bytes)} bytes`;
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString('en')} ${n === 1 ? one : many}`;
 
 export function judgeReadiness(report: CardReadinessReport, expected: ReadinessExpectation = {}): ReadinessVerdict {
   const checks: ReadinessCheck[] = [];
-  const add = (id: ReadinessCheckId, title: string, status: ReadinessStatus, detail: string) =>
-    checks.push({ id, title, status, detail });
+  const notes: string[] = [];
+  const add = (id: ReadinessCheckId, title: string, status: ReadinessStatus, detail: string) => {
+    const fix = fixFor(id, status);
+    checks.push(fix ? { id, title, status, detail, fix } : { id, title, status, detail });
+  };
 
-  add(
-    'write-protect',
-    'Not write-protected',
-    report.device.writeProtected ? 'fail' : 'pass',
-    report.device.writeProtected
-      ? 'The card is locked. Slide the switch on its side away from LOCK and reinsert it: a recorder cannot write to a locked card.'
-      : 'The recorder can write to it.',
-  );
+  if (report.device.writeProtected) {
+    add(
+      'write-protect',
+      'Card is locked',
+      'fail',
+      'The switch on its side is at LOCK, so a recorder cannot write to it. Slide the switch away from LOCK and reinsert the card.',
+    );
+  } else {
+    add('write-protect', 'Card is not locked', 'pass', 'The recorder can write to it.');
+  }
 
   const layout = report.layout;
   if (layout) {
     const differing = (layout.regions ?? []).filter((region) => region.status === 'differs').map((region) => region.name);
-    add(
-      'layout',
-      'Layout matches the reference',
-      layout.reference ? 'pass' : 'fail',
-      layout.reference
-        ? `Every structure matches the layout the formatter writes${layout.clusterBytes ? `, at ${formatAllocationUnit(layout.clusterBytes)} clusters` : ''}.`
-        : layout.problem
+    if (layout.reference) {
+      add(
+        'layout',
+        'Layout matches the reference',
+        'pass',
+        `Every structure matches the layout the A3EM formatter writes${layout.clusterBytes ? `, at ${formatAllocationUnit(layout.clusterBytes)} clusters` : ''}.`,
+      );
+    } else {
+      add(
+        'layout',
+        'Layout differs from the reference',
+        'fail',
+        layout.problem
           ? `${layout.problem} Prepare the card to give it the reference layout.`
-          : `Differs from the reference in: ${differing.join(', ')}. Prepare the card to give it the reference layout.`,
-    );
+          : `These parts differ: ${differing.join(', ')}. Prepare the card to give it the reference layout.`,
+      );
+    }
   } else {
+    // A helper older than `layoutError` says why only among its problems.
+    const reason =
+      report.layoutError ??
+      report.problems?.find((problem) => problem.startsWith(LAYOUT_UNREAD))?.slice(LAYOUT_UNREAD.length).trim();
     add(
       'layout',
-      'Layout matches the reference',
+      'Layout not checked',
       'unknown',
       report.layoutSkipped === 'cancelled'
-        ? 'Not checked: administrator access was not given.'
+        ? 'Administrator access was not given, so the card’s layout was not read.'
         : report.layoutSkipped === 'needs-admin' || !report.layoutSkipped
-          ? 'Not checked. Reading the card’s layout needs administrator access; check again with the layout included.'
-          : 'Not checked: the card’s layout could not be read.',
+          ? 'Reading the card’s layout needs administrator access. Check the card again, and enter the password when asked.'
+          : `The card’s layout could not be read: ${reason || 'no reason was given.'} Check the card again; if this keeps happening, please report it with this message.`,
     );
   }
 
@@ -158,20 +191,11 @@ export function judgeReadiness(report: CardReadinessReport, expected: ReadinessE
   if (capacity) {
     add(
       'capacity',
-      'Capacity is real',
+      capacity.genuine ? 'Capacity is genuine' : 'Capacity is counterfeit',
       capacity.genuine ? 'pass' : 'fail',
       capacity.genuine
         ? `Tested when this computer prepared it: all ${size(capacity.claimedBytes)} kept what was written.`
-        : `Counterfeit: it claims ${size(capacity.claimedBytes)} but only the first ${size(capacity.verifiedBytes)} kept what was written. Recordings past that point would be lost. Do not deploy it.`,
-    );
-  } else {
-    add(
-      'capacity',
-      'Capacity is real',
-      'unknown',
-      report.prepared
-        ? 'This card was prepared here without the capacity test.'
-        : 'Not tested on this computer. Preparing the card here tests it; the test erases the card.',
+        : `It claims ${size(capacity.claimedBytes)}, but only the first ${size(capacity.verifiedBytes)} kept what was written. Recordings past that point would be lost. Do not deploy it.`,
     );
   }
 
@@ -179,7 +203,7 @@ export function judgeReadiness(report: CardReadinessReport, expected: ReadinessE
   if (latency) {
     add(
       'write-speed',
-      'Writes keep up',
+      latency.verdict === 'ok' ? 'Writes keep up' : latency.verdict === 'slow' ? 'Some writes are slow' : 'Writes stall',
       latency.verdict === 'ok' ? 'pass' : 'warn',
       latency.verdict === 'ok'
         ? `Steady at ${latency.mbPerSecond.toFixed(0)} MB/s; the slowest write took ${Math.round(latency.maxMs)} ms.`
@@ -187,85 +211,99 @@ export function judgeReadiness(report: CardReadinessReport, expected: ReadinessE
           ? `Some writes took ${Math.round(latency.p99Ms)} ms or more. The recorder may lose audio while the card catches up.`
           : `The card stalled for up to ${(latency.maxMs / 1000).toFixed(1)} s on some writes. The recorder may lose audio during stalls; a different card is safer.`,
     );
-  } else {
-    add('write-speed', 'Writes keep up', 'unknown', 'Not measured on this computer. Preparing the card here measures it.');
+  }
+
+  if (!report.prepared) {
+    notes.push(
+      'Capacity and write speed were not checked. Testing them overwrites the whole card, so they will not be verified until a card is prepared on this computer.',
+    );
+  } else if (!capacity || !latency) {
+    const untested = [capacity ? null : 'capacity', latency ? null : 'write speed'].filter(Boolean);
+    notes.push(`This card was prepared on this computer without testing its ${untested.join(' or ')}.`);
   }
 
   if (report.geometry) {
     const format = judgeCardFormat(report.geometry, expected.allocationUnitBytes ?? null);
     const worst = format.issues.find((issue) => issue.severity === 'critical') ?? format.issues[0];
-    add(
-      'format',
-      'Format suits the firmware',
-      !worst ? 'pass' : worst.severity === 'critical' ? 'fail' : 'warn',
-      worst ? [worst.message, worst.remedy].filter(Boolean).join(' ') : 'exFAT on an MBR partition, as the firmware requires.',
-    );
+    if (!worst) {
+      add('format', 'Format suits the firmware', 'pass', 'exFAT on an MBR partition, as the firmware requires.');
+    } else {
+      add(
+        'format',
+        worst.severity === 'critical' ? 'Format will not work in the recorder' : 'Format works, with a caveat',
+        worst.severity === 'critical' ? 'fail' : 'warn',
+        [worst.message, worst.remedy].filter(Boolean).join(' '),
+      );
+    }
   } else {
-    add('format', 'Format suits the firmware', 'fail', 'The card has no volume the system can read. Prepare it before use.');
+    add('format', 'No readable volume', 'fail', 'The system cannot read a volume on the card. Prepare it before use.');
   }
 
   const contents = report.contents;
-  if (contents) {
-    const items = contents.files + contents.directories;
+  if (!contents) {
+    add('empty', 'Contents not checked', 'unknown', 'The card is not mounted, so its files could not be read.');
+  } else if (contents.files + contents.directories === 0) {
+    add('empty', 'Card is empty', 'pass', report.config?.present ? `Nothing on it besides ${CONFIG_FILE_NAME}.` : 'Nothing is on it.');
+  } else {
+    const what = contents.files > 0 ? `${plural(contents.files, 'file')} (${size(contents.bytes)})` : plural(contents.directories, 'folder');
     add(
       'empty',
-      'Card is empty',
-      items === 0 ? 'pass' : 'warn',
-      items === 0
-        ? `Nothing on it besides ${CONFIG_FILE_NAME}.`
-        : `It holds ${contents.truncated ? 'at least ' : ''}${plural(contents.files, 'file')} (${size(contents.bytes)}) from before${
-            contents.examples?.length ? `, such as ${contents.examples.slice(0, 2).join(' and ')}` : ''
-          }. The recorder adds to them and fills sooner; copy them off and prepare the card if they are not needed.`,
+      'Card has files on it',
+      'warn',
+      `It holds ${contents.truncated ? 'at least ' : ''}${what} from before${
+        contents.examples?.length ? `, such as ${contents.examples.slice(0, 2).join(' and ')}` : ''
+      }. The recorder adds its own beside them, so the card fills sooner. Copy them off and prepare the card if they are not needed.`,
     );
-  } else {
-    add('empty', 'Card is empty', 'unknown', 'Not checked: the card is not mounted.');
   }
 
   const config = report.config;
-  let parsedOk = false;
   if (!config) {
-    add('config', 'Configuration is present', 'unknown', 'Not checked: the card is not mounted.');
+    add('config', 'Configuration not checked', 'unknown', 'The card is not mounted, so its configuration could not be read.');
   } else if (!config.present) {
     add(
       'config',
-      'Configuration is present',
+      'No configuration file',
       'fail',
       `There is no ${CONFIG_FILE_NAME}. Without one, the recorder shows its missing-configuration light and restarts every 15 seconds instead of recording.`,
     );
   } else if (config.tooLarge || config.text === undefined) {
-    add('config', 'Configuration is present', 'fail', `${CONFIG_FILE_NAME} is ${size(config.bytes)}, far larger than any configuration.`);
+    add('config', 'Configuration file is too large', 'fail', `${CONFIG_FILE_NAME} is ${size(config.bytes)}, far larger than any configuration.`);
   } else {
     const parsed = parseConfig(config.text);
-    parsedOk = parsed.warnings.length === 0;
+    const parsedOk = parsed.warnings.length === 0;
     add(
       'config',
-      'Configuration is present',
+      parsedOk ? 'Configuration file reads cleanly' : 'Configuration file may be misread',
       parsedOk ? 'pass' : 'warn',
       parsedOk
-        ? `${CONFIG_FILE_NAME} for ${parsed.config.deviceLabel || 'an unlabelled device'} reads cleanly.`
-        : `${CONFIG_FILE_NAME} reads, but the recorder may not read it the same way: ${parsed.warnings[0]}`,
+        ? `${CONFIG_FILE_NAME} for ${parsed.config.deviceLabel || 'an unlabeled device'} reads without problems.`
+        : `${CONFIG_FILE_NAME} reads here, but the recorder may not read it the same way: ${parsed.warnings[0]}`,
     );
   }
   if (expected.configText != null && config?.present && config.text !== undefined) {
-    const same = normalise(config.text) === normalise(expected.configText);
+    const same = normalize(config.text) === normalize(expected.configText);
     add(
       'config-match',
-      'Configuration is this deployment’s',
+      same ? 'Configuration matches this unit' : 'Configuration is not this unit’s',
       same ? 'pass' : 'fail',
-      same ? 'Identical to the configuration being prepared.' : 'The configuration on the card is not the one being prepared. Write it again.',
+      same
+        ? 'Identical to the configuration being prepared.'
+        : 'The configuration on the card differs from the one being prepared for this unit.',
     );
   }
 
   if (expected.volumeLabel && report.volume) {
     const label = report.volume.label ?? '';
-    add(
-      'label',
-      'Card is labelled',
-      label === expected.volumeLabel ? 'pass' : 'warn',
-      label === expected.volumeLabel
-        ? `The volume is named ${label}.`
-        : `The volume is named ${label || 'nothing'}, not ${expected.volumeLabel}. The recorder does not mind; it only makes the card harder to tell apart.`,
-    );
+    if (label === expected.volumeLabel) {
+      add('label', 'Card name matches', 'pass', `The card is named ${label}.`);
+    } else {
+      add(
+        'label',
+        'Card name differs',
+        'warn',
+        `The card is named ${label || 'nothing'}, not ${expected.volumeLabel}. The recorder does not mind; it only makes the card harder to tell apart.`,
+      );
+    }
   }
 
   if (expected.requiredBytes != null && report.freeBytes != null) {
@@ -276,14 +314,14 @@ export function judgeReadiness(report: CardReadinessReport, expected: ReadinessE
       // No card of this size could hold it: the plan's limit, which the forecast already states.
       add(
         'space',
-        'Room for the deployment',
+        'Card too small for the whole deployment',
         'warn',
         `The deployment needs about ${size(needed)}, more than this ${size(report.device.sizeBytes)} card holds, so it stops recording when the card fills. A larger card would last the whole deployment.`,
       );
     } else {
       add(
         'space',
-        'Room for the deployment',
+        'Not enough free space',
         'fail',
         `The deployment needs about ${size(needed)} but only ${size(report.freeBytes)} is free, so recording stops early. Copy off what is on the card and prepare it.`,
       );
@@ -295,7 +333,68 @@ export function judgeReadiness(report: CardReadinessReport, expected: ReadinessE
     : checks.some((check) => check.status !== 'pass')
       ? 'attention'
       : 'ready';
-  return { status, checks };
+  return { status, checks, notes };
 }
 
-const normalise = (text: string) => text.replace(/\r\n/g, '\n').trimEnd();
+/** What fixes each check when it fails or warns. The rest are beyond what preparing can change. */
+const FIXES: Partial<Record<ReadinessCheckId, 'prepare' | 'settings' | 'relabel'>> = {
+  layout: 'prepare',
+  format: 'prepare',
+  empty: 'prepare',
+  space: 'prepare',
+  config: 'settings',
+  'config-match': 'settings',
+  label: 'relabel',
+};
+
+function fixFor(id: ReadinessCheckId, status: ReadinessStatus): 'prepare' | 'settings' | 'relabel' | undefined {
+  if (status === 'pass' || status === 'unknown') return undefined;
+  // A card too small for the whole deployment is too small however it is prepared.
+  if (id === 'space' && status === 'warn') return undefined;
+  return FIXES[id];
+}
+
+/**
+ * The least work that makes a checked card ready: what "Prepare this card" will do with it.
+ *
+ *  - `erase` — something only erasing and setting the card up again fixes: its layout, its
+ *    format, what is on it, or room for the deployment.
+ *  - `settings` — only the configuration is missing or not this unit's, so writing it is
+ *    enough and nothing is erased.
+ *  - `none` — nothing preparing could improve.
+ *  - `blocked` — preparing cannot help: the card is locked, or its capacity is counterfeit.
+ *
+ * Each names, by the checks' titles, everything it fixes — not only what made it necessary:
+ * erasing also writes the configuration and names the card — and what it cannot fix, so
+ * nothing is promised that will not happen. Writing settings also names what it leaves.
+ */
+export type PreparationPlan =
+  | { kind: 'blocked'; reason: string }
+  | { kind: 'erase'; fixes: string[]; cannotFix: string[] }
+  | { kind: 'settings'; fixes: string[]; leaves: string[]; cannotFix: string[] }
+  | { kind: 'none' };
+
+export function planPreparation(verdict: ReadinessVerdict): PreparationPlan {
+  const failed = (id: ReadinessCheckId) => verdict.checks.some((check) => check.id === id && check.status === 'fail');
+  if (failed('write-protect')) {
+    return { kind: 'blocked', reason: 'The card is locked. Slide the switch on its side away from LOCK, reinsert it, and check it again.' };
+  }
+  if (failed('capacity')) {
+    return { kind: 'blocked', reason: 'Its capacity is counterfeit, which preparing cannot change. Do not deploy it.' };
+  }
+  const titles = (checks: ReadinessCheck[]) => checks.map((check) => check.title);
+  const cannotFix = titles(verdict.checks.filter((check) => !check.fix && (check.status === 'fail' || check.status === 'warn')));
+  if (verdict.checks.some((check) => check.fix === 'prepare')) {
+    return { kind: 'erase', fixes: titles(verdict.checks.filter((check) => check.fix)), cannotFix };
+  }
+  const settings = verdict.checks.filter((check) => check.fix === 'settings');
+  if (settings.length) {
+    return { kind: 'settings', fixes: titles(settings), leaves: titles(verdict.checks.filter((check) => check.fix === 'relabel')), cannotFix };
+  }
+  return { kind: 'none' };
+}
+
+/** How the helper begins the problem it records when a layout cannot be read. */
+const LAYOUT_UNREAD = "The card's layout could not be read:";
+
+const normalize = (text: string) => text.replace(/\r\n/g, '\n').trimEnd();

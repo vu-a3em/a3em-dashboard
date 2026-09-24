@@ -28,7 +28,8 @@ type Device interface {
 }
 
 // ErrPermission is returned when the device exists but this process may not open it, which
-// is the signal to retry through an elevated worker.
+// is the signal to retry through an elevated worker — or, on macOS, that the privacy settings
+// refused it even with authorization.
 var ErrPermission = errors.New("permission denied opening the raw device")
 
 // Aligned returns a zeroed buffer of n bytes whose address is a multiple of Alignment.

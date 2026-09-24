@@ -83,10 +83,10 @@ export function useCard() {
   const [state, setState] = useState<CardState>(INITIAL);
 
   useEffect(() => {
-    let cancelled = false;
+    let canceled = false;
     void (async () => {
       const remembered = await recallCardHandle();
-      if (cancelled || !remembered) return;
+      if (canceled || !remembered) return;
       setHandle(remembered);
       setState((previous) => ({
         ...previous,
@@ -95,7 +95,7 @@ export function useCard() {
       }));
     })();
     return () => {
-      cancelled = true;
+      canceled = true;
     };
   }, []);
 
@@ -206,5 +206,14 @@ export function useCard() {
     setState(INITIAL);
   }, []);
 
-  return { ...state, handle, connect, reconnect, rescan, disconnect };
+  /**
+   * After the card has been ejected: nothing is open any more, but the folder is kept, so the
+   * dashboard can offer to reopen it when the card goes back in.
+   */
+  const setAside = useCallback(() => {
+    if (!handle) return;
+    setState({ ...INITIAL, status: 'reconnectable', name: handle.name });
+  }, [handle]);
+
+  return { ...state, handle, connect, reconnect, rescan, disconnect, setAside };
 }

@@ -26,6 +26,7 @@ import (
 
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/blockdev"
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/cardfs"
+	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/destination"
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/exfat"
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/grant"
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/jobs"
@@ -34,6 +35,7 @@ import (
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/protocol"
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/rules"
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/safety"
+	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/sysenv"
 )
 
 // ProtocolVersion changes when a reply changes shape.
@@ -43,6 +45,7 @@ const ProtocolVersion = 2
 var Operations = []string{
 	"hello", "listDevices", "identify", "inspect", "mount", "unmount", "eject", "diagnose",
 	"challenge", "repair", "image", "format", "prepare", "readiness", "verify", "writeConfig",
+	"chooseImage", "stop",
 }
 
 // Dispatcher answers requests.
@@ -55,6 +58,9 @@ type Dispatcher struct {
 	Send func(any)
 	// Execute runs a raw-device job; jobs.Execute unless a test replaces it.
 	Execute func(job jobs.Job, paths []string, report jobs.Reporter, reason string) (jobs.Result, error)
+
+	stopMu sync.Mutex
+	stops  map[string]chan struct{}
 }
 
 // New is a dispatcher for this computer.
@@ -91,7 +97,8 @@ var probeName = regexp.MustCompile(`^\.a3em-probe-[0-9a-f-]{36}$`)
 func (d *Dispatcher) route(req protocol.Request) (reply, error) {
 	switch req.Op {
 	case "hello":
-		return reply{"version": d.Version, "platform": d.Plat.ID(), "implemented": Operations, "protocol": ProtocolVersion}, nil
+		// What this computer lacks, so the dashboard can say so before a card needs it.
+		return reply{"version": d.Version, "platform": d.Plat.ID(), "implemented": Operations, "protocol": ProtocolVersion, "issues": sysenv.Check()}, nil
 
 	case "listDevices":
 		devices, err := d.eligible()
@@ -167,34 +174,38 @@ func (d *Dispatcher) route(req protocol.Request) (reply, error) {
 		}
 		return reply{"token": token, "description": description, "expiresAt": expires}, nil
 
-	case "diagnose", "repair":
-		device, volume, err := d.holding(req.Volume)
-		if err != nil {
-			return nil, err
-		}
-		if req.Op == "repair" {
-			if device.ID != req.Device {
-				return nil, refuse("That volume is not on the confirmed card.", "bad-grant")
-			}
-			if err := d.Grants.Redeem(req.Grant, "repair", *device); err != nil {
-				return nil, err
-			}
-		}
-		job := jobs.Job{Kind: jobs.KindFsck, Volume: volume.ID, Repair: req.Op == "repair"}
-		reason := "check the filesystem on " + describeCard(*device)
-		if job.Repair {
-			reason = "repair the filesystem on " + describeCard(*device)
-		}
-		result, err := d.long(req, func(report jobs.Reporter) (jobs.Result, error) {
-			return d.Execute(job, []string{d.Plat.VolumeRawPath(volume.ID)}, report, reason)
-		})
-		if err != nil {
-			return nil, err
-		}
-		return reply{"report": result.Fsck}, nil
+	case "diagnose":
+		return d.diagnose(req)
+
+	case "repair":
+		return d.repairFilesystem(req)
+
+	case "stop":
+		// Stops an image or a check that is running, asked on the same port it runs on.
+		return reply{"stopping": d.Stop(req.Target)}, nil
 
 	case "image":
 		return d.image(req)
+
+	case "chooseImage":
+		// The system's save dialog, then whether the image would fit where it points.
+		device, err := d.readable(req.Device)
+		if err != nil {
+			return nil, err
+		}
+		path, err := destination.Choose(destination.StartFolder(), imageName(*device), "Where should the image of "+describeCard(*device)+" be saved?")
+		switch {
+		case errors.Is(err, destination.ErrCanceled):
+			return nil, refuse("No location was chosen, so nothing was copied.", "cancelled")
+		case errors.Is(err, destination.ErrNoDialog):
+			return nil, refuse("This system has no save dialog the helper can show.", "no-dialog")
+		case err != nil:
+			return nil, err
+		}
+		if onCard(*device, path) {
+			return nil, refuse("An image cannot be saved onto the card it is copied from. Choose another drive.", "bad-destination")
+		}
+		return reply{"destination": destination.Check(path, device.SizeBytes)}, nil
 
 	case "format":
 		results, err := d.prepare(req, "format", []protocol.PrepareTarget{{
@@ -314,7 +325,7 @@ func (d *Dispatcher) prepare(req protocol.Request, operation string, targets []p
 	if len(job.Targets) > 1 {
 		reason = fmt.Sprintf("erase and format %d cards", len(job.Targets))
 	}
-	// Mounting and configuring each card afterwards is inside the heartbeat too: waiting for
+	// Mounting and configuring each card afterward is inside the heartbeat too: waiting for
 	// the system to mount a new volume can take longer than the page tolerates silence.
 	return withHeartbeat(d, req, func(report jobs.Reporter) ([]PreparedCard, error) {
 		result, err := d.Execute(job, paths, report, reason)
@@ -402,6 +413,9 @@ type Readiness struct {
 	Layout *exfat.LayoutCheck `json:"layout"`
 	// LayoutSkipped says why Layout is nil.
 	LayoutSkipped string `json:"layoutSkipped,omitempty"`
+	// LayoutError is what went wrong reading the layout, in words, with the system's own
+	// output where there was some, for the person to pass on.
+	LayoutError string `json:"layoutError,omitempty"`
 	// Prepared is what this computer recorded when it prepared this very format of the card.
 	Prepared *ledger.Entry `json:"prepared"`
 	Problems []string      `json:"problems,omitempty"`
@@ -426,10 +440,15 @@ func (d *Dispatcher) readiness(req protocol.Request, progress jobs.Reporter) (*R
 
 // readinessMany checks several cards, reading all their layouts in one job.
 func (d *Dispatcher) readinessMany(req protocol.Request, progress jobs.Reporter) ([]*Readiness, error) {
+	// One listing for all of them: on macOS each listing is a round of diskutil queries.
+	listed, err := d.Plat.ListDevices()
+	if err != nil {
+		return nil, err
+	}
 	var devices []platform.Device
 	for _, id := range req.Devices {
-		device, err := d.readable(id)
-		if err != nil {
+		device := find(listed, id)
+		if err := safety.RequireWritable(device, id); err != nil {
 			return nil, err
 		}
 		devices = append(devices, *device)
@@ -450,8 +469,16 @@ func (d *Dispatcher) readinessMany(req protocol.Request, progress jobs.Reporter)
 	if len(job.Targets) == 0 {
 		return reports, nil
 	}
-	progress(jobs.Update{Stage: "verify", Note: "Comparing the cards' layouts with the reference."})
-	result, err := d.Execute(job, paths, progress, fmt.Sprintf("read the layout of %d cards", len(job.Targets)))
+	note := "Comparing the card's layout with the reference."
+	if len(job.Targets) > 1 {
+		note = "Comparing the cards' layouts with the reference."
+	}
+	progress(jobs.Update{Stage: "verify", Note: note})
+	reason := "read the layout of " + describeCard(job.Targets[0].Device)
+	if len(job.Targets) > 1 {
+		reason = fmt.Sprintf("read the layout of %d cards", len(job.Targets))
+	}
+	result, err := d.Execute(job, paths, progress, reason)
 	for i := range reports {
 		if reports[i].LayoutSkipped != "" {
 			continue
@@ -483,7 +510,14 @@ func (d *Dispatcher) attachLayout(r *Readiness, check *exfat.LayoutCheck, err er
 		failure := asFailure("", err)
 		r.LayoutSkipped = failure.Code
 		if failure.Code != "cancelled" {
-			r.Problems = append(r.Problems, "The card's layout could not be read: "+failure.Error)
+			r.LayoutError = failure.Error
+			if detail := strings.TrimSpace(failure.Detail); detail != "" {
+				if len(detail) > 300 {
+					detail = detail[:300] + "…"
+				}
+				r.LayoutError += " (" + detail + ")"
+			}
+			r.Problems = append(r.Problems, "The card's layout could not be read: "+r.LayoutError)
 		}
 		return
 	}
@@ -562,34 +596,32 @@ func (d *Dispatcher) image(req protocol.Request) (reply, error) {
 	if err != nil {
 		return nil, err
 	}
-	destination := req.Destination
-	if destination == "" {
-		home, err := os.UserHomeDir()
+	target := req.Destination
+	if target == "" {
+		folder, err := destination.DefaultFolder()
 		if err != nil {
 			return nil, err
 		}
-		folder := filepath.Join(home, "Documents", "A3EM card images")
-		if err := os.MkdirAll(folder, 0o755); err != nil {
-			return nil, err
-		}
-		name := device.ID
-		if len(device.Volumes) > 0 && device.Volumes[0].Label != nil {
-			name = *device.Volumes[0].Label
-		}
-		destination = filepath.Join(folder, fmt.Sprintf("%s %s.img", sanitize(name), time.Now().Format("2006-01-02 150405")))
+		target = filepath.Join(folder, imageName(*device))
 	}
-	if !filepath.IsAbs(destination) {
+	if !filepath.IsAbs(target) {
 		return nil, refuse("The image destination must be a full path.", "bad-destination")
 	}
-	for _, v := range device.Volumes {
-		if v.MountPoint != nil && strings.HasPrefix(destination, *v.MountPoint+string(filepath.Separator)) {
-			return nil, refuse("An image cannot be saved onto the card it is copied from.", "bad-destination")
-		}
+	if onCard(*device, target) {
+		return nil, refuse("An image cannot be saved onto the card it is copied from.", "bad-destination")
 	}
-	if _, err := os.Stat(destination); err == nil {
-		return nil, refuse("A file already exists at "+destination+".", "bad-destination")
+	// Known before a byte is read, so said now rather than when the drive fills an hour in.
+	space := destination.Check(target, device.SizeBytes)
+	if space.Exists && !req.Replace {
+		return nil, refuse("A file already exists at "+target+".", "bad-destination")
 	}
-	job := jobs.Job{Kind: jobs.KindImage, Destination: destination,
+	if !space.Fits {
+		return nil, refuse(space.Problem, "no-space")
+	}
+	// An image runs for up to an hour, so it can be stopped: by the page, or by the page going.
+	stop, done := d.stoppable(req.ID)
+	defer done()
+	job := jobs.Job{Kind: jobs.KindImage, Destination: target, Stop: stop,
 		Targets: []jobs.Target{{Device: *device, Fingerprint: grant.Fingerprint(*device), RawPath: d.Plat.RawPath(*device)}}}
 	result, err := d.long(req, func(report jobs.Reporter) (jobs.Result, error) {
 		return d.Execute(job, []string{d.Plat.RawPath(*device)}, report, "copy "+describeCard(*device)+" to an image file")
@@ -730,6 +762,25 @@ func accessible(path string) bool {
 		return true
 	}
 	return blockdev.CanAccess(path)
+}
+
+// imageName is an image's file name: the card's label, or its device, and when it was made.
+func imageName(device platform.Device) string {
+	name := device.ID
+	if len(device.Volumes) > 0 && device.Volumes[0].Label != nil {
+		name = *device.Volumes[0].Label
+	}
+	return fmt.Sprintf("%s %s.img", sanitize(name), time.Now().Format("2006-01-02 150405"))
+}
+
+// onCard is whether path is on one of the card's own volumes.
+func onCard(device platform.Device, path string) bool {
+	for _, v := range device.Volumes {
+		if v.MountPoint != nil && strings.HasPrefix(path, strings.TrimSuffix(*v.MountPoint, string(filepath.Separator))+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 func describeCard(device platform.Device) string {

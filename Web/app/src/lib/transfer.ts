@@ -87,7 +87,7 @@ export async function checkIntegrity(
   };
 
   for (const [index, file] of recordings.entries()) {
-    if (options.signal?.aborted) throw new DOMException('Check cancelled', 'AbortError');
+    if (options.signal?.aborted) throw new DOMException('Check canceled', 'AbortError');
     if (index % 50 === 0) options.onProgress?.(index, recordings.length);
 
     const check = await checkFile(file, handles.get(file.path), options.correctWavChunkSize);
@@ -148,7 +148,7 @@ export interface CopyResult {
   skipped: Array<{ path: string; reason: string }>;
   /** Files already present at the destination with the same size. */
   alreadyPresent: number;
-  cancelled: boolean;
+  canceled: boolean;
 }
 
 /**
@@ -176,12 +176,12 @@ export async function copyCard(
   } = {},
 ): Promise<CopyResult> {
   const bytesTotal = entries.reduce((sum, entry) => sum + entry.sizeBytes, 0);
-  const result: CopyResult = { copied: 0, bytesCopied: 0, skipped: [], alreadyPresent: 0, cancelled: false };
+  const result: CopyResult = { copied: 0, bytesCopied: 0, skipped: [], alreadyPresent: 0, canceled: false };
   const directoryCache = new Map<string, FileSystemDirectoryHandle>();
 
   for (const [index, entry] of entries.entries()) {
     if (options.signal?.aborted) {
-      result.cancelled = true;
+      result.canceled = true;
       break;
     }
     options.onProgress?.({
@@ -261,7 +261,7 @@ export function buildSkipManifest(result: CopyResult, cardName: string): string 
     `Files copied: ${result.copied}`,
     `Already present: ${result.alreadyPresent}`,
     `Skipped: ${result.skipped.length}`,
-    result.cancelled ? 'Run was cancelled before finishing.' : '',
+    result.canceled ? 'Run was canceled before finishing.' : '',
     '',
   ];
   for (const skip of result.skipped) lines.push(`${skip.path}\t${skip.reason}`);

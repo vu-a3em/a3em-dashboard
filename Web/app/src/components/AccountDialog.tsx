@@ -15,6 +15,9 @@ import { ProviderButton, ProviderLogo } from './ProviderButton';
 /** Matches MIN_PASSWORD_LENGTH in lib/firebase.ts, which is not imported here so it stays out of the main bundle. */
 const MIN_PASSWORD_LENGTH = 8;
 
+/** Long enough for any real name, short enough to fit the account menu. */
+const MAX_NAME_LENGTH = 80;
+
 const plural = (count: number) =>
   count === 1 ? 'There is 1 protocol stored in your account.' : `There are ${count} protocols stored in your account.`;
 
@@ -148,6 +151,7 @@ function PasswordForm({ account }: Readonly<{ account: Account }>) {
   const [mode, setMode] = useState<PasswordMode>('sign-in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
 
   const emailOk = looksLikeEmail(email);
   const ready =
@@ -167,13 +171,29 @@ function PasswordForm({ account }: Readonly<{ account: Account }>) {
         <input id="account-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
       </div>
       {mode === 'create' ? (
-        <NewPassword
-          id="account-new"
-          busy={account.busy}
-          disabled={!emailOk}
-          submitLabel={SUBMIT_LABEL.create}
-          onSubmit={(chosen) => account.createAccount(email, chosen)}
-        />
+        <>
+          <div className="field">
+            <label htmlFor="account-name">
+              Your name <span className="muted">(optional)</span>
+            </label>
+            <input
+              id="account-name"
+              type="text"
+              autoComplete="name"
+              maxLength={MAX_NAME_LENGTH}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            <p className="help">Shown in your account menu. You can change it later.</p>
+          </div>
+          <NewPassword
+            id="account-new"
+            busy={account.busy}
+            disabled={!emailOk}
+            submitLabel={SUBMIT_LABEL.create}
+            onSubmit={(chosen) => account.createAccount(email, chosen, name)}
+          />
+        </>
       ) : (
         <>
           {mode === 'sign-in' ? (
@@ -303,6 +323,8 @@ function SignedIn({ account, protocolCount }: Readonly<{ account: Account; proto
         </div>
       ) : null}
 
+      <NameSetting account={account} />
+
       <SignInMethods account={account} />
 
       <p className="card-help">Signing out removes your protocols from this computer. They stay in your account.</p>
@@ -347,6 +369,72 @@ function SignedIn({ account, protocolCount }: Readonly<{ account: Account; proto
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * The account's name, which a password account, and some sign-in services, arrive without.
+ *
+ * It is only ever shown to the person themselves, in the account menu, so it can be whatever
+ * they like. Cleared, it goes back to the name the sign-in service gave, where there is one.
+ */
+function NameSetting({ account }: Readonly<{ account: Account }>) {
+  const user = account.user;
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(user?.name ?? '');
+  if (!user) return null;
+  const changed = value.trim() !== (user.name ?? '');
+  const save = (event: { preventDefault: () => void }) => {
+    event.preventDefault();
+    if (!changed || account.busy) return;
+    account.setName(value);
+    setEditing(false);
+  };
+  return (
+    <section className="account-methods account-name">
+      <h3>Your name</h3>
+      {editing ? (
+        <form className="account-name-form" onSubmit={save}>
+          <input
+            type="text"
+            autoComplete="name"
+            aria-label="Your name"
+            maxLength={MAX_NAME_LENGTH}
+            value={value}
+            // Opened by the person, to type into.
+            autoFocus
+            onChange={(event) => setValue(event.target.value)}
+          />
+          <button type="submit" className="btn small primary" disabled={!changed || account.busy}>
+            Save
+          </button>
+          <button
+            type="button"
+            className="btn small ghost"
+            onClick={() => {
+              setValue(user.name ?? '');
+              setEditing(false);
+            }}
+          >
+            Cancel
+          </button>
+        </form>
+      ) : (
+        <p className="account-name-value">
+          {user.name ? <span>{user.name}</span> : <span className="muted">None given</span>}
+          <button
+            className="link-button"
+            disabled={account.busy}
+            onClick={() => {
+              setValue(user.name ?? '');
+              setEditing(true);
+            }}
+          >
+            {user.name ? 'Change' : 'Add your name'}
+          </button>
+        </p>
+      )}
+    </section>
   );
 }
 

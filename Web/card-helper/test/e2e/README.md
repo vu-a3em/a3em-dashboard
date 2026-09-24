@@ -1,0 +1,93 @@
+# End-to-end tests: the dashboard's card tools against the real helper
+
+`e2e.mjs` serves the built dashboard, stands in for the browser extension, and drives headless
+Chrome through the card screens. Every request the page makes goes to the **real** card helper,
+started as a browser starts it and spoken to in native messaging's framing — one helper for the
+whole run, so a Stop reaches the copy it stops — in test mode (`A3EM_HELPER_VIRTUAL_ONLY=1` hides
+every real device), and only the virtual disks named in `cards.json` are listed. So these tests
+exercise the helper's platform code and the dashboard together, on disks that cannot be anyone's
+card.
+
+What is **not** covered: the extension itself and Chrome's own native messaging (the stand-in
+replaces both), and the folder picker (a stand-in "picks" the prepared card). Real card readers,
+administrator prompts and privacy permissions need a real card and a person.
+
+## Scenarios
+
+| Scenario | Checks |
+| --- | --- |
+| `configure` | With the card tools, the forecast's "Recommended card format" sends formatting to "Prepare devices" instead of listing commands, and the link opens it. |
+| `recover` | Recover card lists only the cards that do not open. The damaged one: opening it fails and says so; a copy to an image is stopped partway, says so and leaves no file; it is copied (saying where, and how much room there is); the check finds the damaged boot region and that its backup can replace it; the repair is confirmed in the helper's words as the narrow one, restores the boot region, and the card opens and stays listed as "Opens now". |
+| `prepare` | Prepare devices: the cards pane follows the batch; without a batch "Prepare this card" cannot be pressed and says why; in a batch, a card beyond the units has "No unit left"; preparing all without a check checks first, in the same log; only the old card is confirmed for erasing; the prepared card only gets its settings; both units end "Card written". |
+| `review` | Review card, for the dirty card, picked in the folder picker: "The card itself" comes first; no repair is offered until a check finds the problem, explains it, and names the recording it touches; a copy is stopped and leaves no file; the image copy is still showing after a visit to another tab; the repair is the helper's own, rebuilds the bitmap and says where it saved what it replaced, and the card is open again; no marker file is left. |
+| `match` | Connect SD card is matched to its card: the header offers Eject, no marker file is left behind, Review card shows the card itself and what this computer found preparing it, its filesystem check is clean, and Eject leaves "Reopen". Needs the harness to be able to write to the prepared card's mount point. |
+
+Run in the order `configure,recover,prepare,review,match` (the default): `match` ejects the prepared card.
+
+The harness answers the helper's save dialog itself, through `A3EM_HELPER_SAVE_AS_DIR` (cards.json's
+`imageDir`), so no dialog opens. The real dialogs — AppleScript's, zenity or kdialog, Windows Forms —
+need a person to see them.
+
+## The cards
+
+A setup script creates five virtual disks and writes `cards.json`:
+
+| Role | What it is |
+| --- | --- |
+| `old` | exFAT made by the operating system, with a file on it. Preparing must erase it. |
+| `prepared` | Prepared by the helper as `OWL_01`, at 4 kB clusters (what the default configuration recommends for a 1 GB card), and mounted. It needs at most its settings. |
+| `damaged` | Prepared by the helper as `OWL_07`, with files, then sector 11 of its boot region — the boot checksum, at sector 4107 of the disk — zeroed. The system will not mount it; fsck can repair it. |
+| `blank` | No partitions. |
+| `dirty` | Prepared by the helper as `OWL_09`, with a recording, then 80 of the recording's clusters marked free in its allocation bitmap. It opens normally; the check finds the bitmap wrong, and the helper's own repair fixes it — what a card pulled while the recorder was writing looks like. On macOS the card carries `.fseventsd/no_log` and `.metadata_never_index`: otherwise macOS, mounting it, writes its own files into the space marked free — onto the recording — and the card is then cross-linked, which only the system's repair can deal with. (That is also why a wrong bitmap matters.) |
+
+```json
+{ "old": "<device id>", "prepared": "<id>", "damaged": "<id>", "blank": "<id>", "dirty": "<id>",
+  "preparedLabel": "OWL_01", "preparedMount": "<where the prepared card is mounted>",
+  "dirtyLabel": "OWL_09", "dirtyMount": "<where the dirty card is mounted>",
+  "stateDir": "<the helper state folder the setup used>", "imageDir": "<where images go>",
+  "localImageDir": "<imageDir as the harness sees it, where the helper runs elsewhere>" }
+```
+
+`localImageDir` is optional: without it, the harness looks for a stopped copy's leftovers in
+`imageDir`, which is right unless the helper runs in a container.
+
+Device ids are the helper's own (`listDevices`): `disk19` on macOS, `loop1` on Linux, the disk
+number on Windows. `setup-macos.sh` and `setup-linux.sh` exist; a Windows one would do the same
+with VHDs.
+
+## Running
+
+```sh
+# macOS
+go build -o /tmp/a3em-card-helper ./cmd/a3em-card-helper          # in Web/card-helper
+npm --workspace app run build                                       # in Web
+test/e2e/setup-macos.sh /tmp/a3em-card-helper /tmp/a3em-cards
+node test/e2e/e2e.mjs --helper /tmp/a3em-card-helper --cards /tmp/a3em-cards/cards.json
+test/e2e/setup-macos.sh teardown /tmp/a3em-cards
+
+# Linux (root, for the loop devices)
+sudo test/e2e/setup-linux.sh /tmp/a3em-card-helper /tmp/a3em-cards
+sudo node test/e2e/e2e.mjs --helper /tmp/a3em-card-helper --cards /tmp/a3em-cards/cards.json
+sudo test/e2e/setup-linux.sh teardown /tmp/a3em-cards
+```
+
+Options: `--only recover,prepare`, `--out <folder>` for results and screenshots (default
+`./e2e-results`), `--app <built dashboard>`, `--chrome <path>` (or `CHROME=`). Needs Node 22 or
+later and Chrome. Exit status is non-zero if any expectation failed; each is printed with what was
+seen, and every helper call is listed with its outcome.
+
+The helper can also run elsewhere than the harness — in a container, say — by giving `--helper` a
+script that runs it there (for example `docker exec -i -e A3EM_HELPER_VIRTUAL_ONLY -e
+A3EM_HELPER_STATE_DIR -e A3EM_HELPER_SAVE_AS_DIR <container> /work/a3em-card-helper "$@"`), with
+`cards.json`'s paths as the helper sees them, and `localImageDir` set to the image folder as the
+harness sees it. `review` and `match` then cannot write their marker file, so run
+`--only configure,recover,prepare`.
+
+## Where it has run
+
+- macOS 26, Apple silicon: all five pass (2026-09-24, with the helper's own check and repairs,
+  and Stop).
+- Linux 6.12 (Docker Desktop's VM, Ubuntu 24.04 container, exfatprogs 1.2.2) with the helper in
+  the container: `configure`, `recover` and `prepare` pass, Stop included. These runs found two
+  Linux defects, since fixed: loop devices without udev reported no partition table, and a repair
+  fsck.exfat reported as "errors corrected" (exit 1) was shown as incomplete.

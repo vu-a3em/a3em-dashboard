@@ -185,7 +185,7 @@ export const maxFrequencyCeilingHz = (sampleRateHz: number): number =>
  * (1.6, 3, 6, 12.5, 25, 50, 100, 200, 400, 800 Hz), while storage.c writes the CONFIGURED
  * rate into the file header as a uint32 — which is what a reader uses to place samples in
  * time. The two non-integer rungs therefore cannot be described honestly: asking for 12 Hz
- * ran the part at 12.5 and labelled the file 12, a 4% error that grows across the file.
+ * ran the part at 12.5 and labeled the file 12, a 4% error that grows across the file.
  * runtime_config.c now snaps to this same list and says so when it does.
  */
 export const IMU_SAMPLE_RATES_HZ = [3, 6, 25, 50, 100, 200, 400, 800] as const;
@@ -365,7 +365,7 @@ export const LONGITUDE_MAX_DEG = 180;
 export const IMU_RECORDING_MODES = {
   NONE: 'Disabled',
   ACTIVITY: 'Motion-triggered',
-  AUDIO: 'Synchronised with audio',
+  AUDIO: 'Synchronized with audio',
 } as const;
 
 export const VHF_MODES = {

@@ -96,7 +96,7 @@ func Verify(dev blockdev.Device) (LayoutCheck, error) {
 	return check, nil
 }
 
-// inUse recognises the differences that using a card leaves behind, as opposed to damage or a
+// inUse recognizes the differences that using a card leaves behind, as opposed to damage or a
 // different formatter's layout. The same rules the retired Python formatter's verify applied.
 func inUse(name string, expected, actual []byte) (string, bool) {
 	var diffs []int

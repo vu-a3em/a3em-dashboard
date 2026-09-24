@@ -116,7 +116,7 @@ test('an allocation unit outside the offered set is rejected', () => {
 });
 
 test('a label longer than exFAT allows is rejected rather than truncated', () => {
-  // Truncating silently would produce a card labelled something the operator did not
+  // Truncating silently would produce a card labeled something the operator did not
   // choose, which in a batch of six is how two cards end up with the same name.
   const errors = validateFormatRequest({
     device: 'disk4',

@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/protocol"
+
+	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/sysenv"
 )
 
 // HostName is the name the extension connects to.
@@ -165,6 +167,23 @@ func Doctor(out io.Writer) error {
 			return err
 		}
 		fmt.Fprintf(out, "  %s answers: version %v on %v\n", path, reply["version"], reply["platform"])
+	}
+	// What this computer lacks that the helper relies on: the same list the dashboard shows.
+	issues := sysenv.Check()
+	if len(issues) == 0 {
+		fmt.Fprintln(out, "  This computer has everything the card helper uses.")
+	}
+	problems := 0
+	for _, issue := range issues {
+		mark := "note"
+		if issue.Severity == "problem" {
+			mark = "PROBLEM"
+			problems++
+		}
+		fmt.Fprintf(out, "  %s: %s\n", mark, issue.Message)
+	}
+	if problems > 0 {
+		return fmt.Errorf("%d problem(s) above will stop some card tools from working", problems)
 	}
 	return nil
 }

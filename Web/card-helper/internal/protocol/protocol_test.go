@@ -40,6 +40,6 @@ func TestRefusesAnAbsurdLength(t *testing.T) {
 	header := make([]byte, 4)
 	nativeOrder.PutUint32(header, 0xffffffff)
 	if _, err := Read(bytes.NewReader(header)); err == nil {
-		t.Fatal("expected an error for a desynchronised stream")
+		t.Fatal("expected an error for a desynchronized stream")
 	}
 }

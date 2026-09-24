@@ -58,7 +58,7 @@ export const ALLOCATION_UNIT_CHOICES_BYTES = [
  *
  * 2.5% is a little over a day on a 128 GB card recording continuously at 16 kHz — a
  * cost worth paying for an eightfold cut in transactions, where 5% would not be. This
- * is a judgement call, exposed as a constant so it can be argued with.
+ * is a judgment call, exposed as a constant so it can be argued with.
  */
 export const SLACK_BUDGET_FRACTION = 0.025;
 

@@ -63,7 +63,7 @@ describe('computing a spectrogram', () => {
   });
 
   it('reads a full-scale tone as roughly zero decibels', () => {
-    // The normalisation that makes the numbers mean something: 0 dB is as loud as this
+    // The normalization that makes the numbers mean something: 0 dB is as loud as this
     // format can represent, so everything else reads as a real distance below it.
     const spectrogram = computeSpectrogram(tone(1000, 2), OPTIONS);
     assert.ok(Math.abs(spectrogram.peakDb) < 1.5, `peak was ${spectrogram.peakDb} dB`);

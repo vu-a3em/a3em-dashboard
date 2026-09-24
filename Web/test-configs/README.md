@@ -176,7 +176,7 @@ check. The time goes to the four that have never completed, and the order puts t
 | --- | --- | --- | --- |
 | M1 continuous | 8 | day 0 | Sanity check: rollover, naming, IMU pairing |
 | M2 silence gate | 8 | day 0.33 | The suppression control — a quiet room should store almost nothing |
-| M3 inexact rate | 24 | day 0.67 | **Never once executed.** Achieved-rate labelling for a full day |
+| M3 inexact rate | 24 | day 0.67 | **Never once executed.** Achieved-rate labeling for a full day |
 | M4 imu volume | 40 | day 1.67 | The best test of both fixes: 1800 s sleeps, 300 s clips, 800 Hz IMU |
 | M5 dawn/dusk | 48 | day 3.33 | The full **12** listening windows, across two whole days |
 | M6 opus+motion | 40 | day 5.33 | Opus over many files, plus the ACTIVITY IMU path |
@@ -206,7 +206,7 @@ It also cannot reach amplitude-triggered recording or extend-clip at all — see
 
 ## When the run finishes
 
-Mount the card read-only and run the integrity checker, which applies the same judgements the
+Mount the card read-only and run the integrity checker, which applies the same judgments the
 app does:
 
 ```bash

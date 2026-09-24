@@ -3,7 +3,7 @@
 // Counterfeit cards report a capacity they do not have. A 16 GB part sold as 256 GB behaves
 // normally until the real capacity is passed, then silently wraps — later writes land on top
 // of earlier ones — or throws the data away. On a recorder that is weeks of audio overwritten
-// without a single error, discovered only at retrieval. Both behaviours are cheap to catch:
+// without a single error, discovered only at retrieval. Both behaviors are cheap to catch:
 // write a uniquely marked block at many places across the claimed capacity, push the card's
 // write cache out, and read every block back. A genuine card returns each block as written; a
 // wrapping one returns another position's block; a lossy one returns zeros or garbage.

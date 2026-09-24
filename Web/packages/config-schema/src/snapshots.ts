@@ -28,7 +28,7 @@ export interface FirmwareSnapshot {
    * Every function the firmware defines.
    *
    * Not used by any runtime code — it exists so prose and comments that name a firmware
-   * function can be checked against the firmware. A sentence describing device behaviour
+   * function can be checked against the firmware. A sentence describing device behavior
    * goes stale silently: no constant moves, no grammar changes, and the claim simply
    * stops being true while still reading as authoritative.
    */

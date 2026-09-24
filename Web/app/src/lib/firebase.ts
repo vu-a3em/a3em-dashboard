@@ -25,6 +25,7 @@ import {
   signOut as firebaseSignOut,
   unlink,
   updatePassword,
+  updateProfile,
   verifyPasswordResetCode,
   type Auth,
   type AuthCredential,
@@ -106,8 +107,13 @@ export interface Connection {
   /** Must be called straight from a click: the popup is opened before anything is awaited. */
   signIn(provider: PopupProvider): Promise<SignInResult>;
   signInWithPassword(email: string, password: string): Promise<SignInResult>;
-  /** Creates an email-and-password account, signs in, and sends the address a confirmation link. */
-  createAccount(email: string, password: string): Promise<void>;
+  /**
+   * Creates an email-and-password account, signs in, and sends the address a confirmation link.
+   * A name is optional: with a password there is no service to supply one.
+   */
+  createAccount(email: string, password: string, name?: string): Promise<void>;
+  /** The account's name, as the person wants it shown. Empty goes back to the sign-in service's. */
+  setName(name: string): Promise<AccountUser>;
   /** Sends a reset link. Says nothing about whether the address has an account. */
   resetPassword(email: string): Promise<void>;
   resendVerification(): Promise<void>;
@@ -243,12 +249,25 @@ export function connect(config: FirebaseWebConfig | null): Connection | null {
       return addPending(result.user);
     },
 
-    async createAccount(email, password) {
+    async createAccount(email, password, name) {
       pending = null;
       const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      // After the account exists, so a name that fails to save costs only the name. The sign-in
+      // was announced without it, so it is announced again.
+      if (name?.trim()) {
+        await updateProfile(user, { displayName: name.trim() }).catch(() => undefined);
+        announce(user);
+      }
       // Not a condition of using the account: the address is confirmed so that a mistyped one
       // is noticed while it can still be fixed, and so a password reset has somewhere to go.
       await sendEmailVerification(user, { url: continueUrl() }).catch(() => undefined);
+    },
+
+    async setName(name) {
+      const user = currentUser();
+      // Empty rather than null, which the Auth emulator refuses; both leave the account unnamed.
+      await updateProfile(user, { displayName: name.trim() });
+      return announce(user) ?? describeUser(user);
     },
 
     async resetPassword(email) {
@@ -433,7 +452,12 @@ function describeUser(user: User): AccountUser {
   return {
     uid: user.uid,
     email: user.email ?? user.providerData.find((entry) => entry.email)?.email ?? null,
-    name: user.displayName ?? user.providerData.find((entry) => entry.displayName)?.displayName ?? null,
+    // The account's own name, else a sign-in service's. The password entry only mirrors the
+    // account's, so it is no fallback: a name cleared there would come straight back.
+    name:
+      user.displayName ||
+      user.providerData.find((entry) => entry.providerId !== EmailAuthProvider.PROVIDER_ID && entry.displayName)?.displayName ||
+      null,
     providers,
     // Only an address that came with a password can be unconfirmed; the providers vouch for theirs.
     emailVerified: user.emailVerified || !providers.includes('password'),

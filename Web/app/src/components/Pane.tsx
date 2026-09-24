@@ -59,7 +59,7 @@ export function Pane({
    *
    * This is what makes collapsing worth having: a pane that shuts to a bare title has
    * only hidden something, while one that shuts to "Continuous · 16 kHz · 10 s clips"
-   * has summarised it. Keep it to a few values, in the order the pane presents them.
+   * has summarized it. Keep it to a few values, in the order the pane presents them.
    */
   note?: ReactNode;
   className?: string;

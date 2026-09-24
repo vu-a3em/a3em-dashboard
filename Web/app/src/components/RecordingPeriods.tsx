@@ -19,7 +19,7 @@ import {
 /**
  * The daily recording schedule for a phase.
  *
- * Modelled on the AudioMoth configuration app, which acoustic ecologists already know:
+ * Modeled on the AudioMoth configuration app, which acoustic ecologists already know:
  * a 24-hour strip showing the periods in place, start, and end fields with an add
  * control beneath, and the resulting list. The vocabulary is theirs too — "recording
  * period" rather than an invented alternative.
@@ -268,7 +268,7 @@ function formatDuration(seconds: number): string {
  *
  * Nothing here computes a recording time. It edits anchors and offsets, shows the position
  * the device will compute from, and previews what that computation gives on one chosen day —
- * clearly labelled as a preview, because the device works the schedule out afresh every
+ * clearly labeled as a preview, because the device works the schedule out afresh every
  * local day and the numbers shown will be different by the end of a long deployment. That
  * difference is the entire reason the calculation moved onto the device, so presenting these
  * as the schedule would misrepresent the feature.

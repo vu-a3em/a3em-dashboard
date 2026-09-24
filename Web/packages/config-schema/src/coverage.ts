@@ -11,7 +11,7 @@ import type { DeploymentConfig, PhaseConfig } from './types.js';
  * separates the hours that are missing something from the hours that were never scheduled.
  *
  * The distinction matters more than the count: an empty hour at 3 a.m. on a dawn-chorus
- * schedule is correct behaviour, and an empty hour at dawn is a lost morning.
+ * schedule is correct behavior, and an empty hour at dawn is a lost morning.
  */
 
 export type Expectation =
@@ -39,7 +39,7 @@ export interface CoverageHour {
    *
    * Decided here rather than by whoever draws the grid, so the picture and the count can
    * never disagree — an hour after the last recording is the deployment ending, not a
-   * gap, and colouring it red while reporting no gaps is its own kind of wrong.
+   * gap, and coloring it red while reporting no gaps is its own kind of wrong.
    */
   isGap: boolean;
   /** After the last recording. The deployment had ended by this point. */
@@ -72,7 +72,7 @@ export interface CoverageGrid {
   /**
    * Set when recording stopped before the configured end.
    *
-   * Reported as the single event it is, and without judgement: setting an end date far
+   * Reported as the single event it is, and without judgment: setting an end date far
    * in the future so a device runs until its battery gives out is an ordinary way to
    * work, and the reason it stopped is on the card's device info, not inferable here.
    */
@@ -237,7 +237,7 @@ export function expectationFor(
   if (!phase) return 'unknown';
 
   /*
-    Silence detection makes an empty hour correct behaviour, not a loss.
+    Silence detection makes an empty hour correct behavior, not a loss.
 
     FIRMWARE: a clip is only opened once the band of interest is louder than the threshold,
     so a quiet night under a silence gate writes nothing at all — exactly as configured. Real

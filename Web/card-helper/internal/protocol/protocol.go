@@ -5,7 +5,7 @@
 // and progress rather than payloads: audio and file data travel through the File System
 // Access API in the page, never through here.
 //
-// stdout is the wire. Anything else written to it desynchronises the framing, so every
+// stdout is the wire. Anything else written to it desynchronizes the framing, so every
 // diagnostic goes to stderr, which Chrome captures into the extension's console.
 package protocol
 
@@ -21,7 +21,7 @@ import (
 // MaxMessageBytes is Chrome's limit on a single host-to-extension message.
 const MaxMessageBytes = 1024 * 1024
 
-// maxIncomingBytes guards against a desynchronised stream: nothing legitimate is this large,
+// maxIncomingBytes guards against a desynchronized stream: nothing legitimate is this large,
 // and a length this wrong means continuing would allocate against garbage.
 const maxIncomingBytes = 64 * MaxMessageBytes
 
@@ -37,7 +37,7 @@ var nativeOrder binary.ByteOrder = func() binary.ByteOrder {
 }()
 
 // ErrTooLarge is returned when a reply would exceed Chrome's message limit.
-var ErrTooLarge = errors.New("response exceeds the 1 MB native messaging limit; summarise or page it")
+var ErrTooLarge = errors.New("response exceeds the 1 MB native messaging limit; summarize or page it")
 
 // Encode frames one message.
 func Encode(value any) ([]byte, error) {
@@ -73,14 +73,19 @@ func Read(r io.Reader) (json.RawMessage, error) {
 
 // Request is every field any operation accepts. Operations read only their own.
 type Request struct {
-	ID                    string          `json:"id"`
-	Op                    string          `json:"op"`
-	Probe                 string          `json:"probe,omitempty"`
-	Volume                string          `json:"volume,omitempty"`
-	Device                string          `json:"device,omitempty"`
-	Operation             string          `json:"operation,omitempty"`
-	Grant                 string          `json:"grant,omitempty"`
-	Destination           string          `json:"destination,omitempty"`
+	ID          string `json:"id"`
+	Op          string `json:"op"`
+	Probe       string `json:"probe,omitempty"`
+	Volume      string `json:"volume,omitempty"`
+	Device      string `json:"device,omitempty"`
+	Operation   string `json:"operation,omitempty"`
+	Grant       string `json:"grant,omitempty"`
+	Destination string `json:"destination,omitempty"`
+	// Replace lets an image overwrite a file already at Destination, which the person agreed
+	// to in the save dialog. The old file is replaced only once the copy is finished.
+	Replace bool `json:"replace,omitempty"`
+	// Target is the request a stop request asks to stop.
+	Target                string          `json:"target,omitempty"`
 	AllocationUnitBytes   int64           `json:"allocationUnitBytes,omitempty"`
 	Label                 string          `json:"label,omitempty"`
 	Text                  string          `json:"text,omitempty"`

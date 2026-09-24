@@ -2,8 +2,8 @@ import {
   AUDIO_FILTER_TYPES,
   maxFrequencyCeilingHz,
   silenceBand,
-  summariseFilter,
-  summariseSilence,
+  summarizeFilter,
+  summarizeSilence,
   type PhaseConfig,
 } from '@a3em/config-schema';
 import { Pane } from './Pane';
@@ -36,7 +36,7 @@ export function AudioFilter({
     `audio_filter.c` clamps its corners to nyquist - 1; the extra 200 Hz of headroom in
     `maxFrequencyCeilingHz` exists for the silence filter's FFT bins and has nothing to do
     with these. Using that stricter number here capped the controls 199 Hz below what the
-    device would honour, so a corner the validator accepts could not be entered.
+    device would honor, so a corner the validator accepts could not be entered.
 
     The two corners differ by one: a low-pass corner may sit ON the ceiling, a high-pass
     corner must stay below it, which is what the validator enforces.
@@ -58,7 +58,7 @@ export function AudioFilter({
     <Pane
       id="audio-filter"
       title={`Audio filter${phaseName ? ` — ${phaseName}` : ''}`}
-      note={summariseFilter(phase)}
+      note={summarizeFilter(phase)}
     >
       <p className="hint">
         Removes audio outside the selected frequency band from the recordings themselves. Either corner can be set up to just below half the sample rate (the Nyquist frequency).
@@ -211,11 +211,11 @@ export function SilenceDetection({
     What the DEVICE will judge, which is not what was typed.
 
     The band chooses FFT bins, and bins are 7.8 Hz or 11.7 Hz wide depending on the sample
-    rate, so both edges snap to a bin centre and can land either side of the figure typed
+    rate, so both edges snap to a bin center and can land either side of the figure typed
     in — at 48 kHz, 250 Hz judges from 246.1 Hz while 100 Hz judges from 105.5 Hz. It is
     shown because a buffer judged silent is never written at all, so a band that misses the
     signal costs recordings rather than precision, and the difference is invisible on the
-    card afterwards.
+    card afterward.
   */
   const actual = silenceBand(effectiveSampleRateHz, min, max);
 
@@ -225,7 +225,7 @@ export function SilenceDetection({
     <Pane
       id="silence-detection"
       title={`Silence detection${phaseName ? ` — ${phaseName}` : ''}`}
-      note={summariseSilence(phase)}
+      note={summarizeSilence(phase)}
     >
       <p className="hint">
         Starts a clip only once the frequencies of interest rise above the threshold, so quiet stretches are
@@ -254,7 +254,7 @@ export function SilenceDetection({
         Hidden rather than dimmed while the threshold is zero.
 
         The band only chooses which FFT bins `silence_filter_is_silence()` sums, so with
-        no threshold it changes nothing at all — greying it out still left a band, two
+        no threshold it changes nothing at all — graying it out still left a band, two
         sliders and two number fields on screen inviting adjustment of something inert.
         The threshold's own help text says the feature is off, which is the whole story.
       */}

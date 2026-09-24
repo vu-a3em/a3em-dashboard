@@ -10,6 +10,8 @@ if [ "${1:-}" = "--user" ]; then
   install -m 755 "$HERE/a3em-card-helper" "$DEST/a3em-card-helper"
   "$DEST/a3em-card-helper" install
   echo "Installed for $(id -un). Writing to cards will ask for your password through pkexec."
+  # What else this computer needs, said now rather than when a card is in the reader.
+  "$DEST/a3em-card-helper" doctor || true
   exit 0
 fi
 [ "$(id -u)" -eq 0 ] || { echo "Run with sudo, or with --user to install just for yourself." >&2; exit 1; }
@@ -18,4 +20,6 @@ install -D -m 755 "$HERE/a3em-card-helper" "$BIN"
 ln -sf "$BIN" /usr/bin/a3em-card-helper
 sed "s|@PATH@|$BIN|" "$HERE/org.a3em.card-helper.policy" > /usr/share/polkit-1/actions/org.a3em.card-helper.policy
 "$BIN" install --system
-echo "Installed. Check it with: a3em-card-helper doctor"
+echo "Installed."
+# What else this computer needs, said now rather than when a card is in the reader.
+"$BIN" doctor || true

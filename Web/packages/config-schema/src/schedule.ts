@@ -179,7 +179,7 @@ export function deviceUtcOffsetSeconds(config: Pick<DeploymentConfig, 'timezone'
 }
 
 /**
- * Audio seconds recorded in one day's periods, clip-quantised the way the device records.
+ * Audio seconds recorded in one day's periods, clip-quantized the way the device records.
  *
  * A clip that starts inside a period always runs to its full length, so a period records
  * `ceil(duration / clip)` clips, not `duration / clip` of them. Across midnight the halves
@@ -353,7 +353,7 @@ export function shiftPeriods(periods: readonly TriggerWindow[], shiftSeconds: nu
  * The inverse of the serializer's daylight-saving split: each phase's periods moved back onto
  * the local clock, and the pieces of one phase joined up again.
  *
- * Pieces are recognised by what the serializer guarantees about them — the same name, end to
+ * Pieces are recognized by what the serializer guarantees about them — the same name, end to
  * end in time, and identical settings once unshifted — so a deliberate pair of phases that
  * happen to share a name but differ in anything is left alone.
  */

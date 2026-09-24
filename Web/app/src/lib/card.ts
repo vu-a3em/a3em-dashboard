@@ -170,7 +170,7 @@ export async function scanCard(
   let filesSeen = 0;
 
   const walk = async (directory: FileSystemDirectoryHandle, prefix: string): Promise<void> => {
-    if (options.signal?.aborted) throw new DOMException('Scan cancelled', 'AbortError');
+    if (options.signal?.aborted) throw new DOMException('Scan canceled', 'AbortError');
     options.onProgress?.({ phase: 'scanning', filesSeen, currentDirectory: prefix || '/' });
 
     let iterator: AsyncIterableIterator<[string, FileSystemHandle]>;

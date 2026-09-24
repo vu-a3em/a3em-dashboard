@@ -5,10 +5,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
 )
+
+// VirtualAllowed is whether disk images count as cards, for testing (A3EM_HELPER_ALLOW_VIRTUAL,
+// or A3EM_HELPER_VIRTUAL_ONLY, which also hides every real device). Read here so a platform can
+// skip describing what could never be offered; package safety applies the rule itself.
+func VirtualAllowed() bool {
+	return os.Getenv("A3EM_HELPER_ALLOW_VIRTUAL") == "1" || os.Getenv("A3EM_HELPER_VIRTUAL_ONLY") == "1"
+}
 
 // Output is what a tool printed and how it exited.
 type Output struct {
@@ -17,13 +25,30 @@ type Output struct {
 }
 
 // Run runs a tool and fails unless it exits with one of ok (0 when none are given).
+// RunAnyExit runs a command whose exit status is its answer rather than a sign of failure:
+// fsck_exfat's varies with the damage it finds and with the release of macOS, so no fixed list
+// of "successful" codes holds. Only failing to start, or running out of time, is an error.
+// files are handed to the command as descriptors 3 onward.
+func RunAnyExit(timeout time.Duration, files []*os.File, name string, args []string) (Output, error) {
+	codes := make([]int, 256)
+	for i := range codes {
+		codes[i] = i
+	}
+	return run(timeout, files, name, args, codes)
+}
+
 func Run(timeout time.Duration, name string, args []string, ok ...int) (Output, error) {
+	return run(timeout, nil, name, args, ok)
+}
+
+func run(timeout time.Duration, files []*os.File, name string, args []string, ok []int) (Output, error) {
 	if timeout <= 0 {
 		timeout = 2 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.ExtraFiles = files
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()

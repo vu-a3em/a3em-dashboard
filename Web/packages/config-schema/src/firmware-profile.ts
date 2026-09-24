@@ -2,7 +2,7 @@
  * Firmware capability profiles.
  *
  * CONFIGURATION always targets current firmware. Every device from here on runs it, so
- * there is no reason to write a card for the older behaviour, and defaulting to it only
+ * there is no reason to write a card for the older behavior, and defaulting to it only
  * produced warnings about situations that cannot arise.
  *
  * The legacy profile remains because CARDS from older firmware still have to be READ.
@@ -108,7 +108,7 @@ export const FIRMWARE_LEGACY: FirmwareProfile = {
  *
  * Every device runs this, and every card that reports a version at all came from it.
  * The version string is still recorded and displayed — it is how a card is traced back
- * to the build that wrote it — but it does not select behaviour.
+ * to the build that wrote it — but it does not select behavior.
  */
 export const FIRMWARE_CURRENT: FirmwareProfile = {
   id: 'current',

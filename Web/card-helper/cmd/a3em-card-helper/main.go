@@ -150,8 +150,10 @@ func host() error {
 	for {
 		raw, err := protocol.Read(os.Stdin)
 		if err != nil {
-			// The browser closes stdin when the port closes. Anything still running — a format
-			// halfway through, say — is allowed to finish rather than leave a half-written card.
+			// The browser closes stdin when the port closes. What can stop — an image, a check —
+			// stops, since nobody is waiting for it. A format halfway through is allowed to
+			// finish rather than leave a half-written card.
+			d.StopAll()
 			work.Wait()
 			if errors.Is(err, io.EOF) {
 				return nil

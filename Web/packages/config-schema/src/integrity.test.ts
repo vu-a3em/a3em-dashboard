@@ -50,9 +50,9 @@ const PAYLOAD = 48_000 * 2 * 10; // ten seconds of mono 48 kHz
 describe('judging a WAV recording', () => {
   it('accepts a properly finalized clip', () => {
     const header = wavHeader({ payloadBytes: PAYLOAD });
-    const judgement = judgeWavFile(PAYLOAD + WAV_HEADER_BYTES, header, MODERN);
-    assert.equal(judgement.verdict, 'ok');
-    assert.equal(judgement.detail, null);
+    const judgment = judgeWavFile(PAYLOAD + WAV_HEADER_BYTES, header, MODERN);
+    assert.equal(judgment.verdict, 'ok');
+    assert.equal(judgment.detail, null);
   });
 
   describe('the four-byte overstatement of older firmware', () => {
@@ -79,11 +79,11 @@ describe('judging a WAV recording', () => {
     // storage_close_wav_audio() is what fills in both size fields. Lose power before it
     // runs and the placeholders survive: RIFF size 36, data size 16. The audio behind
     // them is untouched, which is the entire point of separating this from truncation.
-    it('is recognised by the placeholder the firmware writes at open', () => {
+    it('is recognized by the placeholder the firmware writes at open', () => {
       const header = wavHeader({ payloadBytes: PAYLOAD, declaredDataSize: 16, riffSize: 36 });
-      const judgement = judgeWavFile(PAYLOAD + WAV_HEADER_BYTES, header, MODERN);
-      assert.equal(judgement.verdict, 'unfinalized');
-      assert.equal(judgement.recoverable, true);
+      const judgment = judgeWavFile(PAYLOAD + WAV_HEADER_BYTES, header, MODERN);
+      assert.equal(judgment.verdict, 'unfinalized');
+      assert.equal(judgment.recoverable, true);
     });
 
     it('is repaired by writing the true lengths the firmware would have written', () => {
@@ -106,9 +106,9 @@ describe('judging a WAV recording', () => {
       // Opened, never written to, then interrupted. There is no audio to recover, so
       // calling this repairable would promise something that is not there.
       const header = wavHeader({ payloadBytes: 0, declaredDataSize: 16, riffSize: 36 });
-      const judgement = judgeWavFile(WAV_HEADER_BYTES, header, MODERN);
-      assert.notEqual(judgement.verdict, 'unfinalized');
-      assert.equal(judgement.recoverable, false);
+      const judgment = judgeWavFile(WAV_HEADER_BYTES, header, MODERN);
+      assert.notEqual(judgment.verdict, 'unfinalized');
+      assert.equal(judgment.recoverable, false);
     });
   });
 
@@ -124,9 +124,9 @@ describe('judging a WAV recording', () => {
     it('names an all-zero header as a blank area of the card, not a device fault', () => {
       // A failed flash block reads back as zeros. Blaming the firmware for this would
       // send someone looking in entirely the wrong place.
-      const judgement = judgeWavFile(PAYLOAD, new Uint8Array(WAV_HEADER_BYTES), MODERN);
-      assert.equal(judgement.verdict, 'blank');
-      assert.match(judgement.detail!, /card/);
+      const judgment = judgeWavFile(PAYLOAD, new Uint8Array(WAV_HEADER_BYTES), MODERN);
+      assert.equal(judgment.verdict, 'blank');
+      assert.match(judgment.detail!, /card/);
     });
 
     it('rejects a file whose RIFF magic is wrong', () => {
@@ -150,9 +150,9 @@ describe('judging a WAV recording', () => {
 
     it('reports how much audio is missing when a clip loses its tail', () => {
       const header = wavHeader({ payloadBytes: PAYLOAD });
-      const judgement = judgeWavFile(PAYLOAD + WAV_HEADER_BYTES - 100_000, header, MODERN);
-      assert.equal(judgement.verdict, 'truncated');
-      assert.match(judgement.detail!, /missing/);
+      const judgment = judgeWavFile(PAYLOAD + WAV_HEADER_BYTES - 100_000, header, MODERN);
+      assert.equal(judgment.verdict, 'truncated');
+      assert.match(judgment.detail!, /missing/);
     });
 
     it('classifies every one of these as lost rather than repairable', () => {
@@ -183,9 +183,9 @@ describe('judging an IMU recording', () => {
   });
 
   it('reports a file that stops part-way through a reading', () => {
-    const judgement = judgeImuFile(8 + sample * 500 + 5);
-    assert.equal(judgement.verdict, 'truncated');
-    assert.equal(judgement.recoverable, false);
+    const judgment = judgeImuFile(8 + sample * 500 + 5);
+    assert.equal(judgment.verdict, 'truncated');
+    assert.equal(judgment.recoverable, false);
   });
 
   it('reports an empty file as empty rather than as damaged', () => {

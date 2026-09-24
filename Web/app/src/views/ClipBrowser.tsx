@@ -26,6 +26,7 @@ import {
 import type { CorrectionState } from '../App';
 import type { useCard } from '../lib/useCard';
 import { useClockCorrection } from '../lib/useClockCorrection';
+import { RecoverHint } from '../components/RecoverHint';
 
 type Card = ReturnType<typeof useCard>;
 
@@ -46,6 +47,8 @@ export function ClipBrowser({
   card,
   correction: correctionState,
   activation,
+  recoverable,
+  onRecover,
 }: Readonly<{
   card: Card;
   correction: CorrectionState;
@@ -57,6 +60,9 @@ export function ClipBrowser({
    * would otherwise mix recordings from different runs under one date.
    */
   activation: number | null;
+  /** Whether the card tools are here, to point a card that will not open at Recover card. */
+  recoverable: boolean;
+  onRecover: () => void;
 }>) {
   const { correction } = useClockCorrection(card, correctionState);
   const timezone = card.existingConfig?.timezone ?? 'UTC';
@@ -229,6 +235,7 @@ export function ClipBrowser({
       <div className="card">
         <h2>No card connected</h2>
         <p className="hint">Connect a card to listen to what it recorded.</p>
+        <RecoverHint available={recoverable} onRecover={onRecover} />
       </div>
     );
   }
@@ -246,7 +253,7 @@ export function ClipBrowser({
       {!correction ? (
         <div className="banner">
           <strong>Times below are according to the device's own clock</strong>
-          Configure a clock correction on the Review card tab to correct these for the real deployment time.
+          Configure a clock correction on the “Review card” tab to correct these for the real deployment time.
         </div>
       ) : null}
 
@@ -576,7 +583,7 @@ function ClipDetail({
       <div className="grid stats">
         <Stat label="Peak" value={`${fmtDb(clip.levels.peakDbfs)} dBFS`} />
         <Stat label="Average" value={`${fmtDb(clip.levels.rmsDbfs)} dBFS`} />
-        <Stat label="Offset" value={clip.levels.dcOffset.toFixed(0)} note="0 is centred" />
+        <Stat label="Offset" value={clip.levels.dcOffset.toFixed(0)} note="0 is centered" />
         <Stat
           label="Resolution"
           value={clip.codec === 'opus' ? '—' : clip.levels.effectiveBits ? `${clip.levels.effectiveBits} bits` : '—'}
@@ -784,7 +791,7 @@ function SpectrogramView({
 /**
  * Dark to bright through blue, green, and yellow.
  *
- * Monotonic in lightness so that louder always looks brighter — a colour ramp that dips
+ * Monotonic in lightness so that louder always looks brighter — a color ramp that dips
  * would invent structure in the picture that is not in the audio.
  */
 function heat(t: number): [number, number, number] {
@@ -823,17 +830,17 @@ function heat(t: number): [number, number, number] {
  *  - The label is a measurement, just an earlier one than the deployment's final reading.
  *    Expected, and only worth mentioning if the gap is bigger than ordinary drift.
  */
-function rateNote(labelledHz: number, measuredHz: number | null, nominalHz: number | null) {
-  if (!measuredHz || labelledHz <= 0) return null;
+function rateNote(labeledHz: number, measuredHz: number | null, nominalHz: number | null) {
+  if (!measuredHz || labeledHz <= 0) return null;
 
-  const difference = Math.abs(measuredHz - labelledHz);
-  const percent = Math.abs((measuredHz / labelledHz - 1) * 100).toFixed(2);
-  const direction = measuredHz > labelledHz ? 'faster' : 'slower';
+  const difference = Math.abs(measuredHz - labeledHz);
+  const percent = Math.abs((measuredHz / labeledHz - 1) * 100).toFixed(2);
+  const direction = measuredHz > labeledHz ? 'faster' : 'slower';
 
-  if (nominalHz !== null && labelledHz === nominalHz && difference > 0) {
+  if (nominalHz !== null && labeledHz === nominalHz && difference > 0) {
     return (
       <p className="help">
-        This file is labelled <strong>{labelledHz.toLocaleString()} Hz</strong>, which is the rate
+        This file is labeled <strong>{labeledHz.toLocaleString()} Hz</strong>, which is the rate
         predicted from the clock dividers rather than a measurement — this clip closed before the
         device had timed itself against the clock. The device went on to measure{' '}
         <strong>{measuredHz.toLocaleString()} Hz</strong>, {percent}% {direction}. The audio is

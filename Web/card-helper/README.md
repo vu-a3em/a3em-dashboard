@@ -17,8 +17,12 @@ ever worked on macOS.
 | `prepare` | For each card: the capacity probe, the write-latency test, the reference exFAT layout written and read back, the layout verified, the card mounted, and its unit's `_a3em.cfg` written. A batch is one operation, so it costs one administrator prompt; every card still needs its own confirmation. |
 | `verify` | The layout comparison on its own. |
 | `format` | `prepare` without the two tests, for a card that is known to be good. |
-| `diagnose`, `repair` | `fsck_exfat` / `fsck.exfat` / `chkdsk`, read-only or repairing. |
+| `diagnose` | [This helper's own check](#the-filesystem-check) of an exFAT card, read-only, the same on every platform; what is wrong in words, with the files it touches. A card that is not exFAT goes to the system's checker. |
+| `repair` | This helper's own repair where the check shows it fixes everything — the allocation bitmap rebuilt from the files, or a boot region restored from its intact copy — saving what it replaces first; otherwise the system's tool, `fsck_exfat` / `fsck.exfat` / `chkdsk`. |
 | `image` | A sector-by-sector copy to a file, continuing past unreadable sectors. |
+| `chooseImage` | The system's own save dialog for a card's image (AppleScript on macOS, zenity or kdialog on Linux, Windows Forms on Windows), then whether the image fits there: free space, and the 4 GB file limit of a FAT32 drive. `image` makes the same check itself before reading a byte, writes to `<name>.partial`, and moves it into place only once it is whole. Without a dialog — a Linux desktop with neither zenity nor kdialog — the image goes in `Documents/A3EM card images`. |
+| `stop` | Stops a running `image` or `diagnose`, named by its request id; a stopped image's unfinished file is deleted. The page sends it for its Stop button, and the page closing stops them too. A `prepare`, `format` or `repair` is never stopped partway: a half-written card is worse than a slow one. |
+| `hello` | The version, platform and operations, and anything this computer lacks that the tools rely on — on Linux, `pkexec`, a polkit agent, `udisks2`, the exFAT driver, a save dialog — which `doctor` prints too, and the dashboard shows beside "Card tools". |
 | `mount`, `unmount`, `eject`, `inspect`, `identify`, `writeConfig` | The small ones. |
 
 The helper reports facts; the dashboard decides what they mean. The rules for what the
@@ -61,6 +65,32 @@ Their results are kept in a small ledger on this computer, keyed by the identifi
 derives from the volume serial number the format wrote. A later readiness check of the same
 format reports them; a card prepared elsewhere, or formatted again since, says it was not tested.
 
+### The filesystem check
+
+[`internal/exfat/check.go`](internal/exfat/check.go) reads an exFAT card the way the
+specification describes it, without mounting it and without any system tool, so the same check
+runs on every platform — and finds what each platform's own checker misses: exfatprogs does not
+report space marked in use that no file uses, and `fsck_exfat` reports two files sharing space
+only as a wrong bitmap. It checks both boot regions and their checksums, the FAT, the up-case
+table, every folder and file — entry checksums, name hashes, and each chain of clusters for
+ending early, running on, looping or being shared — and then the allocation bitmap against what
+the files actually use, both ways. Each finding is a problem (recordings may be lost, or the card
+may not open) or minor, in words, naming up to twenty of the files it touches.
+
+[`internal/exfat/repair.go`](internal/exfat/repair.go) fixes the two things that can be fixed
+without deciding anything about a file: the allocation bitmap, rebuilt from what the files use —
+the usual damage on a card pulled, or losing power, while the recorder is writing — and a boot
+region restored from the other, intact copy. It writes only the sectors that differ, after
+saving what they held in the helper's state folder, and checks the card again afterward. Anything
+else means choosing which of two files keeps a cluster, or cutting a file short, so it goes to
+the system's tool, and the dashboard says first which files that may shorten or remove.
+
+`test/crosscheck-macos.sh` and `sudo test/crosscheck-linux.sh` hold the check and repairs up
+against `fsck_exfat` and `fsck.exfat` on volumes the system itself formatted and wrote, damaged
+four ways: space in use marked free, space marked in use that nothing uses, a damaged boot
+region, and two files sharing space. Each repair of the helper's own must leave the system's
+checker satisfied and every file byte for byte as it was.
+
 ## Safety
 
 - **Invisible, not refused.** Anything that is not removable media never reaches the page.
@@ -71,10 +101,17 @@ format reports them; a card prepared elsewhere, or formatted again since, says i
   key, bound to the device's fingerprint, expire after a minute, and work once
   ([`internal/grant`](internal/grant)). They are signed rather than remembered because Chrome
   starts a new helper process for every message.
-- **The worker trusts nothing.** Raw device access needs administrator rights, so that work runs
-  in a second copy of this executable started with them (`osascript` on macOS, `pkexec` on Linux,
-  a UAC prompt on Windows). The worker lists devices again with its own privileges and refuses
-  any whose fingerprint differs from the one confirmed ([`internal/jobs`](internal/jobs)).
+- **The worker trusts nothing.** Raw device access needs administrator rights. On Linux and
+  Windows that work runs in a second copy of this executable started with them (`pkexec`, or a
+  UAC prompt), which lists devices again with its own privileges and refuses any whose
+  fingerprint differs from the one confirmed ([`internal/jobs`](internal/jobs)).
+- **On macOS there is no worker.** macOS guards a card's raw device with the Removable Volumes
+  permission as well as root ownership, and a root process started through `osascript` is refused
+  it ("Operation not permitted"), password or not. So the helper asks for one authorization for
+  every device an operation touches (`security authorize`), and `/usr/libexec/authopen` — which
+  checks Removable Volumes against the browser that started the helper — opens each device and
+  hands the descriptor back. The job then runs in the helper itself; fsck is given the
+  descriptor as `/dev/fd/3` ([`internal/blockdev/authorize_darwin.go`](internal/blockdev/authorize_darwin.go)).
 - **Test mode hides real devices.** `A3EM_HELPER_VIRTUAL_ONLY=1` makes only disk images visible,
   which is how every test here runs on a computer with a real card attached.
 
@@ -84,8 +121,9 @@ format reports them; a card prepared elsewhere, or formatted again since, says i
 | --- | --- | --- | --- |
 | Devices | `diskutil` | `lsblk`, sysfs, `blkid` | Storage cmdlets, `Win32_DiskDrive` |
 | Raw access | `/dev/rdiskN`, `F_NOCACHE` | `/dev/sdX`, `O_DIRECT` | `\\.\PhysicalDriveN`, unbuffered |
-| Elevation | `osascript … with administrator privileges` | `pkexec` | `Start-Process -Verb RunAs` |
-| Filesystem check | `fsck_exfat` | `fsck.exfat` (exfatprogs) | `chkdsk` |
+| Elevation | `security authorize` once, then `authopen` per device | `pkexec` | `Start-Process -Verb RunAs` |
+| Filesystem check | this helper's own; `fsck_exfat` for other filesystems and repairs | the same; `fsck.exfat` (exfatprogs) | the same; `chkdsk` |
+| Save dialog | AppleScript `choose file name` | zenity or kdialog | Windows Forms `SaveFileDialog` |
 | Card identity | CID, in the built-in reader | CID, in a native SD slot | reader only |
 
 Each file in [`internal/platform`](internal/platform) opens with what that system does that its
@@ -116,10 +154,13 @@ with the helper's own verifier and the system's filesystem checker.
 test/integration-macos.sh dist/a3em-card-helper          # an hdiutil image; no password needed
 sudo test/integration-linux.sh dist/a3em-card-helper     # a loop device
 pwsh test/integration-windows.ps1 -Helper dist\a3em-card-helper.exe   # a VHD, elevated
+test/crosscheck-macos.sh dist/a3em-card-helper           # the filesystem check against fsck_exfat
+sudo test/crosscheck-linux.sh dist/a3em-card-helper      # and against fsck.exfat
 ```
 
 The [Card helper workflow](../../.github/workflows/card-helper.yml) runs all three on GitHub's
-runners on every push that touches this directory. On a Mac, the Linux test also runs in Docker:
+runners on every push that touches this directory. [`test/e2e`](test/e2e) runs the dashboard's
+card screens against the real helper on five virtual disks, in headless Chrome. On a Mac, the Linux test also runs in Docker:
 
 ```sh
 GOOS=linux GOARCH=arm64 go build -o /tmp/helper-linux ./cmd/a3em-card-helper

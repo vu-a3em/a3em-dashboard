@@ -372,7 +372,7 @@ describe('validateConfig', () => {
 
 
   describe('sample rates the hardware cannot produce exactly', () => {
-    // The firmware labels files with the rate it achieved, so nothing is mislabelled --
+    // The firmware labels files with the rate it achieved, so nothing is mislabeled --
     // but the label will not be the number that was asked for, and finding that out after
     // a field season is worse than being told before the card is written.
     const withRate = (rate: number, micType: 'ANALOG' | 'DIGITAL') => {
@@ -402,7 +402,7 @@ describe('validateConfig', () => {
       assert.equal(withRate(48000, 'ANALOG'), undefined);
     });
 
-    it('never blocks writing over it, since the recording is still correctly labelled', () => {
+    it('never blocks writing over it, since the recording is still correctly labeled', () => {
       const config = valid();
       config.micType = 'ANALOG';
       config.phases[0].audioSampleRateHz = 8000;

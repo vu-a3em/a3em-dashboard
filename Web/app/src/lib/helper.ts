@@ -230,6 +230,11 @@ interface CallOptions {
    * extension can push anything to a web page.
    */
   onProgress?: (progress: TaskProgress) => void;
+  /**
+   * Stops the operation when aborted, where the helper can stop it — an image, a check. The
+   * stop goes down the same port, since the operation runs in the process at its other end.
+   */
+  signal?: AbortSignal;
 }
 
 function unavailable(): HelperError {
@@ -358,12 +363,14 @@ async function callOverPort<T>(
     };
 
     port.onMessage.addListener((message) => {
-      const update = message as { progress?: TaskProgress };
+      const update = message as { progress?: TaskProgress; id?: string };
       if (update?.progress) {
         arm();
         options.onProgress?.(update.progress);
         return;
       }
+      // The answer to a stop request, which rides the same port: not this operation's answer.
+      if (update?.id && update.id !== payload.id) return;
       if (settled) return;
       settled = true;
       close();
@@ -384,6 +391,9 @@ async function callOverPort<T>(
 
     arm();
     port.postMessage(payload);
+    options.signal?.addEventListener('abort', () => {
+      if (!settled) port.postMessage({ op: 'stop', target: payload.id, id: `${String(payload.id)}:stop` });
+    });
   });
 
   return unwrap<T>(response);
@@ -400,6 +410,8 @@ export interface HelperIdentity {
   implemented: string[];
   /** Changes when a reply changes shape. Absent from the first, TypeScript helper. */
   protocol?: number;
+  /** What this computer lacks that the helper relies on. From helper 0.2.1. */
+  issues?: Array<{ severity: 'problem' | 'note'; message: string }>;
 }
 
 /** The protocol this page speaks. An older helper is reported as needing an update. */
@@ -551,18 +563,55 @@ export async function writeCardConfig(volume: string, text: string): Promise<voi
   await call({ op: 'writeConfig', volume, text });
 }
 
+/** One thing the helper's own check found wrong, in words. */
+export interface FilesystemFinding {
+  kind: string;
+  /** `problem`: recordings may be lost, or the card may not open. `minor`: neither. */
+  severity: 'problem' | 'minor';
+  message: string;
+  /** The files it touches, up to twenty. */
+  paths?: string[];
+  /** How many files it touches, when that is more than `paths` names. */
+  files?: number;
+  count?: number;
+  /** What repairs it here, `bitmap` or `boot`; absent when only the system's tool can. */
+  repair?: string;
+}
+
+/**
+ * A filesystem check or repair. The first four fields are the system tool's; helpers from
+ * 0.2.1 check with their own code and add the rest, with `engine` saying which ran.
+ */
 export interface FsckReport {
   clean: boolean;
   modified: boolean;
   output: string;
   exitCode: number | null;
+  engine?: 'a3em' | 'system';
+  findings?: FilesystemFinding[];
+  /** Whether this helper's own repairs fix every problem found, so no other tool is needed. */
+  fixableHere?: boolean;
+  files?: number;
+  directories?: number;
+  /** What a repair did, and where it saved what it replaced. */
+  repaired?: string[];
+  saved?: string[];
 }
+
+/**
+ * Said when a check ends with no report. Helper 0.2.0 and earlier answered that way when fsck
+ * exited with a status they did not expect — which on macOS is how it reports some damage.
+ */
+const NO_FSCK_REPORT =
+  'The check ended without a report, which usually means it found problems that this card helper is too old to describe. Update the card helper, then check again.';
 
 export async function diagnoseVolume(
   volume: string,
   onProgress?: (progress: TaskProgress) => void,
+  signal?: AbortSignal,
 ): Promise<FsckReport> {
-  const result = await call<{ report: FsckReport }>({ op: 'diagnose', volume }, { onProgress: onProgress ?? (() => undefined) });
+  const result = await call<{ report: FsckReport | null }>({ op: 'diagnose', volume }, { onProgress: onProgress ?? (() => undefined), signal });
+  if (!result.report) throw new HelperError(NO_FSCK_REPORT, 'unexpected');
   return result.report;
 }
 
@@ -570,7 +619,8 @@ export async function repairVolume(
   options: { device: string; volume: string; grant: string },
   onProgress?: (progress: TaskProgress) => void,
 ): Promise<FsckReport> {
-  const result = await call<{ report: FsckReport }>({ op: 'repair', ...options }, { onProgress: onProgress ?? (() => undefined) });
+  const result = await call<{ report: FsckReport | null }>({ op: 'repair', ...options }, { onProgress: onProgress ?? (() => undefined) });
+  if (!result.report) throw new HelperError(NO_FSCK_REPORT, 'unexpected');
   return result.report;
 }
 
@@ -591,12 +641,37 @@ export async function imageDevice(
   device: string,
   destination?: string,
   onProgress?: (progress: TaskProgress) => void,
+  replace = false,
+  signal?: AbortSignal,
 ): Promise<ImageReport> {
   const result = await call<{ report: ImageReport }>(
-    { op: 'image', device, ...(destination ? { destination } : {}) },
-    { onProgress: onProgress ?? (() => undefined) },
+    { op: 'image', device, ...(destination ? { destination } : {}), ...(replace ? { replace } : {}) },
+    { onProgress: onProgress ?? (() => undefined), signal },
   );
   return result.report;
+}
+
+/** Where an image would go, and whether it fits there, from the system's save dialog. */
+export interface ImageDestination {
+  path: string;
+  neededBytes: number;
+  freeBytes: number;
+  filesystem?: string;
+  /** A file already there, which the person agreed to replace in the dialog. */
+  exists: boolean;
+  fits: boolean;
+  problem?: string;
+}
+
+/**
+ * Asks the helper to show the system's save dialog for a card's image, since the page cannot
+ * name a path on this computer, and to say whether the image would fit where it points.
+ * Throws `cancelled` when the dialog is closed, and `no-dialog` where there is none.
+ */
+export async function chooseImageDestination(device: string): Promise<ImageDestination> {
+  // No deadline worth having while someone chooses a folder.
+  const result = await call<{ destination: ImageDestination }>({ op: 'chooseImage', device }, { silenceMs: 30 * 60_000 });
+  return result.destination;
 }
 
 // ---------------------------------------------------------------------------

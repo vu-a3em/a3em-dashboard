@@ -30,7 +30,7 @@ export interface ParseResult {
 export const KEY_ORDER = [
   'DEVICE_LABEL',
   'DEVICE_TIMEZONE',
-  // Still RECOGNISED, never written. It has to stay ahead of DEVICE_UTC_OFFSET: matching is
+  // Still RECOGNIZED, never written. It has to stay ahead of DEVICE_UTC_OFFSET: matching is
   // by prefix, so an older file's DEVICE_UTC_OFFSET_HOUR would otherwise be read as the
   // seconds offset. Retired from output — see serialize.ts.
   'DEVICE_UTC_OFFSET_HOUR',

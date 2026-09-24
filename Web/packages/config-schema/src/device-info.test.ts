@@ -69,7 +69,7 @@ describe('why the device stopped', () => {
     }
   });
 
-  it('falls back rather than inventing a reason it does not recognise', () => {
+  it('falls back rather than inventing a reason it does not recognize', () => {
     assert.equal(info('SOMETHING-NEW').lastDeactivationReason, 'UNKNOWN');
   });
 
@@ -109,7 +109,7 @@ describe('which firmware wrote a card, with only two profiles', () => {
   it('treats any reported version as the current firmware', () => {
     // Pinning profiles to release numbers meant every new build looked unrecognised and
     // silently fell back to a stale entry. Only firmware that writes a version at all
-    // reports one, so the version identifies the build without selecting behaviour.
+    // reports one, so the version identifies the build without selecting behavior.
     assert.equal(dev().firmwareProfile.id, FIRMWARE_CURRENT.id);
     assert.equal(cardFirmwareProfile(dev()).id, FIRMWARE_CURRENT.id);
   });

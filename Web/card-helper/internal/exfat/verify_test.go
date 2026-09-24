@@ -32,7 +32,7 @@ func formatted(t *testing.T, size, cluster int64) (blockdev.Device, Images) {
 	return dev, images
 }
 
-func TestVerifyRecognisesItsOwnLayout(t *testing.T) {
+func TestVerifyRecognizesItsOwnLayout(t *testing.T) {
 	dev, _ := formatted(t, 4<<30, 131072)
 	check, err := Verify(dev)
 	if err != nil {

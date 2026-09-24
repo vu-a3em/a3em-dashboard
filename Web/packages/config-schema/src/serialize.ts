@@ -220,7 +220,7 @@ export function effectiveSampleRateHz(phase: PhaseConfig): number {
 }
 
 /**
- * The highest low-pass corner the filter will honour, which is NOT the frequencies-of-interest
+ * The highest low-pass corner the filter will honor, which is NOT the frequencies-of-interest
  * ceiling. The 200 Hz headroom in `maxFrequencyCeilingHz` exists for the silence filter's FFT
  * bins; `audio_filter.c` clamps its own corners to `nyquist - 1` and nothing else. Applying the
  * stricter number here used to lower a perfectly valid corner behind the user's back.

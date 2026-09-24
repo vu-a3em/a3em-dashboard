@@ -7,7 +7,7 @@ import { maxFrequencyCeilingHz } from './firmware-constants.js';
  * bins `silence_filter_is_silence()` sums when deciding whether a buffer is worth writing
  * to the card. Bins are coarse (7.8 Hz or 11.7 Hz wide depending on sample rate), so the
  * band the device works with is a rounded version of the one typed in. The low edge lands
- * on the CENTRE of the first bin whose upper edge reaches the request, which puts it up to
+ * on the CENTER of the first bin whose upper edge reaches the request, which puts it up to
  * half a bin either side of the number entered — 250 Hz at 48 kHz judges from 246.1 Hz,
  * while 100 Hz at the same rate judges from 105.5 Hz.
  *
@@ -43,9 +43,9 @@ export interface SilenceBand {
   /** First and last FFT bin summed, inclusive. */
   minBin: number;
   maxBin: number;
-  /** Centre frequency of `minBin` — the real low edge of what is judged. */
+  /** Center frequency of `minBin` — the real low edge of what is judged. */
   actualMinHz: number;
-  /** Centre frequency of `maxBin` — the real high edge. */
+  /** Center frequency of `maxBin` — the real high edge. */
   actualMaxHz: number;
   /**
    * False when the firmware refuses to arm the filter, in which case NOTHING is ever
@@ -95,11 +95,11 @@ export function silenceBand(
   let minBin = 1;
   let maxBin = 1;
   for (let bin = 1; bin < numBins; ++bin) {
-    const centre = Math.fround(binWidthHz * bin);
-    if (Math.fround(centre + halfBinWidthHz) < minFrequencyHz) {
+    const center = Math.fround(binWidthHz * bin);
+    if (Math.fround(center + halfBinWidthHz) < minFrequencyHz) {
       minBin = maxBin = bin + 1;
     }
-    if (Math.fround(centre - halfBinWidthHz) < high) {
+    if (Math.fround(center - halfBinWidthHz) < high) {
       maxBin = bin;
     }
   }

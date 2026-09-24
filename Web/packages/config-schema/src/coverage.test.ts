@@ -241,7 +241,7 @@ describe('local dates', () => {
 });
 
 describe('the grid and the count agreeing', () => {
-  // They are computed from the same flag on purpose. Deriving the colour separately let
+  // They are computed from the same flag on purpose. Deriving the color separately let
   // a real card paint fifteen red hours while reporting no gaps at all.
   it('marks exactly the cells the gap list contains', () => {
     const grid = buildCoverage({

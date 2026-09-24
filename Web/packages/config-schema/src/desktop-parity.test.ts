@@ -15,7 +15,7 @@ import type { DeploymentConfig } from './types.js';
  * the Python tool could be fixed tomorrow and the document would carry on describing a
  * defect that no longer exists.
  *
- * So each one is pinned. Two flavours:
+ * So each one is pinned. Two flavors:
  *
  *   AGREES   — both tools produce the same line. A failure means one of them moved.
  *   DIVERGES — they differ, and the difference is recorded with its reason. A failure
@@ -168,7 +168,7 @@ describe('parity with the desktop dashboard', () => {
       deployment start, the write date must not change anything at all.
 
       Generated at two instants either side of a Sydney daylight-saving change, so a
-      regression to write-time behaviour shows up here rather than in the field.
+      regression to write-time behavior shows up here rather than in the field.
     */
     const later = toMap(snapshot.linesWrittenLater);
     for (const key of new Set([...theirs.keys(), ...later.keys()])) {

@@ -98,10 +98,9 @@ function checksFrom(
     checks.push({
       severity: 'warning',
       message: approximate
-        ? 'This card still holds recordings from an earlier deployment. Copy them off before reusing it — they ' +
-          'also take space the forecast assumes is free.'
+        ? 'This card still holds recordings from an earlier deployment. Copy them off before reusing it.'
         : `This card still holds ${found.recordings.toLocaleString()} recordings from an earlier deployment. Copy ` +
-          'them off in Check & copy before reusing it — they also take space the forecast assumes is free.',
+          'them off in “Check & copy” before reusing it.',
     });
   }
   return checks;

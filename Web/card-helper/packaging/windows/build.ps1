@@ -21,7 +21,7 @@ if ($Stage -in 'binaries', 'all') {
   try {
     # Product name and version in every executable: SignPath signs nothing without them, and
     # they are what Windows shows under Properties > Details. go-winres writes them as a
-    # resource that go build links in, one per architecture, deleted again afterwards.
+    # resource that go build links in, one per architecture, deleted again afterward.
     Push-Location cmd/a3em-card-helper
     go run github.com/tc-hib/go-winres@v0.3.3 simply --arch amd64,arm64 --manifest cli `
       --product-name 'A3EM Card Helper' --file-description 'A3EM card helper' `

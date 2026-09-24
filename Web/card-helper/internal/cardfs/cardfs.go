@@ -14,7 +14,7 @@ import (
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/rules"
 )
 
-// Contents summarises what is on a card besides its configuration.
+// Contents summarizes what is on a card besides its configuration.
 type Contents struct {
 	Files       int   `json:"files"`
 	Directories int   `json:"directories"`

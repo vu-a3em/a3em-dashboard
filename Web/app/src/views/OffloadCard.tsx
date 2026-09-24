@@ -11,6 +11,8 @@ import {
   repairWavHeaders,
 } from '../lib/transfer';
 import type { useCard } from '../lib/useCard';
+import type { CardDevice } from '../lib/useCardDevice';
+import { RecoverHint } from '../components/RecoverHint';
 
 type Card = ReturnType<typeof useCard>;
 
@@ -25,7 +27,16 @@ export function OffloadCard({
   card,
   task,
   correction: correctionState,
-}: Readonly<{ card: Card; task: OffloadTask; correction: CorrectionState }>) {
+  cardDevice,
+  onRecover,
+}: Readonly<{
+  card: Card;
+  task: OffloadTask;
+  correction: CorrectionState;
+  /** The physical card the open folder is on, where the card helper can tell, to eject it. */
+  cardDevice: CardDevice;
+  onRecover: () => void;
+}>) {
   // Held in App so that a check or copy in flight survives switching to another section
   const { report, setReport, checking, setChecking, progress, setProgress, result, setResult, repair, setRepair, error, setError } = task;
 
@@ -55,6 +66,7 @@ export function OffloadCard({
       <div className="card">
         <h2>No card connected</h2>
         <p className="hint">Connect a card to check it for damage and copy its recordings off.</p>
+        <RecoverHint available={cardDevice.available} onRecover={onRecover} />
       </div>
     );
   }
@@ -330,11 +342,19 @@ export function OffloadCard({
               style={{ marginTop: 16, marginBottom: 14 }}
             >
               <strong>
-                {result.cancelled ? 'Copy cancelled before finishing' : 'Copy finished'}
+                {result.canceled ? 'Copy canceled before finishing' : 'Copy finished'}
               </strong>
               {result.skipped.length
                 ? 'Everything below was left behind. The same list is saved as a3em-copy-report.txt in the destination folder.'
                 : 'Everything on the card transferred.'}
+              {/* The next thing anyone does with a copied card is take it out. */}
+              {cardDevice.device && !result.canceled ? (
+                <div style={{ marginTop: 8 }}>
+                  <button className="btn small" onClick={() => void cardDevice.eject()}>
+                    Eject {card.name}
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             {repair ? (

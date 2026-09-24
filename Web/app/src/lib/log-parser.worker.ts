@@ -5,7 +5,7 @@ import { parseLogs } from '@a3em/config-schema';
  * Parses device logs off the main thread.
  *
  * A full deployment's log runs to several megabytes and takes seconds to work through.
- * On the main thread that is a frozen page — no repaint, no scrolling, no cancelling —
+ * On the main thread that is a frozen page — no repaint, no scrolling, no canceling —
  * which is exactly what a field user reads as a crash. The parse is pure text-in,
  * data-out, so it moves here whole.
  */

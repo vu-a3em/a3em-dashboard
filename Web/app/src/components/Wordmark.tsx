@@ -7,7 +7,7 @@ import { useId } from 'react';
  * from Manrope SemiBold, and one amplitude trace runs the full width — faint everywhere,
  * at full strength between the A's two legs, where it serves as the letter's crossbar.
  * Both passes render the SAME path so they cannot drift apart, and the strong pass fades
- * in and out inside the leg strokes so the change of colour is never an abrupt edge.
+ * in and out inside the leg strokes so the change of color is never an abrupt edge.
  *
  * Nothing here depends on a font being available.
  */

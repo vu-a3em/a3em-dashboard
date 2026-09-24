@@ -50,7 +50,7 @@ export function useClockCorrection(card: ReturnType<typeof useCard>, state: Corr
     /*
       The time typed here is the wall clock the person was standing in when they activated
       or collected the device — the DEPLOYMENT's zone, not the zone of the laptop reading
-      the card afterwards. Reading it as browser-local put the whole correction out by the
+      the card afterward. Reading it as browser-local put the whole correction out by the
       difference between the two, which then shifted every timestamp on the card.
     */
     let entered: string;

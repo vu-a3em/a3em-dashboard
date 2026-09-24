@@ -19,9 +19,14 @@ import { ClipBrowser } from './views/ClipBrowser';
 import { OffloadCard } from './views/OffloadCard';
 import { useOffloadTask } from './lib/useOffloadTask';
 import { useHelper } from './lib/useHelper';
+import { useCardDevice } from './lib/useCardDevice';
+import { loadRecoverCard, preloadHelperViews } from './lib/helperViews';
+
+/** Only with the card helper, so loaded separately: see `helperViews`. */
+const RecoverCard = lazy(() => loadRecoverCard().then((module) => ({ default: module.RecoverCard })));
 import { useAccount } from './lib/useAccount';
 
-type View = 'configure' | 'batch' | 'review' | 'clips' | 'offload';
+type View = 'configure' | 'batch' | 'review' | 'clips' | 'offload' | 'recover';
 
 export interface CorrectionState {
   /** Null until the user overrides whichever method the card supports. */
@@ -31,13 +36,14 @@ export interface CorrectionState {
 }
 
 // Ordered by the workflow: plan a deployment, prepare the units, then review and
-// offload what comes back.
+// offload what comes back — and, last, rescue a card that will not open at all.
 const VIEWS: Array<{ id: View; label: string; title: string }> = [
   { id: 'configure', label: 'Configure', title: 'Configure a deployment' },
   { id: 'batch', label: 'Prepare devices', title: 'Prepare a batch of devices' },
   { id: 'review', label: 'Review card', title: 'Review a retrieved card' },
   { id: 'clips', label: 'Listen', title: 'Listen to what was recorded' },
   { id: 'offload', label: 'Check & copy', title: 'Check and copy a card' },
+  { id: 'recover', label: 'Recover card', title: 'Recover a card that will not open' },
 ];
 
 export default function App() {
@@ -51,7 +57,13 @@ export default function App() {
    * something else.
    */
   const helper = useHelper();
+  /** Which physical card the open folder is on, where the helper can tell. */
+  const cardDevice = useCardDevice(card, helper);
   const active = VIEWS.find((entry) => entry.id === view)!;
+  const recover = () => setView('recover');
+  useEffect(() => {
+    if (helper.status === 'ready') preloadHelperViews();
+  }, [helper.status]);
 
   /**
    * Every tab starts at the top.
@@ -127,7 +139,7 @@ export default function App() {
           ))}
         </div>
         {/*
-          Ambient state, labelled.
+          Ambient state, labeled.
 
           The firmware version used to render as a bare `fw 1.4.2`, which says nothing
           about whose firmware it is or where the number came from — it is read from
@@ -164,7 +176,7 @@ export default function App() {
         <header className="topbar" ref={topbar}>
           <h1>{active.title}</h1>
           <span className="spacer" />
-          <CardStatus card={card} />
+          <CardStatus card={card} cardDevice={cardDevice} />
           <HelperTaskChip helper={helper} />
           <AccountButton account={account} />
         </header>
@@ -195,6 +207,8 @@ export default function App() {
               onSelectPhase={setSelectedPhase}
               draft={draft}
               library={library}
+              cardDevice={cardDevice}
+              onPrepareDevices={() => setView('batch')}
             />
           ) : null}
           {view === 'batch' ? (
@@ -206,6 +220,7 @@ export default function App() {
               units={batch}
               onUnitsChange={setBatch}
               onEditConfiguration={() => setView('configure')}
+              onRecover={recover}
             />
           ) : null}
           {view === 'review' ? (
@@ -214,10 +229,28 @@ export default function App() {
               correction={correction}
               onCorrectionChange={setCorrection}
               activation={activation}
+              helper={helper}
+              cardDevice={cardDevice}
+              onRecover={recover}
             />
           ) : null}
-          {view === 'clips' ? <ClipBrowser card={card} correction={correction} activation={activation} /> : null}
-          {view === 'offload' ? <OffloadCard card={card} task={offload} correction={correction} /> : null}
+          {view === 'clips' ? (
+            <ClipBrowser
+              card={card}
+              correction={correction}
+              activation={activation}
+              recoverable={helper.status === 'ready'}
+              onRecover={recover}
+            />
+          ) : null}
+          {view === 'offload' ? (
+            <OffloadCard card={card} task={offload} correction={correction} cardDevice={cardDevice} onRecover={recover} />
+          ) : null}
+          {view === 'recover' ? (
+            <Suspense fallback={null}>
+              <RecoverCard helper={helper} onConnect={() => void card.connect()} />
+            </Suspense>
+          ) : null}
         </main>
       </div>
     </div>

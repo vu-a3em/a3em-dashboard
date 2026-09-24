@@ -3,6 +3,7 @@
 package blockdev
 
 import (
+	"errors"
 	"os"
 	"syscall"
 )
@@ -19,9 +20,25 @@ func openRaw(path string, sizeBytes int64, write bool) (Device, error) {
 	if write {
 		flag = os.O_RDWR
 	}
-	handle, err := os.OpenFile(path, flag|directFlag|syscall.O_SYNC, 0)
-	if err != nil {
-		return nil, Classify(err)
+	var handle *os.File
+	var err error
+	if !viaAuthopenAlways() {
+		handle, err = os.OpenFile(path, flag|directFlag|syscall.O_SYNC, 0)
+	}
+	if handle == nil {
+		// Where the platform can open it with authorization instead (macOS's authopen), a
+		// device this process may not open is asked for; elsewhere the worker is elevated.
+		if err != nil && !errors.Is(err, os.ErrPermission) {
+			return nil, Classify(err)
+		}
+		privileged, perr := openPrivileged(path, flag|syscall.O_SYNC)
+		if errors.Is(perr, errNoPrivileged) {
+			return nil, Classify(err)
+		}
+		if perr != nil {
+			return nil, perr
+		}
+		handle = privileged
 	}
 	if err := afterOpen(handle); err != nil {
 		handle.Close()

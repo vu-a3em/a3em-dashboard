@@ -102,7 +102,7 @@ export interface ClipLevels {
   peakDbfs: number;
   rms: number;
   rmsDbfs: number;
-  /** Mean sample value. A large one means the signal is not centred. */
+  /** Mean sample value. A large one means the signal is not centered. */
   dcOffset: number;
   clippedSamples: number;
   /** Fraction of samples at exactly zero. */
@@ -199,7 +199,7 @@ export interface ClipVerdict {
  * The thresholds are deliberately loose. Real A3EM recordings of a quiet site sit around
  * -42 dBFS peak, which is perfectly healthy for low-frequency monitoring and would be
  * alarming on a bird survey — so "quiet" here reports what was measured and leaves the
- * judgement to someone who knows the site.
+ * judgment to someone who knows the site.
  */
 export function judgeClip(levels: ClipLevels): ClipVerdict {
   if (levels.sampleCount === 0) {

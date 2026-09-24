@@ -6,7 +6,7 @@ import { Pane } from './Pane';
  * When the deployment recorded, hour by hour, against when it was meant to.
  *
  * A gap in the middle of three weeks is invisible in a directory listing and unmissable
- * here. The colouring carries the one distinction that matters: an empty hour the
+ * here. The coloring carries the one distinction that matters: an empty hour the
  * schedule never asked for is not a fault, and an empty hour it did ask for is the thing
  * you came to this screen to find.
  */

@@ -59,7 +59,7 @@ import {
  * a duty cycle — scheduled windows, intervals, trigger caps, LEDs, VHF — is an
  * extension, and every extended path reports reduced confidence.
  *
- * Storage is modelled the way the card will actually be laid out rather than as a pool of
+ * Storage is modeled the way the card will actually be laid out rather than as a pool of
  * bytes: the formatter's exFAT geometry decides what is free, and every file the device
  * writes rounds up to whole clusters, directories and logs included. The spreadsheet's
  * byte-pool model is kept as `storageModel: 'raw'` so the parity tests can still ask it
@@ -537,7 +537,7 @@ function scheduledActivity(phase: PhaseConfig, caveats: string[], context?: Sche
   const clip = phase.audioClipLengthSeconds;
   const solar = phase.audioScheduleType === 'SOLAR' && phase.audioSolarWindows.length > 0;
 
-  const summarise = (periods: TriggerWindow[], continuous: boolean, offsetSeconds: number) => ({
+  const summarize = (periods: TriggerWindow[], continuous: boolean, offsetSeconds: number) => ({
     seconds: continuous ? SECONDS_PER_DAY : Math.min(SECONDS_PER_DAY, recordedSecondsInPeriods(periods, clip)),
     buckets: continuous ? BUCKETS_PER_DAY : bucketsTouched(periods, offsetSeconds),
   });
@@ -550,7 +550,7 @@ function scheduledActivity(phase: PhaseConfig, caveats: string[], context?: Sche
           'schedule by records continuously. These figures assume it does.',
       );
     }
-    const day = summarise(phase.audioTriggerTimes, phase.audioTriggerTimes.length === 0, offset);
+    const day = summarize(phase.audioTriggerTimes, phase.audioTriggerTimes.length === 0, offset);
     return { duty: day.seconds / SECONDS_PER_DAY, bucketsPerDay: day.buckets };
   }
 
@@ -566,7 +566,7 @@ function scheduledActivity(phase: PhaseConfig, caveats: string[], context?: Sche
     // The middle of each sampled day, so a sample never lands on a day boundary.
     const at = context.fromMs + ((i + 0.5) / samples) * spanMs;
     const day = scheduleOnDay(phase, context.config, Math.floor(at / 1000), offset);
-    const summary = summarise(day.periods, day.continuous, offset);
+    const summary = summarize(day.periods, day.continuous, offset);
     seconds += summary.seconds;
     buckets += summary.buckets;
     if (day.usedFallback) fallbackDays++;

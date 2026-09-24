@@ -8,7 +8,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/blockdev"
 )
 
 /*
@@ -42,10 +45,19 @@ func (darwin) ID() string { return "darwin" }
 
 type diskutilList struct {
 	AllDisksAndPartitions []struct {
-		DeviceIdentifier string
-		Partitions       []struct{ DeviceIdentifier string }
+		DeviceIdentifier   string
+		Content            string
+		Size               int64
+		OSInternal         *bool
+		APFSPhysicalStores []map[string]string
+		Partitions         []struct{ DeviceIdentifier string }
 	}
 }
+
+// infoConcurrency is how many diskutil queries run at once. Each takes about 90 ms, and a Mac with
+// simulators and disk images installed can list twenty disks; asked one at a time, that was the
+// several seconds before the dashboard could say whether card tools were ready.
+const infoConcurrency = 8
 
 type diskutilInfo struct {
 	DeviceIdentifier               string
@@ -159,47 +171,102 @@ func (darwin) ListDevices() ([]Device, error) {
 	if err := plist(&list, "list", "-plist"); err != nil {
 		return nil, err
 	}
-	boot := bootDisk()
-	var devices []Device
-	for _, disk := range list.AllDisksAndPartitions {
-		i, err := info(disk.DeviceIdentifier)
-		if err != nil {
-			continue // gone between the list and the info
-		}
-		// A synthesized APFS container is a view of a partition on another disk, never a card.
-		if len(i.APFSPhysicalStores) > 0 || i.Content == apfsContainerScheme {
+	bootDone := make(chan string, 1)
+	go func() { bootDone <- bootDisk() }()
+
+	// Everything diskutil is asked, it is asked in parallel; a slot per disk keeps the order.
+	slots := make([]*Device, len(list.AllDisksAndPartitions))
+	limit := make(chan struct{}, infoConcurrency)
+	var wait sync.WaitGroup
+	for index, disk := range list.AllDisksAndPartitions {
+		// A synthesized APFS container is a view of a partition on another disk, never a card:
+		// the listing says so, so it is not worth asking about.
+		if len(disk.APFSPhysicalStores) > 0 || disk.Content == apfsContainerScheme {
 			continue
 		}
-		internal := i.Internal
-		if i.OSInternalMedia != nil {
-			internal = *i.OSInternalMedia
-		}
-		d := Device{
-			ID: disk.DeviceIdentifier, Node: nonEmpty(i.DeviceNode, "/dev/"+disk.DeviceIdentifier),
-			SizeBytes: first(i.TotalSize, i.Size),
-			// Removable media only. RemovableMediaOrExternalDevice and Ejectable are both true
-			// for an external SSD, which must never be offered as a card.
-			Removable: i.Removable || i.RemovableMedia,
-			Internal:  internal, Bus: nonEmpty(i.BusProtocol, "unknown"), IsBootDevice: disk.DeviceIdentifier == boot,
-			// VirtualOrPhysical is "Virtual" for APFS containers too; only a disk image is virtual here.
-			Virtual:         i.BusProtocol == "Disk Image",
-			PartitionScheme: scheme(i.Content), WriteProtected: i.WritableMedia != nil && !*i.WritableMedia,
-			Volumes: []Volume{},
-		}
-		if !internal {
-			for _, partition := range disk.Partitions {
-				v, err := volumeFrom(partition.DeviceIdentifier)
-				if err != nil {
-					// An unreadable partition is the shape of the card this tool exists to recover,
-					// so it is reported as unmountable rather than dropped.
-					v = Volume{ID: partition.DeviceIdentifier, Node: "/dev/" + partition.DeviceIdentifier}
-				}
-				d.Volumes = append(d.Volumes, v)
+		// The computer's own storage is never a card either. It is still listed, so a request
+		// that names it is refused as internal rather than as unknown, but nothing more is asked.
+		if disk.OSInternal != nil && *disk.OSInternal {
+			slots[index] = &Device{
+				ID: disk.DeviceIdentifier, Node: "/dev/" + disk.DeviceIdentifier, SizeBytes: disk.Size,
+				Internal: true, Bus: "internal", PartitionScheme: scheme(disk.Content), Volumes: []Volume{},
 			}
+			continue
 		}
-		devices = append(devices, d)
+		wait.Add(1)
+		go func(index int, id string, partitions []string) {
+			defer wait.Done()
+			limit <- struct{}{}
+			i, err := info(id)
+			<-limit
+			if err != nil {
+				return // gone between the list and the info
+			}
+			if len(i.APFSPhysicalStores) > 0 || i.Content == apfsContainerScheme {
+				return
+			}
+			internal := i.Internal
+			if i.OSInternalMedia != nil {
+				internal = *i.OSInternalMedia
+			}
+			d := Device{
+				ID: id, Node: nonEmpty(i.DeviceNode, "/dev/"+id), SizeBytes: first(i.TotalSize, i.Size),
+				// Removable media only. RemovableMediaOrExternalDevice and Ejectable are both true
+				// for an external SSD, which must never be offered as a card.
+				Removable: i.Removable || i.RemovableMedia,
+				Internal:  internal, Bus: nonEmpty(i.BusProtocol, "unknown"),
+				// VirtualOrPhysical is "Virtual" for APFS containers too; only a disk image is virtual here.
+				Virtual:         i.BusProtocol == "Disk Image",
+				PartitionScheme: scheme(i.Content), WriteProtected: i.WritableMedia != nil && !*i.WritableMedia,
+				Volumes: make([]Volume, len(partitions)),
+			}
+			// Partitions are described only on a disk that could be offered as a card. Macs with
+			// Xcode carry a disk image per simulator runtime, each with partitions of its own,
+			// and asking about all of them was most of the wait.
+			if internal || !(d.Removable || d.Virtual) || (d.Virtual && !VirtualAllowed()) {
+				d.Volumes = []Volume{}
+			} else {
+				var parts sync.WaitGroup
+				for n, partition := range partitions {
+					parts.Add(1)
+					go func(n int, partition string) {
+						defer parts.Done()
+						limit <- struct{}{}
+						v, err := volumeFrom(partition)
+						<-limit
+						if err != nil {
+							// An unreadable partition is the shape of the card this tool exists to recover,
+							// so it is reported as unmountable rather than dropped.
+							v = Volume{ID: partition, Node: "/dev/" + partition}
+						}
+						d.Volumes[n] = v
+					}(n, partition)
+				}
+				parts.Wait()
+			}
+			slots[index] = &d
+		}(index, disk.DeviceIdentifier, partitionIDs(disk.Partitions))
+	}
+	wait.Wait()
+	boot := <-bootDone
+
+	devices := []Device{}
+	for _, d := range slots {
+		if d == nil {
+			continue
+		}
+		d.IsBootDevice = d.ID == boot
+		devices = append(devices, *d)
 	}
 	return devices, nil
+}
+
+func partitionIDs(partitions []struct{ DeviceIdentifier string }) []string {
+	ids := make([]string, len(partitions))
+	for i, p := range partitions {
+		ids[i] = p.DeviceIdentifier
+	}
+	return ids
 }
 
 func (p darwin) Inspect(volumeID string) (Geometry, error) {
@@ -252,23 +319,36 @@ func fsckTool(volumeID string) string {
 	return "fsck_exfat"
 }
 
-func (p darwin) Diagnose(volumeID string) (FsckReport, error) {
-	// -n opens the device read-only and answers no to every repair prompt.
-	out, err := Run(2*time.Hour, fsckTool(volumeID), []string{"-n", p.VolumeRawPath(volumeID)}, 0, 1, 8)
-	if err != nil {
-		return FsckReport{}, err
-	}
-	return fsckReport(out, false), nil
-}
+func (p darwin) Diagnose(volumeID string) (FsckReport, error) { return p.fsck(volumeID, false) }
 
 func (p darwin) Repair(volumeID string) (FsckReport, error) {
-	tool := fsckTool(volumeID)
 	Run(time.Minute, "diskutil", []string{"unmount", "force", volumeID})
-	out, err := Run(2*time.Hour, tool, []string{"-y", p.VolumeRawPath(volumeID)}, 0, 1, 8)
+	return p.fsck(volumeID, true)
+}
+
+// fsck runs the check on a descriptor this process opened — through authopen, for a card — and
+// hands it over as /dev/fd/3, since fsck opening the device itself is refused by the privacy
+// protection that authopen satisfies. -n opens nothing for writing and answers no to every
+// repair; -y repairs, on a read-write descriptor.
+func (p darwin) fsck(volumeID string, repair bool) (FsckReport, error) {
+	device, err := blockdev.OpenForChild(p.VolumeRawPath(volumeID), repair)
 	if err != nil {
 		return FsckReport{}, err
 	}
-	return fsckReport(out, true), nil
+	defer device.Close()
+	flag := "-n"
+	if repair {
+		flag = "-y"
+	}
+	out, err := RunAnyExit(2*time.Hour, []*os.File{device}, fsckTool(volumeID), []string{flag, "/dev/fd/3"})
+	if err != nil {
+		return FsckReport{}, err
+	}
+	// Not a finding about the filesystem: the check never saw it.
+	if strings.Contains(out.Stdout+out.Stderr, "Operation not permitted") {
+		return FsckReport{}, blockdev.ErrPermission
+	}
+	return fsckReport(out, repair), nil
 }
 
 func fsckReport(out Output, modified bool) FsckReport {

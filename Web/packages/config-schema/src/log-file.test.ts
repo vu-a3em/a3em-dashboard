@@ -324,7 +324,7 @@ describe('legacy activation attribution', () => {
   });
 });
 
-describe('dating events from neighbouring times', () => {
+describe('dating events from neighboring times', () => {
   it('dates an event from the telemetry reading before it', () => {
     // Firmware 2026.08.27 wrote neither a line prefix nor `t=`, so every event on such a
     // card came back undated even though telemetry beside it was precisely timed.

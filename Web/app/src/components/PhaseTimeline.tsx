@@ -2,7 +2,7 @@ import {
   MAX_DEPLOYMENT_PHASES,
   formatZonedDisplay,
   localMidnight,
-  summarisePhases,
+  summarizePhases,
   type DeploymentConfig,
   type PhaseConfig,
 } from '@a3em/config-schema';
@@ -121,7 +121,7 @@ export function PhaseTimeline({
   };
 
   return (
-    <Pane id="deployment-phases" title="Deployment phases" note={summarisePhases(config)}>
+    <Pane id="deployment-phases" title="Deployment phases" note={summarizePhases(config)}>
       <p className="hint">Record differently during different parts of the deployment.</p>
 
       <div className="field inline" style={{ marginBottom: 16 }}>

@@ -14,7 +14,7 @@ import {
   type ClockCorrection,
   type CorrectionMethod,
 } from '@a3em/config-schema';
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import type { useCard } from '../lib/useCard';
 import { deviceTime, zonedTime } from '../lib/cardTime';
 import { parseLogsAsync } from '../lib/parse-logs-async';
@@ -25,8 +25,15 @@ import { SelfTestPanel } from '../components/SelfTestPanel';
 import { CoverageHeatmap } from '../components/CoverageHeatmap';
 import { TrackMap } from '../components/TrackMap';
 import { Pane } from '../components/Pane';
+import type { CardDevice } from '../lib/useCardDevice';
+import { loadPhysicalCard } from '../lib/helperViews';
+import { RecoverHint } from '../components/RecoverHint';
+import type { Helper } from '../lib/useHelper';
 
 type Card = ReturnType<typeof useCard>;
+
+/** Only with the card helper, so loaded separately: see `helperViews`. */
+const PhysicalCard = lazy(() => loadPhysicalCard().then((module) => ({ default: module.PhysicalCard })));
 
 /**
  * How many lifecycle events one page of the log shows.
@@ -49,12 +56,19 @@ export function CardOverview({
   correction: state,
   onCorrectionChange,
   activation,
+  helper,
+  cardDevice,
+  onRecover,
 }: Readonly<{
   card: Card;
   correction: CorrectionState;
   onCorrectionChange: (state: CorrectionState) => void;
   /** Which activation to show, or null for all of them together. */
   activation: number | null;
+  helper: Helper;
+  /** The physical card the open folder is on, where the card helper can tell. */
+  cardDevice: CardDevice;
+  onRecover: () => void;
 }>) {
   const { enteredTime, manualOffset } = state;
   const setChosenMethod = (method: CorrectionMethod) => onCorrectionChange({ ...state, method });
@@ -311,6 +325,7 @@ export function CardOverview({
           Connect an SD card to see what a deployment recorded, how the hardware behaved, and whether
           anything on the card is unreadable.
         </p>
+        <RecoverHint available={helper.status === 'ready'} onRecover={onRecover} />
       </div>
     );
   }
@@ -339,6 +354,13 @@ export function CardOverview({
 
   return (
     <>
+      {/* The card as hardware, first: whether the recorder would erase it outranks what it holds. */}
+      {cardDevice.device ? (
+        <Suspense fallback={null}>
+          <PhysicalCard cardDevice={cardDevice} helper={helper} onReopened={() => void card.rescan()} />
+        </Suspense>
+      ) : null}
+
       {slowRescope ? (
         <div className="banner">
           <strong>Reading activation {activation}</strong>
@@ -413,7 +435,7 @@ export function CardOverview({
         note={`${scoped.audioCount.toLocaleString()} clips · ${(scoped.audioBytes / 1024 ** 3).toFixed(2)} GB`}
       >
         <p className="hint">
-          {layout.deviceLabel ?? 'Unlabelled device'} ·{' '}
+          {layout.deviceLabel ?? 'Unlabeled device'} ·{' '}
           {activation !== null
             ? `Activation ${activation} of ${formatList(layout.activations.map(String))}`
             : layout.activations.length === 1

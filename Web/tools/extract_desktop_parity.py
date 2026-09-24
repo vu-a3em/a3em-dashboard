@@ -42,7 +42,7 @@ def _ensure_pytz() -> bool:
     """Make `import pytz` work, with the standard library if the real package is absent.
 
     The writer uses pytz for exactly two things: the offset of a zone at an instant, and
-    localising a naive datetime. `zoneinfo` does both, and for the fixed deployment this
+    localizing a naive datetime. `zoneinfo` does both, and for the fixed deployment this
     script uses the two agree exactly — which is asserted in the parity snapshot itself
     (`pytzSource`) and was verified against the real package when this was written.
 

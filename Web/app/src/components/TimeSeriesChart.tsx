@@ -6,7 +6,7 @@ export interface SeriesPoint {
 }
 
 /**
- * A time series with labelled axes: the measured quantity up the left, time along the
+ * A time series with labeled axes: the measured quantity up the left, time along the
  * bottom.
  *
  * Deliberately decimates rather than plotting every point — a months-long deployment
@@ -41,7 +41,7 @@ export function TimeSeriesChart({
   /**
    * The chart is drawn at its real pixel width rather than scaled from a fixed viewBox.
    *
-   * A fixed viewBox with a constrained height scales to fit BOTH dimensions and centres
+   * A fixed viewBox with a constrained height scales to fit BOTH dimensions and centers
    * what is left, which left a full-width card holding a chart down the middle with dead
    * space either side. Measuring keeps one SVG unit to one pixel, so nothing is
    * distorted and the drag maps straight onto the axis.
@@ -67,7 +67,7 @@ export function TimeSeriesChart({
    * changing the activation filter, say — those indices address a different run, and
    * slicing the new array with them either lands on the wrong window or falls off the
    * end entirely, leaving the chart showing everything while the footer still claims a
-   * zoom. Dropping the zoom when the data changes underneath is the honest behaviour.
+   * zoom. Dropping the zoom when the data changes underneath is the honest behavior.
    */
   const identity = `${points.length}|${points[0]?.timestamp ?? ''}|${points[points.length - 1]?.timestamp ?? ''}`;
   const [zoomedFor, setZoomedFor] = useState(identity);
@@ -173,7 +173,7 @@ export function TimeSeriesChart({
         </linearGradient>
       </defs>
 
-      {/* Horizontal guides, with the measured quantity labelled up the left */}
+      {/* Horizontal guides, with the measured quantity labeled up the left */}
       {ticks.map((value) => (
         <g key={value}>
           <line

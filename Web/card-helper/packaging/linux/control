@@ -4,7 +4,8 @@ Architecture: @ARCH@
 Maintainer: A3EM <a3em@users.noreply.github.com>
 Installed-Size: @SIZE@
 Depends: util-linux
-Recommends: exfatprogs, udisks2, pkexec | policykit-1
+Recommends: udisks2, pkexec | policykit-1, zenity | kdialog
+Suggests: exfatprogs
 Section: utils
 Priority: optional
 Homepage: https://github.com/vu-a3em/a3em-dashboard

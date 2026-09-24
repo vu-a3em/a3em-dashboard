@@ -56,7 +56,7 @@ export interface SolarDay {
   /**
    * The same instants UNFOLDED — relative to local midnight but free to run below zero or past
    * 86 400 — so the anchors stay in chronological order. A window from one anchor to another
-   * can only be recognised as running past midnight while its two ends are in this form.
+   * can only be recognized as running past midnight while its two ends are in this form.
    */
   secondsFromMidnight: Record<SolarAnchor, number>;
   polarDay: boolean;
@@ -172,7 +172,7 @@ const geomMeanAnomalySunDeg = (t: number) => 357.52911 + t * (35999.05029 - 0.00
 
 const eccentricityEarthOrbit = (t: number) => 0.016708634 - t * (0.000042037 + 0.0000001267 * t);
 
-function sunEqOfCentreDeg(t: number): number {
+function sunEqOfCenterDeg(t: number): number {
   const m = toRadians(geomMeanAnomalySunDeg(t));
   return (
     Math.sin(m) * (1.914602 - t * (0.004817 + 0.000014 * t)) +
@@ -182,7 +182,7 @@ function sunEqOfCentreDeg(t: number): number {
 }
 
 function apparentLongitudeDeg(t: number): number {
-  const trueLong = geomMeanLongSunDeg(t) + sunEqOfCentreDeg(t);
+  const trueLong = geomMeanLongSunDeg(t) + sunEqOfCenterDeg(t);
   return trueLong - 0.00569 - 0.00478 * Math.sin(toRadians(125.04 - 1934.136 * t));
 }
 

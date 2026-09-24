@@ -166,7 +166,7 @@ const SPECS = {
            audioFilterType: 'BAND', audioFilterLowHz: 800, audioFilterHighHz: 11000,
            imuRecordingMode: 'NONE' } },
     { name: 'M3 inexact rate', hours: 24,
-      purpose: 'Never once executed. Achieved-rate labelling held for a full day.',
+      purpose: 'Never once executed. Achieved-rate labeling held for a full day.',
       p: { audioRecordingMode: 'CONTINUOUS', audioSampleRateHz: 32000, audioClipLengthSeconds: 120,
            silenceThreshold: 0.01, minFrequencyHz: 500, maxFrequencyHz: 15000,
            imuRecordingMode: 'AUDIO', imuSampleRateHz: 400 } },
@@ -258,14 +258,14 @@ const cardOk = f.storageDays >= f.deploymentDays;
 const battOk = f.batteryDays >= f.deploymentDays;
 console.log(`    verdict              card ${cardOk ? 'OK' : 'TOO SMALL'}, battery ${battOk ? 'OK' : 'TOO SMALL'}`);
 
-// What the card should hold afterwards. Derived, not guessed, so the post-run check has real
+// What the card should hold afterward. Derived, not guessed, so the post-run check has real
 // numbers to compare against rather than an impression of "looks about right".
 console.log('\n  EXPECTED ON THE CARD');
 console.log('    phase              recordings          each        IMU');
 config.phases.forEach((p) => {
   const seconds = (Date.parse(p.endTime) - Date.parse(p.startTime)) / 1000;
   const rate = p.useOpusEncoding ? 48000 : p.audioSampleRateHz;
-  // The PDM clock cannot hit every rate; the file is written at, and labelled with, what it got.
+  // The PDM clock cannot hit every rate; the file is written at, and labeled with, what it got.
   const actual = { 4000: 3906, 11025: 10989, 22050: 21978, 32000: 31914, 44100: 44117 }[rate] ?? rate;
   const bytes = p.useOpusEncoding
     ? (p.opusBitrate / 8) * p.audioClipLengthSeconds

@@ -23,13 +23,13 @@ import type { MicType } from './firmware-constants.js';
  * arithmetic does not come out even, the firmware takes the closest reachable rate,
  * writes THAT into the WAV header, and carries on.
  *
- * Nothing is lost by this — the recordings are correctly labelled — but the label is not
+ * Nothing is lost by this — the recordings are correctly labeled — but the label is not
  * the number that was asked for, and finding that out after a field season is worse than
  * being told before the card is written.
  *
  * Both functions mirror `configure_repeat_trigger_timer()` and the PDM divider search in
  * audio.c exactly, including their integer truncation. Reproducing the rounding is the
- * whole point: an idealised calculation would disagree with the device in precisely the
+ * whole point: an idealized calculation would disagree with the device in precisely the
  * cases worth warning about.
  */
 
@@ -58,7 +58,7 @@ export function analogSampleRate(requestedHz: number): AchievableRate {
     return describe(requestedHz, Math.floor(AUDADC_SOURCE_CLOCK_HZ / div4Count));
   }
 
-  // The /8 divider carries a half-tick offset that cannot be cancelled, so the achieved
+  // The /8 divider carries a half-tick offset that cannot be canceled, so the achieved
   // rate is 12 MHz / (2n + 3) -- an odd divisor, which most requested rates miss.
   const raw = Math.round(AUDADC_SOURCE_CLOCK_HZ / 2 / requestedHz - 1.5);
   const countMax = Math.max(1, Math.min(AUDADC_TIMER_COUNT_MAX, raw));
@@ -123,7 +123,7 @@ export function achievableSampleRate(requestedHz: number, micType: MicType): Ach
  * Every offered rate the chosen microphone cannot produce exactly.
  *
  * Used to mark the options in the editor, so the trade-off is visible while choosing
- * rather than discovered in a warning afterwards.
+ * rather than discovered in a warning afterward.
  */
 export function inexactRates(rates: readonly number[], micType: MicType): Map<number, AchievableRate> {
   const inexact = new Map<number, AchievableRate>();

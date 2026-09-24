@@ -20,7 +20,7 @@ const (
 // AllowVirtual includes disk images, which is how this is tested without risking a real card.
 // A disk image is rarely marked removable (a Linux loop device or a Windows VHD never is), so
 // with this set a virtual disk counts as removable.
-func AllowVirtual() bool { return os.Getenv("A3EM_HELPER_ALLOW_VIRTUAL") == "1" || VirtualOnly() }
+func AllowVirtual() bool { return platform.VirtualAllowed() }
 
 // VirtualOnly hides every real device, for testing on a computer with a real card attached.
 func VirtualOnly() bool { return os.Getenv("A3EM_HELPER_VIRTUAL_ONLY") == "1" }

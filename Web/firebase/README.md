@@ -39,7 +39,7 @@ person.
    Spark plan: never upgrade to Blaze, and decline any offer to upgrade to *Firebase
    Authentication with Identity Platform* (on Spark it adds a limit of 3,000 users a day).
 2. **Register the web app.** *Project Overview*, then the web icon (`</>`). Nickname `dashboard`.
-   Do not tick Firebase Hosting. Copy the `firebaseConfig` object it shows.
+   Do not check Firebase Hosting. Copy the `firebaseConfig` object it shows.
 3. **Turn on Google sign-in.** *Build → Authentication → Get started → Sign-in method → Google →
    Enable*, choose the support email, *Save*.
 4. **Turn on GitHub sign-in.** In the same list, *GitHub → Enable*, and copy the callback URL it
@@ -92,15 +92,15 @@ Needs the Apple Developer Program membership (team `D3TVN67UY9`). In
 <https://developer.apple.com/account/resources>, *Certificates, Identifiers & Profiles*:
 
 1. **An App ID** to hang it on. *Identifiers → + → App IDs → App*. Description `A3EM Dashboard`,
-   explicit Bundle ID `com.a3em.dashboard`. Under *Capabilities* tick *Sign In with Apple*.
+   explicit Bundle ID `com.a3em.dashboard`. Under *Capabilities* check *Sign In with Apple*.
    *Continue → Register*.
 2. **A Services ID**, which is what the web sign-in uses. *Identifiers → + → Services IDs*.
    Description `A3EM Dashboard` (Apple shows it on its sign-in screen), identifier
-   `com.a3em.dashboard.signin`. *Continue → Register*. Open it from the list, tick
+   `com.a3em.dashboard.signin`. *Continue → Register*. Open it from the list, check
    *Sign In with Apple*, *Configure*: primary App ID `A3EM Dashboard`; *Domains and Subdomains*
    `a3em-679d7.firebaseapp.com`; *Return URLs*
    `https://a3em-679d7.firebaseapp.com/__/auth/handler`. *Next → Done → Continue → Save*.
-3. **A key.** *Keys → +*. Name `A3EM Dashboard sign-in`, tick *Sign in with Apple*, *Configure*,
+3. **A key.** *Keys → +*. Name `A3EM Dashboard sign-in`, check *Sign in with Apple*, *Configure*,
    primary App ID `A3EM Dashboard`, *Save → Continue → Register*. Note the Key ID and *Download*
    the `.p8` file. It can be downloaded only once: keep it with the project's other private
    credentials. It does not expire.
@@ -168,26 +168,36 @@ its account dialog. Two reasons:
 
 Deploy the dashboard before changing the action URL: an older dashboard ignores the links.
 
+**If the console says "An error occurred updating action URL",** Firebase has locked this
+project's email settings. The API behind the console gives the real reason,
+`EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED`, even for a change to the action URL alone. Google does not
+document when it applies this lock (it is part of its measures against Authentication emails
+being used for spam), and only Firebase support can lift it:
+<https://firebase.google.com/support/troubleshooter/contact>. Until then the links keep going
+to Firebase's own page, and the dashboard copes: its confirmation links carry a continue link
+back to the dashboard, and an address confirmed elsewhere is noticed as soon as the dashboard's
+tab is used again, without pressing *I have confirmed it*. Email scanners can still use a link up
+first; the address is then confirmed anyway, and the dashboard says so.
+
 **Keep the domain's records whole.** The DNS for `a3em.com` needs, and on 24 September 2026 had:
 
 | Record | Name | Value |
 | --- | --- | --- |
-| TXT | `a3em.com` | `v=spf1 include:_spf.firebasemail.com -all` (one `v=spf1` record only; merge any others into it) |
+| MX | `a3em.com` | `mxa.mailgun.org`, `mxb.mailgun.org` (Squarespace's email forwarding) |
+| TXT | `a3em.com` | `v=spf1 include:mailgun.org include:_spf.firebasemail.com ~all` (one `v=spf1` record only; merge any others into it) |
 | TXT | `a3em.com` | `firebase=a3em-679d7` |
 | CNAME | `firebase1._domainkey` | `mail-a3em-com.dkim1._domainkey.firebasemail.com` |
 | CNAME | `firebase2._domainkey` | `mail-a3em-com.dkim2._domainkey.firebasemail.com` |
 | TXT | `_dmarc` | `v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s` |
 
-It had no MX record, so the sending domain could not receive mail — which filters also count
-against it. Adding email forwarding for an address such as `support@a3em.com` in Squarespace
-creates one; if that adds a second `v=spf1` record, merge its `include:` into the one above. Then
-set that address as the templates' reply-to.
+The MX records let the sending domain receive mail, which filters check; the templates send from
+and reply to `support@a3em.com`, which Squarespace forwards.
 
 **When a message is still flagged,** open it in the quarantine or junk folder and view its
 headers. `Authentication-Results` should read `spf=pass`, `dkim=pass header.d=a3em.com` and
 `dmarc=pass`. A DKIM signature for any other domain means the custom domain has not been applied
 (*Templates → Apply custom domain*). Marking the message *Not junk* or *Not phishing* teaches the
-filter; for a whole organisation's mail, its IT administrators can allow `a3em.com`.
+filter; for a whole organization's mail, its IT administrators can allow `a3em.com`.
 
 ## Keeping it running
 

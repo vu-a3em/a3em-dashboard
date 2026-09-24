@@ -20,7 +20,7 @@ export type RecordingVerdict =
   | 'blank'
   | 'unreadable';
 
-export interface RecordingJudgement {
+export interface RecordingJudgment {
   verdict: RecordingVerdict;
   /** One sentence, in the terms an ecologist would use. Null when the file is sound. */
   detail: string | null;
@@ -53,7 +53,7 @@ export const RECORDING_VERDICT_LABELS: Record<RecordingVerdict, string> = {
   unreadable: 'Unreadable',
 };
 
-/** Verdicts where the recording is lost, as opposed to merely mislabelled. */
+/** Verdicts where the recording is lost, as opposed to merely mislabeled. */
 export const LOST_VERDICTS: ReadonlySet<RecordingVerdict> = new Set<RecordingVerdict>([
   'empty',
   'truncated',
@@ -98,7 +98,7 @@ export function judgeWavFile(
   sizeBytes: number,
   header: Uint8Array | null,
   options: WavCheckOptions,
-): RecordingJudgement {
+): RecordingJudgment {
   if (sizeBytes === 0) {
     return {
       verdict: 'empty',
@@ -200,7 +200,7 @@ export function judgeWavFile(
  * layouts. Anything else means the file stops mid-sample, which only happens when a
  * write was interrupted.
  */
-export function judgeImuFile(sizeBytes: number): RecordingJudgement {
+export function judgeImuFile(sizeBytes: number): RecordingJudgment {
   if (sizeBytes === 0) {
     return {
       verdict: 'empty',

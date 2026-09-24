@@ -43,7 +43,8 @@ export function HelperTaskChip({ helper }: Readonly<{ helper: Helper }>) {
   return (
     <span className="chip" role="status" aria-live="polite">
       <span className="dot" />
-      {task.note}
+      {/* The helper's notes are sentences; here each is followed by a separator instead. */}
+      {task.note.replace(/\.\s*$/, '')}
       {percent !== null ? ` · ${percent}%` : ''}
       {` · ${formatElapsed(elapsed)}`}
       {progress?.badSectors ? ` · ${progress.badSectors} unreadable sectors` : ''}
@@ -71,11 +72,26 @@ function formatElapsed(ms: number): string {
  */
 export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
   const [showGuide, setShowGuide] = useState(false);
+  const [showIssues, setShowIssues] = useState(false);
+  // What the helper found missing on this computer, such as a Linux package it relies on.
+  const issues = helper.status === 'ready' ? (helper.identity?.issues ?? []) : [];
+  const problems = issues.filter((issue) => issue.severity === 'problem').length;
 
-  if (helper.status === 'checking' || helper.status === 'unsupported') {
+  if (helper.status === 'unsupported') {
     // Browser capability is already stated by CardStatus. Saying it twice adds noise
     // without adding information.
     return null;
+  }
+
+  if (helper.status === 'checking') {
+    // Said rather than left blank: asking the helper what it can see takes a moment, and an
+    // empty space where the status belongs reads as something having gone wrong.
+    return (
+      <div className="rail-foot-row">
+        <span className="rail-foot-label">Card tools</span>
+        <span className="rail-foot-value muted">Loading…</span>
+      </div>
+    );
   }
 
   return (
@@ -89,6 +105,16 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
             onClick={() => setShowGuide(true)}
           >
             {helper.status === 'outdated' ? 'Update…' : 'Enable…'}
+          </button>
+        ) : issues.length ? (
+          <button
+            className={`rail-foot-action ${problems ? 'warn' : ''}`}
+            title={`Card helper ${helper.identity?.version} on ${helper.identity?.platform}`}
+            onClick={() => setShowIssues(true)}
+          >
+            {problems
+              ? `ready · ${problems} ${problems === 1 ? 'problem' : 'problems'}`
+              : `ready · ${issues.length} ${issues.length === 1 ? 'note' : 'notes'}`}
           </button>
         ) : (
           <span
@@ -104,7 +130,62 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
         )}
       </div>
       {showGuide ? <InstallGuideDialog outdated={helper.status === 'outdated'} onClose={() => setShowGuide(false)} /> : null}
+      {showIssues ? <SystemIssuesDialog issues={issues} onClose={() => setShowIssues(false)} /> : null}
     </>
+  );
+}
+
+/**
+ * What the helper found missing on this computer, and what to install.
+ *
+ * Checked when the helper starts, so a missing package is said once, in the rail, rather than
+ * as a puzzling failure the first time someone presses the button that needs it.
+ */
+function SystemIssuesDialog({
+  issues,
+  onClose,
+}: Readonly<{ issues: Array<{ severity: 'problem' | 'note'; message: string }>; onClose: () => void }>) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = dialog.current;
+    if (!element) return undefined;
+    element.showModal();
+    element.addEventListener('close', onClose);
+    return () => element.removeEventListener('close', onClose);
+  }, [onClose]);
+  const problems = issues.filter((issue) => issue.severity === 'problem');
+  const notes = issues.filter((issue) => issue.severity !== 'problem');
+  return (
+    <dialog className="modal" ref={dialog} aria-label="Card helper on this computer">
+      <h2>Card helper on this computer</h2>
+      <p className="hint">
+        The card helper is installed and working, but this computer is missing things some of its tools rely on.
+      </p>
+      {problems.length ? (
+        <div className="banner warn">
+          <strong>{problems.length === 1 ? 'Needs fixing' : `${problems.length} things need fixing`}</strong>
+          <ul className="findings">
+            {problems.map((issue) => (
+              <li key={issue.message}>{issue.message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {notes.length ? (
+        <ul className="findings">
+          {notes.map((issue) => (
+            <li key={issue.message} className="hint">
+              {issue.message}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="modal-actions">
+        <button className="btn" onClick={() => dialog.current?.close()}>
+          Close
+        </button>
+      </div>
+    </dialog>
   );
 }
 
@@ -115,7 +196,7 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
  * installation steps to reach a tool that cannot do anything yet would rightly be annoyed,
  * and finding that out at the end is worse than being told at the start.
  */
-function InstallGuideDialog({ outdated, onClose }: Readonly<{ outdated: boolean; onClose: () => void }>) {
+export function InstallGuideDialog({ outdated, onClose }: Readonly<{ outdated: boolean; onClose: () => void }>) {
   const guide = installGuide();
   const dialog = useRef<HTMLDialogElement>(null);
 

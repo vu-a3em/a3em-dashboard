@@ -147,7 +147,7 @@ describe('firmware-constants.ts agrees with the firmware source', () => {
     assert.ok(ALLOCATION_UNIT_CHOICES_BYTES.includes(SD_CARD_ALLOCATION_UNIT_BYTES as never));
   });
 
-  it('tracks the device behaviour constants', () => {
+  it('tracks the device behavior constants', () => {
     assert.equal(BATTERY_DEFAULT_LOW_MV, define('BATTERY_DEFAULT_LOW_LEVEL_MV'));
     assert.equal(MAGNET_DEFAULT_VALIDATION_MS, define('MAGNET_FIELD_DEFAULT_VALIDATION_LENGTH_MS'));
     assert.equal(MIN_LOG_DATA_INTERVAL_SECONDS, define('MIN_LOG_DATA_INTERVAL_SECONDS'));
@@ -563,7 +563,7 @@ describe('the key-matching order the firmware actually runs', () => {
    * reading it correctly, so the card and the deployment disagree with nothing to show
    * for it.
    *
-   * So this compares behaviour. For every key, work out which handler each chain selects
+   * So this compares behavior. For every key, work out which handler each chain selects
    * and require the two answers to be the same.
    */
   const snapshot = loadFirmwareSnapshot();
@@ -667,7 +667,7 @@ describe('prose that describes the firmware', () => {
       stale,
       [],
       `these name a firmware function that no longer exists — the sentence around each is ` +
-        `describing behaviour that may have changed:\n  ${stale.join('\n  ')}`,
+        `describing behavior that may have changed:\n  ${stale.join('\n  ')}`,
     );
   });
 
@@ -690,7 +690,7 @@ describe('claims that were once wrong and must stay gone', () => {
    *
    * Each entry here was a specific, confident sentence that turned out to be false, and
    * nothing mechanical would have caught any of them — no constant moved, no grammar
-   * changed. The only defence against the same sentence coming back is to name it.
+   * changed. The only defense against the same sentence coming back is to name it.
    *
    * Add to this when a wrong claim is removed. Do not remove from it.
    */

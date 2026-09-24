@@ -65,13 +65,13 @@ describe('the band the device actually judges', () => {
 
   it('reaches the rumble harmonics at the new 20 Hz setting', () => {
     // What the low-frequency protocol asks for. The fundamental (8-34 Hz) is partly below
-    // the first bin centre, but the ~50 and ~100 Hz formants are comfortably inside.
+    // the first bin center, but the ~50 and ~100 Hz formants are comfortably inside.
     const band = silenceBand(8000, 20, maxFrequencyCeilingHz(8000));
     assert.ok(band.usable);
     assert.ok(band.actualMinHz <= 50, `low edge ${band.actualMinHz} Hz must sit under the formants`);
   });
 
-  it('cannot judge below the first bin centre, whatever is asked for', () => {
+  it('cannot judge below the first bin center, whatever is asked for', () => {
     // Bin 0 is DC and is never summed, so 0 Hz and 1 Hz are the same request.
     for (const requested of [0, 1, 5]) {
       const band = silenceBand(8000, requested, maxFrequencyCeilingHz(8000));

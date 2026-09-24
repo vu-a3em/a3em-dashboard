@@ -76,7 +76,7 @@ func Describe(d platform.Device, operation string) string {
 		case v.Label != nil:
 			names = append(names, *v.Label)
 		case v.Filesystem != nil:
-			names = append(names, *v.Filesystem)
+			names = append(names, "an unnamed "+filesystemName(*v.Filesystem)+" volume")
 		default:
 			names = append(names, "unnamed volume")
 		}
@@ -91,6 +91,19 @@ func Describe(d platform.Device, operation string) string {
 		contents = ", containing " + strings.Join(names, ", ")
 	}
 	return fmt.Sprintf("%s %s — %s, %s%s.", what, d.Node, safety.FormatSize(d.SizeBytes), d.Bus, contents)
+}
+
+// filesystemName is a filesystem as people write it.
+func filesystemName(fs string) string {
+	switch fs {
+	case "exfat":
+		return "exFAT"
+	case "msdos", "vfat", "fat32":
+		return "FAT"
+	case "ntfs":
+		return "NTFS"
+	}
+	return fs
 }
 
 func (s *Store) key() ([]byte, error) {

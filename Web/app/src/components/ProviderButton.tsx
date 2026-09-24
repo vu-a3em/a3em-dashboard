@@ -4,8 +4,8 @@ import { PROVIDER_NAME, type PopupProvider } from '../lib/signInProviders';
 /**
  * Sign-in buttons in each service's own look, as its guidelines ask.
  *
- *  - Google: white, a #747775 outline, #1F1F1F text, and the full-colour "G", which may not be
- *    recoloured; #131314 with a #8E918F outline in dark mode.
+ *  - Google: white, a #747775 outline, #1F1F1F text, and the full-color "G", which may not be
+ *    recolored; #131314 with a #8E918F outline in dark mode.
  *  - Microsoft: white, a #8C8C8C outline, #5E5E5E text, the four-square logo; #2F2F2F in dark mode.
  *  - Apple: black with a white logo; white with a black logo in dark mode.
  *  - GitHub: its dark #24292F with the white mark.
@@ -47,7 +47,7 @@ export function ProviderLogo({ provider, size = 18 }: Readonly<{ provider: SignI
         </svg>
       );
     default:
-      // An email address and password: an envelope, in the app's own colours.
+      // An email address and password: an envelope, in the app's own colors.
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8">
           <rect x="3" y="5" width="18" height="14" rx="2" />

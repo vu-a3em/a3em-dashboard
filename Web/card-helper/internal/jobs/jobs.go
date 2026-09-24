@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"sync"
 
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/blockdev"
@@ -32,9 +33,13 @@ const (
 	KindVerify  = "verify"
 	KindFsck    = "fsck"
 	KindImage   = "image"
+	// KindCheck is this helper's own filesystem check, and KindFix its own repair, falling
+	// back to the system's tool for what it cannot fix (internal/exfat).
+	KindCheck = "check"
+	KindFix   = "fix"
 )
 
-// Job is one piece of raw-device work, serialisable for the elevated worker.
+// Job is one piece of raw-device work, serializable for the elevated worker.
 type Job struct {
 	Kind    string   `json:"kind"`
 	Targets []Target `json:"targets,omitempty"`
@@ -45,6 +50,32 @@ type Job struct {
 	Destination string `json:"destination,omitempty"`
 	// Owner is who should own files the job creates, when it runs as root on someone's behalf.
 	Owner *Owner `json:"owner,omitempty"`
+	// SaveDir is where a repair saves what it overwrites.
+	SaveDir string `json:"saveDir,omitempty"`
+	// Stop, closed, asks a job that can stop to stop: an image or a check. The elevated worker
+	// learns of it from a file in its job directory.
+	Stop <-chan struct{} `json:"-"`
+}
+
+// Stopped is whether the job has been asked to stop.
+func (j Job) Stopped() bool {
+	if j.Stop == nil {
+		return false
+	}
+	select {
+	case <-j.Stop:
+		return true
+	default:
+		return false
+	}
+}
+
+// Fixed is what a KindFix job did: this helper's repair, or the system's tool's.
+type Fixed struct {
+	Before exfat.CheckReport   `json:"before"`
+	Ours   *exfat.RepairResult `json:"ours,omitempty"`
+	// System is the system's tool's repair, for what this helper cannot fix.
+	System *platform.FsckReport `json:"system,omitempty"`
 }
 
 // Owner is a Unix user and group.
@@ -69,6 +100,8 @@ type Result struct {
 	Targets []TargetResult       `json:"targets,omitempty"`
 	Fsck    *platform.FsckReport `json:"fsck,omitempty"`
 	Image   *ImageReport         `json:"image,omitempty"`
+	Check   *exfat.CheckReport   `json:"check,omitempty"`
+	Fix     *Fixed               `json:"fix,omitempty"`
 	Error   string               `json:"error,omitempty"`
 	Code    string               `json:"code,omitempty"`
 	Detail  string               `json:"detail,omitempty"`
@@ -106,13 +139,16 @@ func (f *Failed) Error() string { return f.Message }
 
 var notes = map[string]string{
 	"release":  "Releasing the card from the system.",
-	"capacity": "Checking the card really holds what it claims.",
+	"capacity": "Checking that the card really holds what it claims.",
 	"latency":  "Timing writes to the card.",
 	"format":   "Writing the A3EM layout.",
 	"verify":   "Reading the layout back.",
 	"image":    "Copying the card sector by sector.",
 	"fsck":     "Checking the filesystem. On a damaged card this can take several minutes.",
 	"repair":   "Repairing the filesystem. Do not disconnect the card.",
+	"check":    "Reading the card's folders and files, and the record of which space is in use.",
+	// The system's tool, for what this helper cannot repair itself.
+	"system-repair": "Repairing the filesystem with the system's own tool. Do not disconnect the card.",
 }
 
 // Run does a job with the platform's tools and this process's own access.
@@ -143,6 +179,10 @@ func Run(job Job, plat platform.Platform, report Reporter) Result {
 		return fsck(job, plat, report)
 	case KindImage:
 		return image(job, plat, report)
+	case KindCheck:
+		return check(job, plat, report)
+	case KindFix:
+		return fix(job, plat, report)
 	}
 	return Result{Error: "Unknown job.", Code: "unexpected"}
 }
@@ -371,7 +411,12 @@ func describe(err error) (string, string) {
 		return command.Message, "platform-error"
 	case errors.Is(err, blockdev.ErrWriteProtected):
 		return "The card is write-protected. Slide the lock switch on its side away from LOCK, then reinsert it.", "write-protected"
+	case errors.Is(err, blockdev.ErrCanceled):
+		return "Administrator access was not given, so nothing was changed.", "cancelled"
 	case errors.Is(err, blockdev.ErrPermission):
+		if runtime.GOOS == "darwin" {
+			return "macOS did not allow the card to be opened. In System Settings, open Privacy & Security, then Files & Folders, and turn on Removable Volumes for your browser. Then try again.", "permission-denied"
+		}
 		return "The helper was not allowed to open the card.", "permission-denied"
 	}
 	return err.Error(), "unexpected"

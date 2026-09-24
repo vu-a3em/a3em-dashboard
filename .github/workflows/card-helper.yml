@@ -2,6 +2,8 @@ name: Card helper
 
 # Unit tests on every platform, then each platform's integration test: a virtual disk
 # (a loop device, an hdiutil image, a VHD) prepared exactly as the dashboard prepares a card.
+# On Linux and macOS, the helper's own filesystem check and repairs are then held up against the
+# system's checker, on a volume the system formatted and wrote and then damaged four ways.
 # No real device is ever visible to these runs; A3EM_HELPER_VIRTUAL_ONLY hides them.
 
 on:
@@ -56,9 +58,17 @@ jobs:
           sudo modprobe exfat || { sudo apt-get install -y -qq "linux-modules-extra-$(uname -r)" && sudo modprobe exfat; } || sudo apt-get install -y -qq exfat-fuse
           sudo --preserve-env=PATH test/integration-linux.sh dist/a3em-card-helper
 
+      - name: Filesystem check against fsck.exfat (Linux)
+        if: runner.os == 'Linux'
+        run: sudo --preserve-env=PATH test/crosscheck-linux.sh dist/a3em-card-helper
+
       - name: Integration (macOS disk image)
         if: runner.os == 'macOS'
         run: test/integration-macos.sh dist/a3em-card-helper
+
+      - name: Filesystem check against fsck_exfat (macOS)
+        if: runner.os == 'macOS'
+        run: test/crosscheck-macos.sh dist/a3em-card-helper
 
       - name: Integration (Windows VHD)
         if: runner.os == 'Windows'

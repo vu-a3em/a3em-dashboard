@@ -59,7 +59,7 @@ export type PartitionScheme = 'mbr' | 'gpt' | 'none' | 'unknown';
 /** A card's filesystem geometry, as any platform's tooling reports it. */
 export interface CardGeometry {
   partitionScheme: PartitionScheme;
-  /** Lower-case filesystem identifier, or null when nothing is recognised. */
+  /** Lower-case filesystem identifier, or null when nothing is recognized. */
   filesystem: string | null;
   bytesPerSector: number | null;
   allocationUnitBytes: number | null;

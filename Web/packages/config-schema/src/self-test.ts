@@ -132,7 +132,7 @@ function coerceMicResult(value: string | undefined): SelfTestResults['microphone
 }
 
 /**
- * One line summarising the test for the connect-time banner.
+ * One line summarizing the test for the connect-time banner.
  *
  * A silent pass is called out explicitly rather than shown as a plain pass: the
  * electrical path worked but nothing was heard, which is expected on a quiet bench and
