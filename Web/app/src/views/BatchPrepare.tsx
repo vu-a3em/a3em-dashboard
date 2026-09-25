@@ -20,20 +20,14 @@ import type { CardDevice } from '../lib/useCardDevice';
 import type { PreparedUnit } from '../components/ConnectedCards';
 import { TabLink, WithTabLinks } from '../components/TabLink';
 import { loadConnectedCards } from '../lib/helperViews';
+import { batchSettings, listLabels, writtenUnits, type BatchUnit } from '../lib/batch';
 
 type Card = ReturnType<typeof useCard>;
 
 /** Only with the card helper, so loaded separately: see `helperViews`. */
 const ConnectedCards = lazy(() => loadConnectedCards().then((module) => ({ default: module.ConnectedCards })));
 
-export interface BatchUnit {
-  label: string;
-  status: 'pending' | 'writing' | 'written' | 'error';
-  cardName: string | null;
-  error: string | null;
-  /** Something about the card worth knowing that did not stop the write. */
-  note: string | null;
-}
+export type { BatchUnit } from '../lib/batch';
 
 /**
  * Preparing a set of devices from one configuration.
@@ -99,6 +93,7 @@ export function BatchPrepare({
           cardName: null,
           error: null,
           note: null,
+          settings: null,
         };
       }),
     );
@@ -150,6 +145,7 @@ export function BatchPrepare({
         cardName: root.name,
         error: null,
         note: checks.map((check) => check.message).join(' ') || null,
+        settings: batchSettings(config),
       });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
@@ -173,17 +169,18 @@ export function BatchPrepare({
   const downloadUnit = (index: number) => {
     const unit = units[index];
     downloadConfig(serializeConfig({ ...config, deviceLabel: unit.label }), CONFIG_FILE_NAME);
-    setUnit(index, { status: 'written', cardName: 'downloaded', error: null });
+    setUnit(index, { status: 'written', cardName: 'downloaded', error: null, settings: batchSettings(config) });
   };
   const downloadAll = () => {
     const ready = units.filter((_, index) => labelProblems[index].length === 0);
+    const settings = batchSettings(config);
     downloadBlob(
       buildZip(ready.map((unit) => ({ path: `${unit.label}/${CONFIG_FILE_NAME}`, text: serializeConfig({ ...config, deviceLabel: unit.label }) }))),
       `${(prefix.trim() || config.deviceLabel.trim() || 'A3EM').slice(0, 40)}-configurations.zip`,
     );
     onUnitsChange(
       units.map((unit, index) =>
-        labelProblems[index].length === 0 ? { ...unit, status: 'written', cardName: 'downloaded', error: null } : unit,
+        labelProblems[index].length === 0 ? { ...unit, status: 'written', cardName: 'downloaded', error: null, settings } : unit,
       ),
     );
   };
@@ -202,27 +199,50 @@ export function BatchPrepare({
     const opened = open ? prepared.find((entry) => entry.device === open.id) : undefined;
     if (opened?.erased) {
       void card.erased(`${card.name ?? 'The card'} was erased to prepare it as ${opened.label}`);
-    } else if (opened?.ok) {
+    } else if (opened?.ok && !opened.found) {
       void card.rescan();
     }
+    const settings = batchSettings(config);
     onUnitsChange((current) =>
       current.map((unit) => {
         const match = prepared.find((entry) => entry.label === unit.label);
         if (!match) return unit;
         return match.ok
-          ? { ...unit, status: 'written', cardName: match.node, error: null, note: null }
+          ? { ...unit, status: 'written', cardName: match.node, error: null, note: null, settings }
           : { ...unit, status: 'error', cardName: match.node, error: match.note, note: null };
       }),
     );
   };
-  const waiting = units
+
+  // Cards are written through the helper's list above, rather than one by one through the picker.
+  const direct = helper.status === 'ready' && blocking.length === 0;
+
+  /*
+    The units as they are shown: one whose card was written before the settings changed on
+    Configure has no card for this batch any more, as far as anyone preparing it can tell, so it
+    is back to "No card yet", and says why.
+  */
+  const { outdated } = writtenUnits(units, config);
+  const shown = units.map((unit): BatchUnit => {
+    if (!outdated.includes(unit)) return unit;
+    const downloaded = unit.cardName === 'downloaded';
+    const was = downloaded ? 'Its settings were downloaded' : `Its card${unit.cardName ? ` (${unit.cardName})` : ''} was written`;
+    const again = downloaded || !CARD_ACCESS_SUPPORTED ? 'Download them again' : direct ? 'Prepare it again' : 'Write it again';
+    return {
+      ...unit,
+      status: 'pending',
+      cardName: null,
+      error: null,
+      note: `${was} before the settings changed on “Configure”, so it would record differently from units prepared now. ${again}, or change the settings back.`,
+    };
+  });
+
+  const waiting = shown
     .filter((unit, index) => unit.status !== 'written' && labelProblems[index].length === 0)
     .map((unit) => unit.label);
 
-  const written = units.filter((unit) => unit.status === 'written').length;
-  // Cards are written through the helper's list above, rather than one by one through the picker.
-  const direct = helper.status === 'ready' && blocking.length === 0;
-  const nextPending = units.findIndex((unit) => unit.status === 'pending' || unit.status === 'error');
+  const written = shown.filter((unit) => unit.status === 'written').length;
+  const nextPending = shown.findIndex((unit) => unit.status === 'pending' || unit.status === 'error');
 
   return (
     <>
@@ -237,6 +257,18 @@ export function BatchPrepare({
           <button className="btn small" style={{ marginTop: 8 }} onClick={onEditConfiguration}>
             Fix these on Configure
           </button>
+        </div>
+      ) : null}
+
+      {outdated.length ? (
+        <div className="banner warn">
+          <strong>
+            {outdated.length === 1 ? 'One card was' : `${outdated.length} cards were`} written with settings that have since changed
+          </strong>
+          The settings changed on <TabLink to="configure" /> after {listLabels(outdated.map((unit) => unit.label))}{' '}
+          {outdated.length === 1 ? 'was' : 'were'} written, so {outdated.length === 1 ? 'that unit' : 'those units'} would
+          record differently from units prepared with the settings as they are now. {outdated.length === 1 ? 'It is' : 'They are'} back to “No card yet”
+          below: {direct ? 'prepare' : 'write'} {outdated.length === 1 ? 'its card' : 'their cards'} again, or change the settings back.
         </div>
       ) : null}
 
@@ -266,9 +298,6 @@ export function BatchPrepare({
             {config.ledsEnabled ? 'on' : 'off'} · clock {config.setRtcAtMagnetDetect ? 'set to the start time at activation' : 'left as it is'}
           </li>
         </ul>
-        <button className="btn small" onClick={onEditConfiguration}>
-          Change on Configure
-        </button>
       </div>
 
       <div className="card">
@@ -342,7 +371,7 @@ export function BatchPrepare({
             ) : null}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {units.map((unit, index) => (
+              {shown.map((unit, index) => (
                 <div
                   key={index}
                   className="period-row"

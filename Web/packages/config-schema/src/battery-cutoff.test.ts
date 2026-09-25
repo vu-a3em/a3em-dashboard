@@ -18,16 +18,15 @@ const issuesFor = (batteryLowMv: number) =>
   validateConfig(withCutoff(batteryLowMv)).filter((issue) => issue.path === 'batteryLowMv');
 
 describe('the low-battery cutoff', () => {
-  it('defaults to the firmware default and raises nothing', () => {
-    assert.equal(defaultConfig().batteryLowMv, BATTERY_DEFAULT_LOW_MV);
+  it('defaults to 0, disabled, and raises nothing about it', () => {
+    assert.equal(defaultConfig().batteryLowMv, 0);
+    assert.deepEqual(issuesFor(0), []);
     assert.deepEqual(issuesFor(BATTERY_DEFAULT_LOW_MV), []);
   });
 
-  it('accepts zero as a deliberate choice, with a warning rather than an error', () => {
-    const issues = issuesFor(0);
-    assert.equal(issues.length, 1);
-    assert.equal(issues[0]!.severity, 'warning');
-    assert.match(issues[0]!.message, /disabled/i);
+  it('reads a card that leaves the cutoff out as the firmware’s own default, which is what the card runs', () => {
+    const text = serializeConfig(withCutoff(3400)).replace(/^BATTERY_LOW_MV = .*\n/m, '');
+    assert.equal(parseConfig(text).config.batteryLowMv, BATTERY_DEFAULT_LOW_MV);
   });
 
   it('still writes a disabled cutoff to the card as 0', () => {

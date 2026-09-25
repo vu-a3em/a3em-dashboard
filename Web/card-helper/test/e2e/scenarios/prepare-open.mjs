@@ -2,25 +2,52 @@
 // It checks the card and does the least it needs — only the settings, when that is all that
 // differs; erasing and setting it up again, confirmed first, once the card holds a file from
 // before — and after erasing lets go of the folder that was open on the card, saying what it did.
-import { helperReady, rail, until } from './common.mjs';
+// And a batch's written card, once the settings change on Configure, no longer counts as written.
+import { card, helperReady, rail, until } from './common.mjs';
 
 const sidebar = `[...document.querySelectorAll('.card')].find((c) => c.querySelector('button')?.textContent.startsWith('Prepare OWL_01'))`;
 const outcome = `(() => { const b = document.querySelector('.banner.ok strong'); return b ? $text(b.parentElement) : null; })()`;
+const banner = (kind) => `(() => { const b = document.querySelector('.stack > .banner.${kind}, .content > .banner.${kind}'); return b ? $text(b) : null; })()`;
+const unit = `$text(document.querySelector('.batch-units .period-row'))`;
 
-export default async ({ evaluate, shot, sleep, out, expect }) => {
-  expect('the card tools report ready', await helperReady(evaluate, sleep));
+export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
+  expect('the A3EM Card Helper reports ready', await helperReady(evaluate, sleep));
+
+  // First, on Prepare devices, one card pressed straight to "Prepare this card", unchecked, when
+  // it needs only its settings: the check it makes on the way is the one its result shows.
+  await evaluate(rail('Prepare devices'));
+  await until(evaluate, sleep, `Boolean(${card(cards.prepared)})`, 200);
+  const type = (id, value) => evaluate(`(() => { const input = document.getElementById(${JSON.stringify(id)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(value)}); input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  // One unit, OWL_01, which the prepared card is already named for.
+  await type('prefix', 'OWL');
+  await type('count', '1');
+  await evaluate(`$btn('Create batch').click()`);
+  await sleep(300);
+  await evaluate(`$btn('Prepare this card', ${card(cards.prepared)}).click()`);
+  out.single = await until(evaluate, sleep, `(() => { const r = ${card(cards.prepared)}.querySelector('.card-result'); return r && /Settings written/.test(r.textContent) ? $text(r) : null; })()`, 600);
+  expect('one card needing only its settings gets them, with its layout shown as checked', /Settings written/.test(out.single ?? '') && /Layout matches the reference/.test(out.single ?? '') && !/Layout not checked/.test(out.single ?? ''), out.single);
+
   await evaluate(`$btn('Connect SD card').click()`);
   out.header = await until(evaluate, sleep, `(() => { const t = $text(document.querySelector('.topbar')); return t.includes('Eject') ? t : null; })()`, 300);
   expect('the open folder is matched to its card', Boolean(out.header), await evaluate(`$text(document.querySelector('.topbar'))`));
   if (!out.header) return;
 
   await evaluate(rail('Configure'));
-  await evaluate(`(() => { const input = document.getElementById('label'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'OWL_01'); input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  // The batch's card has these settings: Configure says so before anything is changed.
+  out.before = await until(evaluate, sleep, banner('warn'), 100);
+  expect('Configure warns that changing the settings would split the batch', /A card of your batch has been written with these settings/.test(out.before ?? '') && /OWL_01/.test(out.before ?? ''), out.before);
+  await type('label', 'OWL_01');
+  expect('a label of its own is no change to the batch', Boolean(await evaluate(banner('warn'))));
+  // And one setting changed from what the step above wrote, so there is something to write.
+  await evaluate(`document.getElementById('rtc-at-activation').click()`);
+  out.after = await until(evaluate, sleep, banner('crit'), 100);
+  expect('and once changed, says the card written already now differs', /A card of your batch was written with different settings/.test(out.after ?? '') && /back to “No card yet”/.test(out.after ?? ''), out.after);
+  await shot('0-batch-differs');
   out.button = await until(evaluate, sleep, `$btn('Prepare OWL_01')?.textContent ?? null`, 100);
   expect('Configure offers "Prepare OWL_01…" for the open card', out.button === 'Prepare OWL_01…', out.button);
   expect('and no longer writes the configuration on its own', !(await evaluate(`Boolean($btn('Write to'))`)));
 
-  // Its settings are another unit's, from "prepare": only they need writing.
+  // Its settings differ from those on the card by that one: only they need writing.
   await evaluate(`$btn('Prepare OWL_01').click()`);
   out.settings = await until(evaluate, sleep, outcome, 600);
   expect('a card needing only its settings gets them, and nothing is erased', /OWL_01 is unit OWL_01/.test(out.settings ?? '') && /settings written; nothing needed erasing/.test(out.settings ?? ''), out.settings ?? (await evaluate(`$text(${sidebar})`)));
@@ -41,4 +68,17 @@ export default async ({ evaluate, shot, sleep, out, expect }) => {
   out.afterErase = await evaluate(`$text(document.querySelector('.topbar'))`);
   expect('the folder open on it is let go of, and the header says why', /OWL_01 was erased to prepare it as OWL_01/.test(out.afterErase ?? ''), out.afterErase);
   await shot('2-prepared');
+
+  // Back on Prepare devices, the unit written with the earlier settings is waiting again...
+  await evaluate(rail('Prepare devices'));
+  await until(evaluate, sleep, `Boolean(${card(cards.prepared)})`, 200);
+  out.unit = await evaluate(unit);
+  expect('the unit written before the change is back to “No card yet”, saying why', /No card yet/.test(out.unit ?? '') && /before the settings changed on Configure/.test(out.unit ?? ''), out.unit);
+  expect('and the page says so at the top', /1 card was|One card was/.test((await evaluate(banner('warn'))) ?? ''), await evaluate(banner('warn')));
+  // ...until its card, prepared on Configure with the settings as they are now, is checked.
+  await evaluate(`$btn('Check this card', ${card(cards.prepared)}).click()`);
+  out.found = await until(evaluate, sleep, `(() => { const t = ${unit}; return /Card written/.test(t) ? t : null; })()`, 600);
+  expect('a card found prepared for the unit counts as its card', Boolean(out.found), `${await evaluate(unit)} || ${await evaluate(`$text(${card(cards.prepared)}.querySelector('.card-result'))`)}`);
+  expect('and nothing is left to warn about', !(await evaluate(banner('warn'))));
+  await shot('3-found');
 };

@@ -31,7 +31,7 @@ export function useCardRepair(helper: Helper, logs: CardLogs, onRepaired: (devic
   const { forget } = logs;
 
   const ask = async (device: HelperDevice, volume: string) => {
-    logs.begin([device.id], 'Asking the card helper to describe the card, so you can confirm it before anything is changed.');
+    logs.begin([device.id], 'Asking the A3EM Card Helper to describe the card, so you can confirm it before anything is changed.');
     try {
       const challenge = await requestChallenge(device.id, 'repair');
       logs.note([device.id], 'Waiting for you to confirm.');

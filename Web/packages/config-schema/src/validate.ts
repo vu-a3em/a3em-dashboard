@@ -249,11 +249,7 @@ export function validateConfig(
   if (config.batteryLowMv < 0 || !Number.isFinite(config.batteryLowMv)) {
     error('batteryLowMv', 'The low-battery cutoff must be a voltage in millivolts, or 0 to disable it.');
   } else if (config.batteryLowMv === 0) {
-    warn(
-      'batteryLowMv',
-      'The low-battery cutoff is disabled, so the device will record until the battery cannot ' +
-        'power it. Expect the final clip to be truncated wherever the power fails.',
-    );
+    // Disabled, and the default: the field's own help says what that means.
   } else if (config.batteryLowMv < BATTERY_CUTOFF_MIN_MV) {
     error(
       'batteryLowMv',

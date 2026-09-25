@@ -3,7 +3,7 @@
 import { helperReady, until } from './common.mjs';
 
 export default async ({ evaluate, shot, sleep, out, expect }) => {
-  expect('the card tools report ready', await helperReady(evaluate, sleep));
+  expect('the A3EM Card Helper reports ready', await helperReady(evaluate, sleep));
   const note = `[...document.querySelectorAll('.stat-note')].find((e) => /using the Prepare devices page/.test(e.textContent))`;
   out.format = await until(evaluate, sleep, `$text(${note})`, 100);
   expect('the forecast points to Prepare devices', /^Format the card as exFAT with .+ clusters using the Prepare devices page\.$/.test(out.format ?? ''), out.format);

@@ -5,7 +5,7 @@
 #   packaging/linux/build-deb.sh <version> [output dir]
 #
 # The .deb registers the helper system-wide for Chrome, Chromium and Edge, and installs a
-# polkit policy so that pkexec's prompt names the A3EM card helper rather than a bare path.
+# polkit policy so that pkexec's prompt names the A3EM Card Helper rather than a bare path.
 # (Chromium installed as a snap cannot start native helpers at all; that is the snap's rule.)
 set -eu
 VERSION=${1:?usage: build-deb.sh <version> [output dir]}

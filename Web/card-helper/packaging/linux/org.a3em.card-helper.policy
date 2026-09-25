@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
   "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
-<!-- Lets pkexec start the card helper's worker, which writes to SD cards, after an
+<!-- Lets pkexec start the A3EM Card Helper's worker, which writes to SD cards, after an
      administrator password. auth_admin_keep: one password covers a batch of cards. -->
 <policyconfig>
   <vendor>A3EM</vendor>
   <vendor_url>https://github.com/vu-a3em/a3em-dashboard</vendor_url>
   <action id="org.a3em.card-helper.worker">
     <description>Prepare an SD card for an A3EM recorder</description>
-    <message>The A3EM card helper needs administrator access to write to an SD card.</message>
+    <message>The A3EM Card Helper needs administrator access to write to an SD card.</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>

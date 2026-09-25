@@ -22,24 +22,24 @@ func exists(path string) bool {
 func check() []Issue {
 	var issues []Issue
 	if !have("pkexec") {
-		issues = append(issues, Issue{"problem", "pkexec is not installed, so the card helper cannot ask for your password to check a card's layout, prepare cards, or copy them. Install the polkit package that provides pkexec (pkexec or policykit-1)."})
+		issues = append(issues, Issue{"problem", "pkexec is not installed, so the A3EM Card Helper cannot ask for your password to check a card's layout, prepare cards, or copy them. Install the polkit package that provides pkexec (pkexec or policykit-1)."})
 	} else if !agentRunning() {
-		issues = append(issues, Issue{"note", "No password prompt (a polkit authentication agent) seems to be running. If the card helper never asks for your password, start one — polkit-gnome, polkit-kde-agent or lxpolkit — or log in to a full desktop."})
+		issues = append(issues, Issue{"note", "No password prompt (a polkit authentication agent) seems to be running. If the A3EM Card Helper never asks for your password, start one — polkit-gnome, polkit-kde-agent or lxpolkit — or log in to a full desktop."})
 	}
 	if !have("udisksctl") {
-		issues = append(issues, Issue{"problem", "udisks2 is not installed, so the card helper cannot open or eject a card without an administrator password. Install the udisks2 package."})
+		issues = append(issues, Issue{"problem", "udisks2 is not installed, so the A3EM Card Helper cannot open or eject a card without an administrator password. Install the udisks2 package."})
 	}
 	if !exfatDriver() {
 		issues = append(issues, Issue{"problem", "This system's kernel has no exFAT driver, so it cannot open the recorder's cards at all. Use Linux 5.7 or later, or install exfat-fuse."})
 	}
 	if !have("fsck.exfat") {
-		issues = append(issues, Issue{"note", "exfatprogs is not installed. The card helper finds and repairs the usual damage itself; damage it cannot repair needs exfatprogs' fsck.exfat."})
+		issues = append(issues, Issue{"note", "exfatprogs is not installed. The A3EM Card Helper finds and repairs the usual damage itself; damage it cannot repair needs exfatprogs' fsck.exfat."})
 	}
 	if !have("zenity") && !have("kdialog") && !destination.HasPortal() {
-		issues = append(issues, Issue{"note", "This desktop has no save dialog the card helper can show — no desktop portal, zenity or kdialog — so a card's image is saved in Documents/A3EM card images rather than wherever you choose. Install xdg-desktop-portal with your desktop's backend, or zenity."})
+		issues = append(issues, Issue{"note", "This desktop has no save dialog the A3EM Card Helper can show — no desktop portal, zenity or kdialog — so a card's image is saved in Documents/A3EM card images rather than wherever you choose. Install xdg-desktop-portal with your desktop's backend, or zenity."})
 	}
 	if sandboxedOnly() {
-		issues = append(issues, Issue{"problem", "The only Chromium browser here is a Snap or Flatpak, whose sandbox may not let it start the card helper. Install Google Chrome, Chromium or Edge from its own package."})
+		issues = append(issues, Issue{"problem", "The only Chromium browser here is a Snap or Flatpak, whose sandbox may not let it start the A3EM Card Helper. Install Google Chrome, Chromium or Edge from its own package."})
 	}
 	return issues
 }

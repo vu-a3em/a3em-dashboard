@@ -70,13 +70,13 @@ func main() {
 			break
 		}
 		if command == "install" {
-			fmt.Println("Registering the A3EM card helper:")
+			fmt.Println("Registering the A3EM Card Helper:")
 			err = install.Install(os.Stdout, options)
 		} else {
 			err = install.Uninstall(os.Stdout, options.System)
 		}
 	case "doctor":
-		fmt.Println("A3EM card helper", version)
+		fmt.Println("A3EM Card Helper", version)
 		err = install.Doctor(os.Stdout)
 		if err == nil {
 			fmt.Println("Everything is in place.")
@@ -106,7 +106,7 @@ func main() {
 	}
 }
 
-const usage = `a3em-card-helper — the A3EM dashboard's helper for SD cards.
+const usage = `a3em-card-helper — the A3EM Card Helper, the A3EM dashboard's program for SD cards.
 
   install [--system] [--extension-id ID]   register with every Chromium browser found
   uninstall [--system]                     remove those registrations

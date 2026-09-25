@@ -68,10 +68,11 @@ import { TabLink, WithTabLinks } from '../components/TabLink';
 import { HelperOffer } from '../components/HelperOffer';
 import { ZonedDateTimeInput } from '../components/ZonedDateTimeInput';
 import { cardChecks as checkCard, type CardCheck } from '../lib/cardChecks';
-import { detectOs } from '../lib/helperInstall';
+import { detectOs } from '../lib/hostOs';
 import { useConfigurePrepared, type ConfigurePrepared } from '../lib/configurePrepared';
 import { loadPrepareFromConfigure } from '../lib/helperViews';
 import type { Helper } from '../lib/useHelper';
+import { listLabels } from '../lib/batch';
 
 const PrepareFromConfigure = lazy(() => loadPrepareFromConfigure().then((module) => ({ default: module.PrepareFromConfigure })));
 
@@ -96,6 +97,7 @@ export function DeploymentEditor({
   cardDevice,
   helper,
   onPrepareDevices,
+  batch,
 }: Readonly<{
   card: Card;
   config: DeploymentConfig;
@@ -110,6 +112,8 @@ export function DeploymentEditor({
   helper?: Helper;
   /** Opens "Prepare devices", where the card tools format cards. */
   onPrepareDevices?: () => void;
+  /** The batch on Prepare devices: the labels of its written units, by whether they have these settings. */
+  batch?: { current: string[]; outdated: string[] };
 }>) {
   // Transient, so it belongs here rather than being hoisted with the draft.
   const [writeState, setWriteState] = useState<'idle' | 'writing' | 'written' | 'error'>('idle');
@@ -283,6 +287,35 @@ export function DeploymentEditor({
   return (
     <div className="editor-layout">
       <div className="stack">
+        {/*
+          A batch partway through. Its units are meant to record alike, and the cards already
+          written keep what they got, so this is said first, before anything is changed, and
+          more urgently once something has been.
+        */}
+        {batch?.outdated.length ? (
+          <div className="banner crit">
+            <strong>
+              {batch.outdated.length === 1 ? 'A card' : `${batch.outdated.length} cards`} of your batch{' '}
+              {batch.outdated.length === 1 ? 'was' : 'were'} written with different settings
+            </strong>
+            {listLabels(batch.outdated)} would record differently from units prepared with the settings as they are now.
+            On the <TabLink to="batch" /> page, {batch.outdated.length === 1 ? 'it is' : 'they are'} back to “No card yet”:
+            prepare {batch.outdated.length === 1 ? 'its card' : 'their cards'} again, or change the settings back. If
+            these settings are for other devices, rebuild the list there to start a new batch.
+          </div>
+        ) : batch?.current.length ? (
+          <div className="banner warn">
+            <strong>
+              {batch.current.length === 1 ? 'A card' : `${batch.current.length} cards`} of your batch{' '}
+              {batch.current.length === 1 ? 'has' : 'have'} been written with these settings
+            </strong>
+            Changing anything here now would leave {listLabels(batch.current)} recording differently from any unit
+            prepared afterward. If you do change something, prepare{' '}
+            {batch.current.length === 1 ? 'that card' : 'those cards'} again on the <TabLink to="batch" /> page, so every
+            unit in the batch records the same way.
+          </div>
+        ) : null}
+
         {/*
           Ahead of the protocol picker deliberately. Applying a protocol replaces every
           recording setting, so an offer to load what the card already holds is worth

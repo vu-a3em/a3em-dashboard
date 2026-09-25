@@ -10,20 +10,7 @@
  * someone on Firefox is worse than saying nothing.
  */
 
-export type HostOs = 'macos' | 'windows' | 'linux' | 'unknown';
-
-export function detectOs(): HostOs {
-  if (typeof navigator === 'undefined') return 'unknown';
-  const platform = (
-    (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ??
-    navigator.platform ??
-    navigator.userAgent
-  ).toLowerCase();
-  if (platform.includes('mac')) return 'macos';
-  if (platform.includes('win')) return 'windows';
-  if (platform.includes('linux') || platform.includes('x11')) return 'linux';
-  return 'unknown';
-}
+import { detectOs, type HostOs } from './hostOs';
 
 export interface InstallStep {
   title: string;
@@ -67,7 +54,7 @@ export const HELPER_DOWNLOAD_URL: string | null = HELPER_RELEASES_URL;
 const extensionStep: InstallStep = {
   title: 'Install the browser extension',
   detail: EXTENSION_STORE_URL
-    ? 'Available on the Chrome Web Store. It interacts with the card helper and holds no logic of its own.'
+    ? 'Available on the Chrome Web Store. It interacts with the A3EM Card Helper and holds no logic of its own.'
     : 'Not yet published to the Chrome Web Store. For now, load it unpacked: download the ' +
       'dashboard source, open chrome://extensions (edge://extensions in Edge), turn on Developer ' +
       'mode, choose "Load unpacked", and select its Web/extension folder.',
@@ -84,7 +71,7 @@ export function withoutExtension(steps: InstallStep[]): InstallStep[] {
 
 const reloadStep: InstallStep = {
   title: 'Reload this page',
-  detail: 'Card tools should show as ready at the bottom of the menu.',
+  detail: 'The A3EM Card Helper should show as ready at the bottom of the menu.',
 };
 
 function doctorStep(command: string): InstallStep {
@@ -105,7 +92,7 @@ export function installGuide(os: HostOs = detectOs()): InstallGuide {
         caveat: null,
         steps: [
           {
-            title: 'Install the card helper',
+            title: 'Install the A3EM Card Helper',
             detail:
               'Open the downloaded installer and follow the instructions. It is signed and notarized by Apple, and ' +
               'registers the helper with Chrome, Edge, Chromium, Brave, Vivaldi, Opera, and Arc. The helper asks ' +
@@ -125,7 +112,7 @@ export function installGuide(os: HostOs = detectOs()): InstallGuide {
         caveat: null,
         steps: [
           {
-            title: 'Install the card helper',
+            title: 'Install the A3EM Card Helper',
             detail:
               'Run the downloaded installer. It installs for you only and needs no administrator ' +
               'rights; Windows asks for permission each time the helper writes to a card.',
@@ -146,7 +133,7 @@ export function installGuide(os: HostOs = detectOs()): InstallGuide {
           'Chromium package from your distribution.',
         steps: [
           {
-            title: 'Install the card helper',
+            title: 'Install the A3EM Card Helper',
             detail:
               'On Debian or Ubuntu, install the .deb for your processor (amd64 for most computers). ' +
               'For other distributions, the release page has a tarball with an install script. ' +
@@ -164,7 +151,7 @@ export function installGuide(os: HostOs = detectOs()): InstallGuide {
         os,
         osLabel: 'this system',
         helperAvailable: false,
-        caveat: 'The card helper runs on macOS, Windows, and Linux.',
+        caveat: 'The A3EM Card Helper runs on macOS, Windows, and Linux.',
         steps: [extensionStep],
       };
   }

@@ -1,4 +1,5 @@
 import {
+  BATTERY_DEFAULT_LOW_MV,
   CONFIG_SCHEMA_VERSION,
   MAX_AUDIO_TRIGGER_TIMES,
   MAX_CFG_LINE_CONTENT_LENGTH,
@@ -89,6 +90,8 @@ export function parseConfig(text: string, timezoneHint = 'UTC'): ParseResult {
   const warnings: string[] = [];
   const config = defaultConfig(timezoneHint);
   config.phases = [];
+  // A card that leaves the cutoff out runs the firmware's own, not the dashboard's default of 0.
+  config.batteryLowMv = BATTERY_DEFAULT_LOW_MV;
 
   let timezone = timezoneHint;
   let deploymentStart = 0;

@@ -51,7 +51,7 @@ const (
 )
 
 // Execute runs a job in this process when it can open everything the job touches, and in an
-// elevated worker otherwise. reason completes "A3EM card helper needs administrator access
+// elevated worker otherwise. reason completes "A3EM Card Helper needs administrator access
 // to …" in the system's prompt.
 func Execute(job Job, plat platform.Platform, paths []string, report Reporter, reason string) (Result, error) {
 	// A3EM_HELPER_WORKER=direct runs the worker as a separate process without elevation, so

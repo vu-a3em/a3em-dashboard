@@ -241,7 +241,7 @@ function unavailable(): HelperError {
   return isChromium()
     ? new HelperError('The A3EM Card Helper extension is not installed.', 'helper-not-installed')
     : new HelperError(
-        'This browser cannot use the card helper. It needs a Chromium browser: Chrome, Edge, Brave, Vivaldi, Arc, or Opera.',
+        'This browser cannot use the A3EM Card Helper. It needs a Chromium browser: Chrome, Edge, Brave, Vivaldi, Arc, or Opera.',
         'no-extension',
       );
 }
@@ -254,7 +254,7 @@ function unwrap<T>(response: unknown): T {
   const result = response as RawReply;
   if (!result || result.ok !== true) {
     throw new HelperError(
-      result?.error ?? 'The card helper failed.',
+      result?.error ?? 'The A3EM Card Helper failed.',
       result?.code ?? 'unexpected',
       result?.detail,
     );
@@ -282,7 +282,7 @@ async function callOnce<T>(
 ): Promise<T> {
   const response = await new Promise<unknown>((resolve, reject) => {
     const timer = setTimeout(
-      () => reject(new HelperError('The card helper did not respond.', 'helper-not-installed')),
+      () => reject(new HelperError('The A3EM Card Helper did not respond.', 'helper-not-installed')),
       options.silenceMs ?? SILENCE_TIMEOUT_MS,
     );
     try {
@@ -358,7 +358,7 @@ async function callOverPort<T>(
         if (settled) return;
         settled = true;
         close();
-        reject(new HelperError('The card helper stopped responding.', 'helper-not-installed'));
+        reject(new HelperError('The A3EM Card Helper stopped responding.', 'helper-not-installed'));
       }, silenceMs);
     };
 
@@ -636,7 +636,7 @@ export interface CardTail {
  * exited with a status they did not expect — which on macOS is how it reports some damage.
  */
 const NO_FSCK_REPORT =
-  'The check ended without a report, which usually means it found problems that this card helper is too old to describe. Update the card helper, then check again.';
+  'The check ended without a report, which usually means it found problems that this A3EM Card Helper is too old to describe. Update the A3EM Card Helper, then check again.';
 
 export async function diagnoseVolume(
   volume: string,

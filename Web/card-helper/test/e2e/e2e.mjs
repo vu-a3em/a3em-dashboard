@@ -53,6 +53,8 @@ const helper = spawn(HELPER, ['chrome-extension://a3em-e2e/'], {
     A3EM_HELPER_VIRTUAL_ONLY: '1',
     A3EM_HELPER_STATE_DIR: CARDS.stateDir ?? join(WORK, 'state'),
     A3EM_HELPER_SAVE_AS_DIR: CARDS.imageDir ?? WORK,
+    // A quick read skips the layout, as on a real card, where reading it needs the password.
+    A3EM_HELPER_TEST_NEEDS_ADMIN: '1',
   },
   stdio: ['pipe', 'pipe', 'pipe'],
 });

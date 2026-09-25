@@ -7,7 +7,7 @@ const pick = (id, label) =>
   `(() => { const s = ${card(id)}.querySelector('select'); const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(s, ${JSON.stringify(label)}); s.dispatchEvent(new Event('change', { bubbles: true })); })()`;
 
 export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
-  expect('the card tools report ready', await helperReady(evaluate, sleep));
+  expect('the A3EM Card Helper reports ready', await helperReady(evaluate, sleep));
   // Open the old card first, as someone reviewing a card before reusing it would have it.
   await evaluate(`$btn('Connect SD card').click()`);
   out.opened = await until(evaluate, sleep, `(() => { const t = $text(document.querySelector('.topbar')); return t.includes('Eject') ? t : null; })()`, 300);
@@ -52,6 +52,9 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
   out.after = { old: await banner(cards.old), prepared: await banner(cards.prepared) };
   expect('the old card is prepared', /^Prepared/.test(out.after.old ?? ''), out.after.old);
   expect('the prepared card has its settings', /^Settings written/.test(out.after.prepared ?? ''), out.after.prepared);
+  // Checked first, as part of preparing it: that check's layout stands, rather than "not checked".
+  out.preparedResult = await evaluate(`$text(${card(cards.prepared)}.querySelector('.card-result'))`);
+  expect('and its layout, checked on the way, is still shown as checked', /Layout matches the reference/.test(out.preparedResult ?? '') && !/Layout not checked/.test(out.preparedResult ?? ''), out.preparedResult);
   // Its text, folded or not: a closed <details> shows only its summary.
   out.oldLog = await evaluate(`${card(cards.old)}.querySelector('details.card-log')?.textContent ?? null`);
   expect('one log runs from the check through the preparation', /Checking the cards? first/.test(out.oldLog ?? '') && /Writing the A3EM layout/.test(out.oldLog ?? ''), out.oldLog);

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CorrectionMethod } from '@a3em/config-schema';
 import { useCard } from './lib/useCard';
 import { useDeploymentDraft } from './lib/useDraft';
@@ -7,14 +7,15 @@ import { ActivationPicker } from './components/ActivationPicker';
 import { CardLoading } from './components/CardLoading';
 import { Wordmark } from './components/Wordmark';
 import { CardStatus } from './components/CardStatus';
-import { HelperRailStatus, HelperTaskChip } from './components/HelperStatus';
+import { HelperRailStatus, HelperTaskChip, loadInstallGuide } from './components/HelperStatus';
 import { AccountButton } from './components/Account';
 import { NavigationContext, VIEW_NAMES, type View } from './components/TabLink';
 import { ViewBoundary } from './components/ViewBoundary';
 
 /** Loaded the first time someone opens it: most visits never do. */
 const AccountDialog = lazy(() => import('./components/AccountDialog').then((module) => ({ default: module.AccountDialog })));
-import { BatchPrepare, type BatchUnit } from './views/BatchPrepare';
+import { BatchPrepare } from './views/BatchPrepare';
+import { writtenUnits, type BatchUnit } from './lib/batch';
 import { CardOverview } from './views/CardOverview';
 import { DeploymentEditor } from './views/DeploymentEditor';
 import { ClipBrowser } from './views/ClipBrowser';
@@ -64,6 +65,8 @@ export default function App() {
   const recover = () => setView('recover');
   useEffect(() => {
     if (helper.status === 'ready') preloadHelperViews();
+    // Offered to anyone whose browser can use the helper: to install it, or a newer release.
+    if (helper.status !== 'checking' && helper.status !== 'unsupported') void loadInstallGuide();
   }, [helper.status]);
 
   /**
@@ -116,6 +119,11 @@ export default function App() {
     manualOffset: '',
   });
   const [batch, setBatch] = useState<BatchUnit[]>([]);
+  // Which of the batch's written cards have the settings on Configure, for its warning there.
+  const batchWritten = useMemo(() => {
+    const { current, outdated } = writtenUnits(batch, draft.config);
+    return { current: current.map((unit) => unit.label), outdated: outdated.map((unit) => unit.label) };
+  }, [batch, draft.config]);
 
   // A card check or copy runs for minutes and must outlive the view that started it
   const offload = useOffloadTask();
@@ -146,8 +154,8 @@ export default function App() {
             The firmware version used to render as a bare `fw 1.4.2`, which says nothing
             about whose firmware it is or where the number came from — it is read from
             `_a3em.dev`, so it is the firmware of the device that last wrote this card, not
-            of anything currently attached over USB. Card tools sit below it because they
-            are an app capability rather than a property of the device, and because the
+            of anything currently attached over USB. The A3EM Card Helper sits below it because it is
+            an app capability rather than a property of the device, and because the
             bottom-most slot is the right amount of attention for something optional.
           */}
           <div className="rail-foot">
@@ -214,6 +222,7 @@ export default function App() {
                   cardDevice={cardDevice}
                   helper={helper}
                   onPrepareDevices={() => setView('batch')}
+                  batch={batchWritten}
                 />
               ) : null}
               {view === 'batch' ? (

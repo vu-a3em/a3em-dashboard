@@ -118,7 +118,7 @@ if (!/^y(es)?$/i.test(answer.trim())) {
   console.log('Nothing was tagged.');
   process.exit(0);
 }
-git('tag', '-a', tag, '-m', `A3EM card helper ${version}`);
+git('tag', '-a', tag, '-m', `A3EM Card Helper ${version}`);
 git('push', 'origin', tag);
 console.log(`✓ Pushed ${tag}. The release builds at https://github.com/vu-a3em/a3em-dashboard/actions/workflows/card-helper-release.yml`);
 process.exit(0);

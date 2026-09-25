@@ -373,7 +373,7 @@ export function OffloadCard({
 
         {looking ? (
           <p className="stat-note">
-            Asking the card helper for what logs and IMU files hold past their recorded end, to add it to their
+            Asking the A3EM Card Helper for what logs and IMU files hold past their recorded end, to add it to their
             copies. It may ask for your password.
           </p>
         ) : null}

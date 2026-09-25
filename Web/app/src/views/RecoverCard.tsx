@@ -101,21 +101,21 @@ export function RecoverCard({ helper, onConnect }: Readonly<{ helper: Helper; on
   if (helper.status !== 'ready') {
     return (
       <div className="card">
-        <h2>Recovering a card needs the card helper</h2>
+        <h2>Recovering a card needs the A3EM Card Helper</h2>
         <p className="hint">
           A card whose filesystem is damaged may not appear in the card picker dialog box, so the dashboard can reach it
           only through the A3EM Card Helper, a small program with a browser extension. When installed, you can use this
           screen to repair a broken card.
         </p>
         {helper.status === 'unsupported' ? (
-          <p className="hint">This browser cannot use the card helper. It needs Chrome, Edge, Brave, Vivaldi, Arc, or Opera.</p>
+          <p className="hint">This browser cannot use the A3EM Card Helper. It needs Chrome, Edge, Brave, Vivaldi, Arc, or Opera.</p>
         ) : helper.status === 'checking' ? (
-          <p className="muted">Looking for the card helper…</p>
+          <p className="muted">Looking for the A3EM Card Helper…</p>
         ) : helper.status === 'incomplete' ? (
-          <p className="hint">The card helper cannot do this on {helper.identity?.platform} yet.</p>
+          <p className="hint">The A3EM Card Helper cannot do this on {helper.identity?.platform} yet.</p>
         ) : (
           <button className="btn primary" onClick={() => setShowGuide(true)}>
-            {helper.status === 'outdated' ? 'Update the card helper…' : 'Enable card tools…'}
+            {helper.status === 'outdated' ? 'Update the A3EM Card Helper…' : 'Install the A3EM Card Helper…'}
           </button>
         )}
         {showGuide ? <InstallGuideDialog outdated={helper.status === 'outdated'} onClose={() => setShowGuide(false)} /> : null}

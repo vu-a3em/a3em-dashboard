@@ -182,7 +182,7 @@ export function PhysicalCard({
       <p className="card-help">
         {!details
           ? detailsError
-            ? `The card helper could not read the card’s details: ${detailsError}`
+            ? `The A3EM Card Helper could not read the card’s details: ${detailsError}`
             : 'Reading the card’s details…'
           : prepared
             ? [
@@ -458,7 +458,7 @@ export function FsckResult({ report, recovered }: Readonly<{ report: FsckReport;
         <div className="banner crit">
           <strong>The check could not open the card</strong>
           So nothing is known about its filesystem yet. On a Mac this is the privacy protection on removable cards, which
-          the current card helper handles; update the card helper and check again.
+          the current A3EM Card Helper handles; update it and check again.
         </div>
         <details className="card-log">
           <summary>What the check reported</summary>

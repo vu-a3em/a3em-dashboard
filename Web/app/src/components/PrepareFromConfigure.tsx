@@ -69,7 +69,7 @@ export function PrepareFromConfigure({
     begin([id], 'Checking the card first, to see what preparing it needs.');
     try {
       const [read] = await readCards(helper, [id], follow([id]));
-      if (!read) throw new Error('The card helper gave no reading of the card.');
+      if (!read) throw new Error('The A3EM Card Helper gave no reading of the card.');
       const { verdict, plan: preparation } = judgeCard(config, plan, read, label);
       if (preparation.kind === 'blocked') {
         finish([id], `It cannot be prepared. ${preparation.reason}`);
@@ -79,7 +79,7 @@ export function PrepareFromConfigure({
       } else if (preparation.kind === 'settings') {
         await settings(read);
       } else {
-        note([id], 'Asking the card helper to describe the card, so you can confirm it before anything is erased.');
+        note([id], 'Asking the A3EM Card Helper to describe the card, so you can confirm it before anything is erased.');
         const challenge = await requestChallenge(id, 'prepare');
         note([id], 'Waiting for you to confirm.');
         awaiting.current = true;
@@ -109,7 +109,7 @@ export function PrepareFromConfigure({
       const { results } = await eraseAndPrepare(helper, entries, config, { [id]: plan }, follow([id]));
       const result = results.find((candidate) => candidate.device === id);
       if (!result || result.error) {
-        finish([id], result?.error ?? 'The card helper gave no result for the card.');
+        finish([id], result?.error ?? 'The A3EM Card Helper gave no result for the card.');
         return;
       }
       setPrepared({ kind: 'prepared', card: name, label, summary: summarize(result) });

@@ -441,7 +441,7 @@ func (darwin) Elevate(executable string, args []string, reason string) (Command,
 		parts = append(parts, ShellQuote(arg))
 	}
 	script := fmt.Sprintf("do shell script %s with administrator privileges with prompt %s",
-		appleScriptQuote(strings.Join(parts, " ")), appleScriptQuote("A3EM card helper needs administrator access to "+reason+"."))
+		appleScriptQuote(strings.Join(parts, " ")), appleScriptQuote("A3EM Card Helper needs administrator access to "+reason+"."))
 	return Command{Name: "osascript", Args: []string{"-e", script}}, nil
 }
 

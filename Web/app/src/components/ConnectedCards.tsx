@@ -51,6 +51,8 @@ export interface PreparedUnit {
   ok: boolean;
   /** A one-line summary, or the reason it failed. */
   note: string;
+  /** Found ready for the unit already, so nothing was written to it. */
+  found?: boolean;
 }
 
 /** The card as last read, and what was last done to it here. */
@@ -100,7 +102,7 @@ export function ConnectedCards({
   const awaiting = useRef<string[] | null>(null);
   // Cards that need only their settings, written once the ones being erased are done, and
   // whether each one's log is already running from the check that found it.
-  const thenSettings = useRef<Array<{ device: HelperDevice; continuing: boolean }>>([]);
+  const thenSettings = useRef<Array<{ device: HelperDevice; continuing: boolean; checked: CardReadinessReport | null }>>([]);
   const busy = helper.task !== null || working !== null;
   useDeviceWatch(helper, !busy);
 
@@ -163,11 +165,29 @@ export function ConnectedCards({
 
   /** Reads the cards, changing nothing, with the helper's progress in each one's log. */
   const readCards = (ids: string[]) => readThroughHelper(helper, ids, follow(ids));
-  const keep = (reports: CardReadinessReport[]) =>
+  /*
+    Readings kept, and any card already prepared for a unit still waiting recorded as that unit's:
+    one prepared at an earlier sitting, or on Configure, holding exactly this unit's settings with
+    nothing left that preparing would change. With nothing to prepare, it would otherwise have no
+    way to count as the unit's card. What cannot be known of a card, or advised, is left to its
+    result to say, as it is for a card just prepared.
+  */
+  const keep = (reports: CardReadinessReport[]) => {
     setStates((previous) => ({ ...previous, ...Object.fromEntries(reports.map((report) => [report.device.id, { report }])) }));
+    const found = reports.flatMap((report): PreparedUnit[] => {
+      const device = devices.find((candidate) => candidate.id === report.device.id);
+      const label = device ? unitOf(device) : null;
+      if (!device || !label || !labels.includes(label)) return [];
+      const { verdict, plan } = judge(device, report);
+      const settings = verdict.checks.some((check) => check.id === 'config-match' && check.status === 'pass');
+      if (plan.kind !== 'none' || !settings) return [];
+      return [{ label, node: device.node, device: device.id, erased: false, ok: true, note: 'already prepared', found: true }];
+    });
+    if (found.length) onPrepared(found);
+  };
 
   const check = async (ids: string[]) => {
-    begin(ids, ids.length > 1 ? 'Asking the card helper to check the cards.' : 'Asking the card helper to check the card.');
+    begin(ids, ids.length > 1 ? 'Asking the A3EM Card Helper to check the cards.' : 'Asking the A3EM Card Helper to check the card.');
     setStates((previous) => without(previous, ids));
     try {
       keep(await readCards(ids));
@@ -182,13 +202,15 @@ export function ConnectedCards({
    *
    * The card is read back afterward, so what is shown is what it now holds; a layout checked
    * earlier is carried over rather than read again, which would ask for a password. When the
-   * card was checked just now, as part of preparing it, its log carries on from the check.
+   * card was checked just now, as part of preparing it, its log carries on from the check, and
+   * that check is handed over as `earlier`: it is not in `states` yet, which is still the render
+   * that began preparing, so looking there would lose the layout it read.
    */
-  const writeSettings = async (device: HelperDevice, continuing = false) => {
+  const writeSettings = async (device: HelperDevice, continuing = false, checked: CardReadinessReport | null = null) => {
     const volume = device.volumes[0];
     const label = unitOf(device);
     if (!volume || !label) return;
-    const earlier = states[device.id]?.report;
+    const earlier = checked ?? states[device.id]?.report;
     const first = `Writing unit ${label}’s settings to the card.`;
     if (continuing) note([device.id], first);
     else begin([device.id], first);
@@ -236,7 +258,7 @@ export function ConnectedCards({
       }
     }
     const erase: Array<{ device: HelperDevice; label: string; fixes: string[] }> = [];
-    const settings: Array<{ device: HelperDevice; continuing: boolean }> = [];
+    const settings: Array<{ device: HelperDevice; continuing: boolean; checked: CardReadinessReport | null }> = [];
     const nothing: string[] = [];
     for (const id of ids) {
       const device = devices.find((candidate) => candidate.id === id);
@@ -244,20 +266,20 @@ export function ConnectedCards({
       const report = reports[id];
       const plan = device && label && report ? judge(device, report).plan : null;
       if (device && label && plan?.kind === 'erase') erase.push({ device, label, fixes: plan.fixes });
-      else if (device && plan?.kind === 'settings') settings.push({ device, continuing: unchecked.includes(id) });
+      else if (device && plan?.kind === 'settings') settings.push({ device, continuing: unchecked.includes(id), checked: report ?? null });
       else nothing.push(id);
     }
     // A card checked just now that needs nothing: the check was all there was to do.
     finish(nothing.filter((id) => unchecked.includes(id)));
     if (!erase.length) {
-      for (const { device, continuing } of settings) await writeSettings(device, continuing);
+      for (const { device, continuing, checked } of settings) await writeSettings(device, continuing, checked);
       return;
     }
     thenSettings.current = settings;
     const waiting = settings.filter((entry) => entry.continuing).map((entry) => entry.device.id);
     if (waiting.length) note(waiting, 'Waiting for the cards being erased first.');
     const eraseIds = erase.map((entry) => entry.device.id);
-    const describe = 'Asking the card helper to describe the card, so you can confirm it before anything is erased.';
+    const describe = 'Asking the A3EM Card Helper to describe the card, so you can confirm it before anything is erased.';
     const fresh = eraseIds.filter((id) => !unchecked.includes(id));
     if (fresh.length) begin(fresh, describe);
     const carried = eraseIds.filter((id) => unchecked.includes(id));
@@ -356,7 +378,7 @@ export function ConnectedCards({
     }
     const rest = thenSettings.current;
     thenSettings.current = [];
-    for (const { device, continuing } of rest) await writeSettings(device, continuing);
+    for (const { device, continuing, checked } of rest) await writeSettings(device, continuing, checked);
   };
 
   const eject = async (id: string) => {

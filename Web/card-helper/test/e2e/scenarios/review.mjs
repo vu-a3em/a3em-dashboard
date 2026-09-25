@@ -19,7 +19,7 @@ async function settlePane(evaluate, sleep, limit = 3000) {
 }
 
 export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
-  expect('the card tools report ready', await helperReady(evaluate, sleep));
+  expect('the A3EM Card Helper reports ready', await helperReady(evaluate, sleep));
   if (!cards.dirty) return;
   await evaluate(`$btn('Connect SD card').click()`);
   out.header = await until(evaluate, sleep, `(() => { const t = $text(document.querySelector('.topbar')); return t.includes('Eject') ? t : null; })()`, 300);
@@ -52,7 +52,7 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
   await sleep(700);
   await evaluate(rail('Review card'));
   out.backMidCopy = await until(evaluate, sleep, log, 50);
-  expect('after another tab, the copy is still shown', /Copying the card sector by sector|What the card helper did/.test(out.backMidCopy ?? ''), out.backMidCopy);
+  expect('after another tab, the copy is still shown', /Copying the card sector by sector|What the A3EM Card Helper did/.test(out.backMidCopy ?? ''), out.backMidCopy);
   out.copy = await settlePane(evaluate, sleep);
   out.imageResult = await evaluate(`$text(${pane}.querySelector('.card-result'))`);
   expect('the card is copied to an image', /copied/.test(out.imageResult ?? ''), out.imageResult);

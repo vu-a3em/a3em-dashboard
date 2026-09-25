@@ -47,10 +47,10 @@ export async function copyCardToImage(device: HelperDevice, helper: Helper, logs
         logs.finish([id], message(failure));
         return null;
       }
-      logs.note([id], 'This computer has no save dialog the card helper can show, so the image goes in the “A3EM card images” folder inside your Documents folder.');
+      logs.note([id], 'This computer has no save dialog the A3EM Card Helper can show, so the image goes in the “A3EM card images” folder inside your Documents folder.');
     }
   } else {
-    logs.begin([id], 'Asking the card helper to copy the whole card to an image file.');
+    logs.begin([id], 'Asking the A3EM Card Helper to copy the whole card to an image file.');
   }
   // It runs for up to an hour, so it can be stopped, where the helper knows how.
   const signal = helper.identity?.implemented.includes('stop') ? logs.stoppable(id) : undefined;
@@ -86,7 +86,7 @@ export async function copyCardToImage(device: HelperDevice, helper: Helper, logs
  */
 export async function checkCardFilesystem(device: HelperDevice, volume: string, helper: Helper, logs: CardLogs): Promise<FsckReport | null> {
   const id = device.id;
-  logs.begin([id], 'Asking the card helper to check the filesystem. This changes nothing on the card.');
+  logs.begin([id], 'Asking the A3EM Card Helper to check the filesystem. This changes nothing on the card.');
   const signal = helper.identity?.implemented.includes('stop') ? logs.stoppable(id) : undefined;
   try {
     const report = await helper.runTask('diagnose', 'Checking the filesystem', (onProgress) =>

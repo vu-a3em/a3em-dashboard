@@ -4,7 +4,7 @@
 import { card, helperReady, rail, settle, stopACopy, until } from './common.mjs';
 
 export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
-  expect('the card tools report ready', await helperReady(evaluate, sleep));
+  expect('the A3EM Card Helper reports ready', await helperReady(evaluate, sleep));
   await evaluate(rail('Recover card'));
   expect('the damaged card is listed', await until(evaluate, sleep, `Boolean(${card(cards.damaged)})`, 200));
   const chip = (id) => evaluate(`${card(id)}?.querySelector('.connected-card-head .chip')?.textContent ?? null`);

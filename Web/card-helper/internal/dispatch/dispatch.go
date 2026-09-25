@@ -758,6 +758,11 @@ func findVolume(devices []platform.Device, id string) *platform.Volume {
 }
 
 func accessible(path string) bool {
+	// For tests: a disk image as a real card is, whose raw device needs the password, so a
+	// quick read skips its layout (test/e2e sets it).
+	if os.Getenv("A3EM_HELPER_TEST_NEEDS_ADMIN") != "" {
+		return false
+	}
 	if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
 		return true
 	}

@@ -4,7 +4,7 @@
 import { helperReady, rail, until } from './common.mjs';
 
 export default async ({ evaluate, shot, sleep, out, expect }) => {
-  expect('the card tools report ready', await helperReady(evaluate, sleep));
+  expect('the A3EM Card Helper reports ready', await helperReady(evaluate, sleep));
   await evaluate(`$btn('Connect SD card').click()`);
   out.header = await until(evaluate, sleep, `(() => { const t = $text(document.querySelector('.topbar')); return t.includes('Eject') ? t : null; })()`, 300);
   expect('the open folder is matched to its card, so the header offers Eject', Boolean(out.header), await evaluate(`$text(document.querySelector('.topbar'))`));

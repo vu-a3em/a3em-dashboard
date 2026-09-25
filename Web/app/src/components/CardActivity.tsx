@@ -252,7 +252,7 @@ export function Activity({
   }
   return (
     <details className="card-log">
-      <summary>What the card helper did · {duration((log.endedAt ?? now) - log.startedAt)}</summary>
+      <summary>What the A3EM Card Helper did · {duration((log.endedAt ?? now) - log.startedAt)}</summary>
       {steps}
     </details>
   );

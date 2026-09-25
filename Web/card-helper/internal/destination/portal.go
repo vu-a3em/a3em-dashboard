@@ -93,7 +93,7 @@ func saveFile(b bus, dir, name, prompt string, wait time.Duration) (string, erro
 		return "", err
 	}
 	if len(response.Body) != 2 {
-		return "", errors.New("the save dialog answered in a way the card helper cannot read")
+		return "", errors.New("the save dialog answered in a way the A3EM Card Helper cannot read")
 	}
 	// 1 is Cancel; 2, "ended some other way", is how GNOME's dialog reports Escape or its close
 	// button. Either way nothing was chosen.

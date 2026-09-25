@@ -1,7 +1,6 @@
 import {
   AUDIO_DEFAULT_CLIP_LENGTH_SECONDS,
   AUDIO_DEFAULT_SAMPLE_RATE_HZ,
-  BATTERY_DEFAULT_LOW_MV,
   CONFIG_SCHEMA_VERSION,
   OPUS_DEFAULT_BITRATE,
   maxFrequencyCeilingHz,
@@ -117,7 +116,10 @@ export function defaultConfig(timezone = 'UTC', now = new Date()): DeploymentCon
     forbidDeactivationSeconds: 0,
     ledsEnabled: true,
     ledsActiveSeconds: LEDS_DEFAULT_ACTIVE_SECONDS,
-    batteryLowMv: BATTERY_DEFAULT_LOW_MV,
+    // Off unless asked for: recording until the battery gives out, rather than stopping at a
+    // voltage chosen for someone else's cells. Not the firmware's own default, which is what a
+    // card that leaves BATTERY_LOW_MV out gets (parse.ts).
+    batteryLowMv: 0,
     micType: 'DIGITAL',
     micAmplificationDb: START_MIC_AMPLIFICATION_DB,
     vhfMode: 'NEVER',

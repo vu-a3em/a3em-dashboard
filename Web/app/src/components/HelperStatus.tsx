@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentProps } from 'react';
 import type { Helper } from '../lib/useHelper';
 import { helperUpdateAvailable, LATEST_HELPER_RELEASE } from '../lib/helper';
-import { EXTENSION_STORE_URL, installGuide, withoutExtension } from '../lib/helperInstall';
 
 /**
  * The card helper, in two places, because it is two different kinds of thing.
@@ -91,7 +90,7 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
     // empty space where the status belongs reads as something having gone wrong.
     return (
       <div className="rail-foot-row">
-        <span className="rail-foot-label">Card tools</span>
+        <span className="rail-foot-label">A3EM Card Helper</span>
         <span className="rail-foot-value muted">Loading…</span>
       </div>
     );
@@ -100,24 +99,24 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
   return (
     <>
       <div className="rail-foot-row">
-        <span className="rail-foot-label">Card tools</span>
+        <span className="rail-foot-label">A3EM Card Helper</span>
         {helper.status === 'absent' || helper.status === 'outdated' ? (
           <button
             className="rail-foot-action"
-            title={helper.status === 'outdated' ? `Card helper ${helper.identity?.version} is older than this dashboard.` : undefined}
+            title={helper.status === 'outdated' ? `A3EM Card Helper ${helper.identity?.version} is older than this dashboard.` : undefined}
             onClick={() => setShowGuide(true)}
           >
             {helper.status === 'outdated' ? 'Update…' : 'Enable…'}
           </button>
         ) : update || issues.length ? (
-          <span className="rail-foot-value ok" title={`Card helper ${helper.identity?.version} on ${helper.identity?.platform}`}>
+          <span className="rail-foot-value ok" title={`A3EM Card Helper ${helper.identity?.version} on ${helper.identity?.platform}`}>
             ready
             {update ? (
               <>
                 {' · '}
                 <button
                   className="rail-foot-action"
-                  title={`Card helper ${LATEST_HELPER_RELEASE} is available; this computer has ${helper.identity?.version}.`}
+                  title={`A3EM Card Helper ${LATEST_HELPER_RELEASE} is available; this computer has ${helper.identity?.version}.`}
                   onClick={() => setShowGuide(true)}
                 >
                   update available
@@ -141,7 +140,7 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
             title={
               helper.status === 'incomplete'
                 ? `The helper runs on ${helper.identity?.platform} but implements no card operations yet.`
-                : `Card helper ${helper.identity?.version} on ${helper.identity?.platform}`
+                : `A3EM Card Helper ${helper.identity?.version} on ${helper.identity?.platform}`
             }
           >
             {helper.status === 'incomplete' ? `unavailable on ${helper.identity?.platform}` : 'ready'}
@@ -181,10 +180,10 @@ function SystemIssuesDialog({
   const problems = issues.filter((issue) => issue.severity === 'problem');
   const notes = issues.filter((issue) => issue.severity !== 'problem');
   return (
-    <dialog className="modal" ref={dialog} aria-label="Card helper on this computer">
-      <h2>Card helper on this computer</h2>
+    <dialog className="modal" ref={dialog} aria-label="A3EM Card Helper on this computer">
+      <h2>A3EM Card Helper on this computer</h2>
       <p className="hint">
-        The card helper is installed and working, but this computer is missing things some of its tools rely on.
+        The A3EM Card Helper is installed and working, but this computer is missing things some of its tools rely on.
       </p>
       {problems.length ? (
         <div className="banner warn">
@@ -214,106 +213,19 @@ function SystemIssuesDialog({
   );
 }
 
-/**
- * What to install, for the operating system the browser is running on.
- *
- * States the platform caveat first where there is one. Someone on Windows following three
- * installation steps to reach a tool that cannot do anything yet would rightly be annoyed,
- * and finding that out at the end is worse than being told at the start.
- */
-export function InstallGuideDialog({
-  outdated,
-  update,
-  onClose,
-}: Readonly<{
-  outdated: boolean;
-  /** A newer release than the one installed, which still works with this dashboard. */
-  update?: { installed: string; latest: string };
-  onClose: () => void;
-}>) {
-  const guide = installGuide();
-  // A helper that answered came through the extension, so only the helper needs installing.
-  const replacing = outdated || Boolean(update);
-  const dialog = useRef<HTMLDialogElement>(null);
+/*
+  The install guide, loaded on its own, since most visits never open it. It is fetched once the
+  dashboard knows it could be wanted rather than when it is opened, as the helper's screens are
+  (`helperViews`): a page that has lost its connection since can still show it.
+*/
+export const loadInstallGuide = () => import('./InstallGuide');
+const Guide = lazy(() => loadInstallGuide().then((module) => ({ default: module.InstallGuideDialog })));
 
-  /**
-   * A real `<dialog>` opened with `showModal`, rather than a div with `role="dialog"`.
-   *
-   * The platform gives focus trapping, Escape to close, inertness of the page behind, and
-   * the `::backdrop` pseudo-element — all of which a hand-rolled overlay has to
-   * reimplement and usually gets wrong. `close` fires for Escape as well as for the
-   * button, so there is one path out.
-   */
-  useEffect(() => {
-    const element = dialog.current;
-    if (!element) return undefined;
-    element.showModal();
-    element.addEventListener('close', onClose);
-    return () => element.removeEventListener('close', onClose);
-  }, [onClose]);
-
+/** What to install, for the operating system the browser is running on: see `InstallGuide`. */
+export function InstallGuideDialog(props: ComponentProps<typeof Guide>) {
   return (
-    <dialog className="modal" ref={dialog} aria-label={outdated || update ? 'Update card tools' : 'Enable card tools'}>
-      <h2>{outdated || update ? 'Update card tools' : 'Enable card tools'}</h2>
-      <p className="hint">
-        These tools give the dashboard low-level access to SD cards: they test that a card really holds
-        what it claims, format it with the exact layout the recorder expects, check that a card is ready to
-        deploy, and eject it safely. Everything else in the dashboard works without these tools. Two pieces are
-        needed, a small program and a browser extension. Neither sends anything over the internet; see the{' '}
-        <a href="privacy.html" target="_blank" rel="noopener">
-          privacy policy
-        </a>
-        .
-      </p>
-
-      {outdated ? (
-        <div className="banner warn" style={{ marginTop: 12 }}>
-          The card helper on this computer is older than this dashboard. Install the current one below; it
-          replaces the old one.
-        </div>
-      ) : update ? (
-        <div className="banner ok" style={{ marginTop: 12 }}>
-          <strong>Card helper {update.latest} is available</strong>
-          This computer has {update.installed}, which still works. Install the new one below to get its fixes and
-          improvements; it replaces the old one, and the browser extension stays as it is.
-        </div>
-      ) : null}
-
-      {guide.caveat ? (
-        <div className="banner warn" style={{ marginTop: 12 }}>
-          {guide.caveat}
-        </div>
-      ) : null}
-
-      <p className="stat-label" style={{ marginTop: 16 }}>
-        Setting up on {guide.osLabel}
-      </p>
-
-      <ol className="install-steps">
-        {(replacing ? withoutExtension(guide.steps) : guide.steps).map((step) => (
-          <li key={step.title}>
-            <strong>{step.title}</strong>
-            <div className="hint">{step.detail}</div>
-            {step.command ? <code className="install-command">{step.command}</code> : null}
-            {step.link ? (
-              <a className="btn small install-link" href={step.link.href} target="_blank" rel="noreferrer">
-                {step.link.label}
-              </a>
-            ) : null}
-          </li>
-        ))}
-      </ol>
-
-      <div className="modal-actions">
-        {EXTENSION_STORE_URL && !replacing ? (
-          <a className="btn primary" href={EXTENSION_STORE_URL} target="_blank" rel="noreferrer">
-            Open the Chrome Web Store
-          </a>
-        ) : null}
-        <button className="btn" onClick={() => dialog.current?.close()}>
-          Close
-        </button>
-      </div>
-    </dialog>
+    <Suspense fallback={null}>
+      <Guide {...props} />
+    </Suspense>
   );
 }

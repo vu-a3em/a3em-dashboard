@@ -1,10 +1,13 @@
-# End-to-end tests: the dashboard's card tools against the real helper
+# End-to-end tests: the dashboard's A3EM Card Helper screens against the real helper
 
 `e2e.mjs` serves the built dashboard, stands in for the browser extension, and drives headless
 Chrome through the card screens. Every request the page makes goes to the **real** card helper,
 started as a browser starts it and spoken to in native messaging's framing — one helper for the
 whole run, so a Stop reaches the copy it stops — in test mode (`A3EM_HELPER_VIRTUAL_ONLY=1` hides
-every real device), and only the virtual disks named in `cards.json` are listed. So these tests
+every real device), and only the virtual disks named in `cards.json` are listed. The harness also
+sets `A3EM_HELPER_TEST_NEEDS_ADMIN=1`, so the helper treats each disk's raw device as needing
+administrator access to read, as a real card's does: a disk image the user can read directly
+otherwise hides every path where a quick check skips the layout. So these tests
 exercise the helper's platform code and the dashboard together, on disks that cannot be anyone's
 card.
 
@@ -16,11 +19,11 @@ administrator prompts and privacy permissions need a real card and a person.
 
 | Scenario | Checks |
 | --- | --- |
-| `configure` | With the card tools, the forecast's "Recommended card format" sends formatting to "Prepare devices" instead of listing commands, and the link opens it. |
+| `configure` | With the A3EM Card Helper, the forecast's "Recommended card format" sends formatting to "Prepare devices" instead of listing commands, and the link opens it. |
 | `recover` | Recover card lists only the cards that do not open. The damaged one: opening it fails and says so; a copy to an image is stopped partway, says so and leaves no file; it is copied (saying where, and how much room there is); the check finds the damaged boot region and that its backup can replace it; the repair is confirmed in the helper's words as the narrow one, restores the boot region, and the card opens and stays listed as "Opens now". |
 | `prepare` | Prepare devices, with the old card open in the dashboard: the cards pane follows the batch; without a batch "Prepare this card" cannot be pressed and says why; in a batch, a card beyond the units has "No unit left"; preparing all without a check checks first, in the same log; only the old card is confirmed for erasing; the prepared card only gets its settings; both units end "Card written"; the old card, erased, is let go of — the header says why, and Review card shows no card rather than what it held. |
 | `review` | Review card, for the dirty card, picked in the folder picker: "The card itself" comes first; no repair is offered until a check finds the problem, explains it, and names the recording it touches, and finds the log lines past the log's recorded end, for the copy — and so says to copy before repairing; a copy is stopped and leaves no file; the image copy is still showing after a visit to another tab; the repair is the helper's own, rebuilds the bitmap and says where it saved what it replaced, and the card is open again; no marker file is left. |
-| `prepare-open` | Configure, with the prepared card open: "Prepare OWL_01…" replaces writing the configuration alone; with only another unit's settings on the card, it writes this unit's and erases nothing; once a file from before is on the card (put there through the harness), it asks to confirm erasing in the helper's words, erases and sets the card up again, keeps what it did on screen, and lets go of the folder that was open on it. |
+| `prepare-open` | First, on Prepare devices, a batch of one, and "Prepare this card" pressed on the prepared card unchecked: it gets its settings, and its result shows the layout the check read on the way. Then Configure, with the card open: it warns that the batch has a card written with these settings, and once a setting changes, that the card now differs. "Prepare OWL_01…" replaces writing the configuration alone; with only other settings on the card, it writes this unit's and erases nothing; once a file from before is on the card (put there through the harness), it asks to confirm erasing in the helper's words, erases and sets the card up again, keeps what it did on screen, and lets go of the folder that was open on it. Back on Prepare devices, the unit written before the change is "No card yet" again, saying why, until its card, now with the current settings, is checked and counts as its card. |
 | `match` | Connect SD card is matched to its card: the header offers Eject, no marker file is left behind, Review card shows the card itself and what this computer found preparing it, its filesystem check is clean, Review card, Listen and Check & copy each say the card is not deployed yet, and Eject leaves "Reopen". Needs the harness to be able to write to the prepared card's mount point. |
 
 Run in the order `configure,recover,prepare,review,prepare-open,match` (the default): `prepare-open` erases the prepared card and sets it up again, and `match` ejects it.
@@ -80,15 +83,16 @@ seen, and every helper call is listed with its outcome.
 
 The helper can also run elsewhere than the harness — in a container, say — by giving `--helper` a
 script that runs it there (for example `docker exec -i -e A3EM_HELPER_VIRTUAL_ONLY -e
-A3EM_HELPER_STATE_DIR -e A3EM_HELPER_SAVE_AS_DIR <container> /work/a3em-card-helper "$@"`), with
+A3EM_HELPER_TEST_NEEDS_ADMIN -e A3EM_HELPER_STATE_DIR -e A3EM_HELPER_SAVE_AS_DIR <container>
+/work/a3em-card-helper "$@"`), with
 `cards.json`'s paths as the helper sees them, and `localImageDir` set to the image folder as the
 harness sees it. `review` and `match` then cannot write their marker file, so run
 `--only configure,recover,prepare`.
 
 ## Where it has run
 
-- macOS 26, Apple silicon: all five pass (2026-09-24, with the helper's own check and repairs,
-  and Stop).
+- macOS 26, Apple silicon: all six pass (2026-09-25, with `A3EM_HELPER_TEST_NEEDS_ADMIN`, the
+  helper's own check and repairs, and Stop).
 - Linux 6.12 (Docker Desktop's VM, Ubuntu 24.04 container, exfatprogs 1.2.2) with the helper in
   the container: `configure`, `recover` and `prepare` pass, Stop included. These runs found two
   Linux defects, since fixed: loop devices without udev reported no partition table, and a repair

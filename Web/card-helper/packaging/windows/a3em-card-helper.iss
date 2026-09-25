@@ -58,4 +58,4 @@ Filename: "{app}\a3em-card-helper.exe"; Parameters: "uninstall"; Flags: runhidde
 Type: files; Name: "{app}\org.a3em.card_helper.json"
 
 [Messages]
-FinishedLabel=The A3EM card helper is installed. Reload the A3EM dashboard; it should show the helper as connected. You also need the A3EM Card Helper browser extension.
+FinishedLabel=The A3EM Card Helper is installed. Reload the A3EM dashboard; it should show the helper as connected. You also need the A3EM Card Helper browser extension.

@@ -1,4 +1,4 @@
-# A3EM card helper
+# A3EM Card Helper
 
 The native program the dashboard uses, through the [browser extension](../extension), to work
 on SD cards directly: list the cards plugged into this computer, check whether one is ready to
@@ -212,12 +212,12 @@ Patch for fixes, minor for new operations, major for anything that breaks an ins
 dashboard. Separately, `ProtocolVersion` in [`internal/dispatch`](internal/dispatch/dispatch.go)
 and `HELPER_PROTOCOL` in [`app/src/lib/helper.ts`](../app/src/lib/helper.ts) change together
 whenever a request or reply changes shape. A dashboard that expects a newer protocol than the
-installed helper speaks shows "Card tools: Update…" instead of calling it, so release the helper
+installed helper speaks shows "A3EM Card Helper: Update…" instead of calling it, so release the helper
 before deploying a dashboard that needs it.
 
 Installed helpers do not update themselves: people install the new release over the old one.
 Publishing a release rebuilds the dashboard ([Pages workflow](../../.github/workflows/pages.yml)),
-which then knows the newest version from the tags, and "Card tools" says "update available" to
+which then knows the newest version from the tags, and "A3EM Card Helper" says "update available" to
 anyone whose helper is older. A helper too old for the dashboard's protocol says "Update…"
 instead, as before.
 

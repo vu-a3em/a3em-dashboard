@@ -24,7 +24,7 @@ if ($Stage -in 'binaries', 'all') {
     # resource that go build links in, one per architecture, deleted again afterward.
     Push-Location cmd/a3em-card-helper
     go run github.com/tc-hib/go-winres@v0.3.3 simply --arch amd64,arm64 --manifest cli `
-      --product-name 'A3EM Card Helper' --file-description 'A3EM card helper' `
+      --product-name 'A3EM Card Helper' --file-description 'A3EM Card Helper' `
       --product-version $numeric --file-version $numeric `
       --copyright 'Copyright (c) 2026 vu-a3em. MIT License.' --original-filename a3em-card-helper.exe --out rsrc
     if ($LASTEXITCODE -ne 0) { throw 'go-winres failed' }

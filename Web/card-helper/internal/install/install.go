@@ -68,7 +68,7 @@ func manifestFor(options Options) Manifest {
 	for i, id := range ids {
 		origins[i] = "chrome-extension://" + id + "/"
 	}
-	return Manifest{Name: HostName, Description: "A3EM card helper: prepares and checks SD cards for A3EM recorders.",
+	return Manifest{Name: HostName, Description: "A3EM Card Helper: prepares and checks SD cards for A3EM recorders.",
 		Path: options.Executable, Type: "stdio", AllowedOrigins: origins}
 }
 
@@ -171,7 +171,7 @@ func Doctor(out io.Writer) error {
 	// What this computer lacks that the helper relies on: the same list the dashboard shows.
 	issues := sysenv.Check()
 	if len(issues) == 0 {
-		fmt.Fprintln(out, "  This computer has everything the card helper uses.")
+		fmt.Fprintln(out, "  This computer has everything the A3EM Card Helper uses.")
 	}
 	problems := 0
 	for _, issue := range issues {
