@@ -112,7 +112,7 @@ const bridge = createServer((req, res) => {
   req.on('data', (chunk) => (body += chunk));
   req.on('end', () => {
     // How many marker files are on the picked card: none should be left behind.
-    const mountOf = (role) => (role === 'dirty' ? CARDS.dirtyMount : CARDS.preparedMount);
+    const mountOf = (role) => ({ dirty: CARDS.dirtyMount, old: CARDS.oldMount }[role] ?? CARDS.preparedMount);
     if (req.url.startsWith('/probes')) {
       const mount = mountOf(new URL(req.url, 'http://x').searchParams.get('role'));
       const names = mount && existsSync(mount) ? readdirSync(mount) : [];
@@ -216,8 +216,9 @@ async function runScenario(name) {
   await send('Network.enable');
   await send('Network.setBlockedURLs', { urls: ['*googleapis.com*', '*firebaseapp.com*', '*gstatic.com*', '*google.com*'] });
   const shims = ['extension.js', 'picker.js'].map((file) => readFileSync(join(HERE, 'shims', file), 'utf8')).join('\n');
-  // The card the picker stand-in "picks": the dirty one for `review`, else the prepared one.
-  const pick = name === 'review' ? 'dirty' : 'prepared';
+  // The card the picker stand-in "picks": the dirty one for `review`, the old one for `prepare`
+  // (which erases it while it is open), else the prepared one.
+  const pick = { review: 'dirty', prepare: 'old' }[name] ?? 'prepared';
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__CARDS__ = ${JSON.stringify(CARDS)}; window.__PICK__ = ${JSON.stringify(pick)};\n${shims}` });
   await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
   await send('Page.navigate', { url: `http://127.0.0.1:${PAGE_PORT}/` });

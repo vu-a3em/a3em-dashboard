@@ -58,6 +58,10 @@ import { Activity, useCardLogs, without } from './CardActivity';
 export interface PreparedUnit {
   label: string;
   node: string;
+  /** The card's device, so a folder open on it can be let go of or read again. */
+  device: string;
+  /** Whether it was erased, which a folder open on it does not survive. */
+  erased: boolean;
   ok: boolean;
   /** A one-line summary, or the reason it failed. */
   note: string;
@@ -256,7 +260,7 @@ export function ConnectedCards({
         ...current,
         [device.id]: { report: report ?? current[device.id]?.report ?? null, outcome: { kind: 'settings' } },
       }));
-      onPrepared([{ label, node: device.node, ok: true, note: 'settings written' }]);
+      onPrepared([{ label, node: device.node, device: device.id, erased: false, ok: true, note: 'settings written' }]);
       finish([device.id]);
     } catch (failure) {
       finish([device.id], message(failure));
@@ -429,7 +433,14 @@ export function ConnectedCards({
         results.map((result) => {
           const entry = entries.find((candidate) => candidate.device === result.device)!;
           const node = devices.find((device) => device.id === result.device)?.node ?? result.device;
-          return { label: entry.label, node, ok: !result.error, note: result.error ?? summarize(result) };
+          return {
+            label: entry.label,
+            node,
+            device: result.device,
+            erased: result.formatted,
+            ok: !result.error,
+            note: result.error ?? summarize(result),
+          };
         }),
       );
       finish(ids);

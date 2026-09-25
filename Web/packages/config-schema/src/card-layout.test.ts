@@ -13,7 +13,9 @@ import {
   planRename,
   readCardLayout,
   renderTimestamp,
-  activationFromPath,} from './card-layout.js';
+  activationFromPath,
+  cardStage,
+} from './card-layout.js';
 
 /** Paths exactly as the pre-2026.08.1 firmware wrote them (from the reference card). */
 const LEGACY_ENTRIES = [
@@ -350,5 +352,22 @@ describe('the self-test capture', () => {
     assert.equal(classifyFile('1787871640.wav'), 'audio');
     assert.equal(classifyFile('1787871640.opus'), 'audio');
     assert.equal(classifyFile('_a3em.test.wav'), 'self-test-clip');
+  });
+});
+
+describe('how far a card has got', () => {
+  it('is deployed once a recorder has written to it', () => {
+    assert.equal(cardStage(readCardLayout(LEGACY_ENTRIES)), 'deployed');
+    assert.equal(cardStage(readCardLayout(EPOCH_ENTRIES)), 'deployed');
+    // A device information file alone: activated, and nothing recorded yet.
+    assert.equal(cardStage(readCardLayout([{ path: '_a3em.dev', sizeBytes: 256 }])), 'deployed');
+  });
+  it('is prepared with a configuration and nothing a recorder wrote', () => {
+    assert.equal(cardStage(readCardLayout([{ path: '_a3em.cfg', sizeBytes: 766 }])), 'prepared');
+    assert.equal(cardStage(readCardLayout([{ path: '_a3em.cfg', sizeBytes: 766 }, { path: 'notes.txt', sizeBytes: 10 }])), 'prepared');
+  });
+  it('is blank with neither', () => {
+    assert.equal(cardStage(readCardLayout([])), 'blank');
+    assert.equal(cardStage(readCardLayout([{ path: 'notes.txt', sizeBytes: 10 }])), 'blank');
   });
 });

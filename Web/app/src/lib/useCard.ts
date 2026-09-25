@@ -15,6 +15,7 @@ import {
 } from '@a3em/config-schema';
 import {
   CARD_ACCESS_SUPPORTED,
+  CardGoneError,
   hasPermission,
   pickCard,
   readCard,
@@ -31,6 +32,8 @@ export type CardStatus = 'unsupported' | 'disconnected' | 'reconnectable' | 'sca
 export interface CardState {
   status: CardStatus;
   name: string | null;
+  /** Said once nothing is open: why the card that was open is not any more. */
+  notice: string | null;
   contents: CardContents | null;
   progress: ScanProgress | null;
   error: string | null;
@@ -59,6 +62,7 @@ export interface CardState {
 const INITIAL: CardState = {
   status: CARD_ACCESS_SUPPORTED ? 'disconnected' : 'unsupported',
   name: null,
+  notice: null,
   contents: null,
   progress: null,
   error: null,
@@ -131,6 +135,7 @@ export function useCard() {
       setState({
         status: 'ready',
         name: root.name,
+        notice: null,
         contents,
         progress: null,
         error: null,
@@ -143,6 +148,11 @@ export function useCard() {
         targetFirmware: targetFirmwareProfile(deviceInfo),
       });
     } catch (error) {
+      if (error instanceof CardGoneError) {
+        // Not a damaged card: its folder is not there. Reopen works once it is back as it was.
+        setState({ ...INITIAL, status: 'reconnectable', name: root.name, error: `${root.name} is not inserted` });
+        return;
+      }
       setState((previous) => ({
         ...previous,
         status: 'error',
@@ -207,6 +217,17 @@ export function useCard() {
   }, []);
 
   /**
+   * After the card that was open has been erased, to prepare it: its folder went with what was on
+   * it, and what was read from it describes a card that no longer exists. Nothing stays open or
+   * offered for reopening; the notice says why, until another card is connected.
+   */
+  const erased = useCallback(async (notice: string) => {
+    await forgetCardHandle();
+    setHandle(null);
+    setState({ ...INITIAL, notice });
+  }, []);
+
+  /**
    * After the card has been ejected: nothing is open any more, but the folder is kept, so the
    * dashboard can offer to reopen it when the card goes back in.
    */
@@ -215,5 +236,5 @@ export function useCard() {
     setState({ ...INITIAL, status: 'reconnectable', name: handle.name });
   }, [handle]);
 
-  return { ...state, handle, connect, reconnect, rescan, disconnect, setAside };
+  return { ...state, handle, connect, reconnect, rescan, disconnect, setAside, erased };
 }

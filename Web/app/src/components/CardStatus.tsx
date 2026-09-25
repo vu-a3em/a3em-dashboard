@@ -106,6 +106,11 @@ export function CardStatus({ card, cardDevice }: Readonly<{ card: Card; cardDevi
   return (
     <>
       {card.status === 'error' && card.error ? <span className="chip crit">{card.error}</span> : null}
+      {card.status !== 'error' && card.notice ? (
+        <span className="chip" title="Connect it again to open it as it is now.">
+          {card.notice}
+        </span>
+      ) : null}
       <button className="btn primary" onClick={() => void card.connect()}>
         Connect SD card
       </button>

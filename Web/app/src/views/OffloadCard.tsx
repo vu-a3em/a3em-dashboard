@@ -13,6 +13,7 @@ import {
 import type { useCard } from '../lib/useCard';
 import type { CardDevice } from '../lib/useCardDevice';
 import { RecoverHint } from '../components/RecoverHint';
+import { isUndeployed, NotDeployed } from '../components/NotDeployed';
 
 type Card = ReturnType<typeof useCard>;
 
@@ -72,6 +73,9 @@ export function OffloadCard({
   }
 
   const { layout, unreadable } = card.contents;
+  if (isUndeployed(layout) && !unreadable.length) {
+    return <NotDeployed name={card.name} layout={layout} config={card.existingConfig} configText={card.contents.configText} nothing="nothing to check or copy" />;
+  }
 
   // Counted the way the check counts: the self-test capture at the card root is checked too,
   // so a button offering one number fewer than the report then showed looked like a miscount.

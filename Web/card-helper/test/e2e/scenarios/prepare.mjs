@@ -1,5 +1,6 @@
 // "Check this card", then one "Prepare this card" that does the least each card needs: erasing
 // the old card, only writing settings to the prepared one, and nothing for a card with no unit.
+// The old card is open in the dashboard meanwhile, and is let go of once it is erased.
 import { card, helperReady, rail, settle, until } from './common.mjs';
 
 const pick = (id, label) =>
@@ -7,6 +8,9 @@ const pick = (id, label) =>
 
 export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
   expect('the card tools report ready', await helperReady(evaluate, sleep));
+  // Open the old card first, as someone reviewing a card before reusing it would have it.
+  await evaluate(`$btn('Connect SD card').click()`);
+  out.opened = await until(evaluate, sleep, `(() => { const t = $text(document.querySelector('.topbar')); return t.includes('Eject') ? t : null; })()`, 300);
   await evaluate(rail('Prepare devices'));
   expect('the old card is listed', await until(evaluate, sleep, `Boolean(${card(cards.old)})`, 200));
   out.order = await evaluate(`[...document.querySelectorAll('.card h2, .card .card-head h2')].map((h) => h.textContent.trim())`);
@@ -52,5 +56,15 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
   out.unitList = await evaluate(`[...document.querySelectorAll('.batch-units .period-row')].map((r) => $text(r))`);
   expect('both units show "Card written"', out.unitList.length === 2 && out.unitList.every((row) => row.startsWith('Card written')), out.unitList);
   out.plan = await evaluate(`$text(${card(cards.old)}.querySelector('.readiness-plan'))`);
+  // Where the harness can mark the old card, it was matched to the folder open on it: erasing it
+  // takes that folder away, and the header says so rather than showing what was on it before.
+  if (out.opened) {
+    out.afterErase = await until(evaluate, sleep, `(() => { const t = $text(document.querySelector('.topbar')); return /was erased to prepare it as A3EM_01/.test(t) ? t : null; })()`, 100);
+    expect('the card that was open is let go of once erased, and the header says why', Boolean(out.afterErase), await evaluate(`$text(document.querySelector('.topbar'))`));
+    await evaluate(rail('Review card'));
+    await sleep(300);
+    out.reviewAfterErase = await evaluate(`document.querySelector('.content .card h2')?.textContent ?? null`);
+    expect('and "Review card" shows no card, not the old one', out.reviewAfterErase === 'No card connected', out.reviewAfterErase);
+  }
   await shot('2-prepared');
 };

@@ -114,6 +114,22 @@ export function classifyFile(name: string): CardFileKind {
   return 'other';
 }
 
+/** What only a recorder writes: once any of it is on a card, the card has been deployed. */
+const RECORDER_KINDS = new Set<CardFileKind>(['audio', 'imu', 'log', 'device-info', 'self-test', 'self-test-clip']);
+
+/**
+ * How far a card has got: `deployed` once a recorder has written to it — a recording, a log, its
+ * device information or its self-test — `prepared` while it holds a configuration and nothing a
+ * recorder wrote, and `blank` with neither. Other files count toward neither: a card may carry a
+ * computer's leftovers, or notes of someone's own.
+ */
+export type CardStage = 'deployed' | 'prepared' | 'blank';
+
+export function cardStage(layout: CardLayout): CardStage {
+  if (layout.files.some((file) => RECORDER_KINDS.has(file.kind))) return 'deployed';
+  return layout.files.some((file) => file.kind === 'config') ? 'prepared' : 'blank';
+}
+
 /**
  * Builds a picture of the card from a flat listing.
  *

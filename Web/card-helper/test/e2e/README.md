@@ -18,9 +18,9 @@ administrator prompts and privacy permissions need a real card and a person.
 | --- | --- |
 | `configure` | With the card tools, the forecast's "Recommended card format" sends formatting to "Prepare devices" instead of listing commands, and the link opens it. |
 | `recover` | Recover card lists only the cards that do not open. The damaged one: opening it fails and says so; a copy to an image is stopped partway, says so and leaves no file; it is copied (saying where, and how much room there is); the check finds the damaged boot region and that its backup can replace it; the repair is confirmed in the helper's words as the narrow one, restores the boot region, and the card opens and stays listed as "Opens now". |
-| `prepare` | Prepare devices: the cards pane follows the batch; without a batch "Prepare this card" cannot be pressed and says why; in a batch, a card beyond the units has "No unit left"; preparing all without a check checks first, in the same log; only the old card is confirmed for erasing; the prepared card only gets its settings; both units end "Card written". |
+| `prepare` | Prepare devices, with the old card open in the dashboard: the cards pane follows the batch; without a batch "Prepare this card" cannot be pressed and says why; in a batch, a card beyond the units has "No unit left"; preparing all without a check checks first, in the same log; only the old card is confirmed for erasing; the prepared card only gets its settings; both units end "Card written"; the old card, erased, is let go of — the header says why, and Review card shows no card rather than what it held. |
 | `review` | Review card, for the dirty card, picked in the folder picker: "The card itself" comes first; no repair is offered until a check finds the problem, explains it, and names the recording it touches; a copy is stopped and leaves no file; the image copy is still showing after a visit to another tab; the repair is the helper's own, rebuilds the bitmap and says where it saved what it replaced, and the card is open again; no marker file is left. |
-| `match` | Connect SD card is matched to its card: the header offers Eject, no marker file is left behind, Review card shows the card itself and what this computer found preparing it, its filesystem check is clean, and Eject leaves "Reopen". Needs the harness to be able to write to the prepared card's mount point. |
+| `match` | Connect SD card is matched to its card: the header offers Eject, no marker file is left behind, Review card shows the card itself and what this computer found preparing it, its filesystem check is clean, Review card, Listen and Check & copy each say the card is not deployed yet, and Eject leaves "Reopen". Needs the harness to be able to write to the prepared card's mount point. |
 
 Run in the order `configure,recover,prepare,review,match` (the default): `match` ejects the prepared card.
 
@@ -44,6 +44,7 @@ A setup script creates five virtual disks and writes `cards.json`:
 { "old": "<device id>", "prepared": "<id>", "damaged": "<id>", "blank": "<id>", "dirty": "<id>",
   "preparedLabel": "OWL_01", "preparedMount": "<where the prepared card is mounted>",
   "dirtyLabel": "OWL_09", "dirtyMount": "<where the dirty card is mounted>",
+  "oldLabel": "OLDCARD", "oldMount": "<where the old card is mounted>",
   "stateDir": "<the helper state folder the setup used>", "imageDir": "<where images go>",
   "localImageDir": "<imageDir as the harness sees it, where the helper runs elsewhere>" }
 ```

@@ -81,12 +81,13 @@ sync; hdiutil detach "$DIRTY" >/dev/null
 spoil_bitmap dirty.img
 DIRTY=$(attach dirty.img); guard "$DIRTY"; diskutil mount "${DIRTY}s1" >/dev/null
 
-python3 - "$WORK/cards.json" "${OLD#/dev/}" "${PREPARED#/dev/}" "${DAMAGED#/dev/}" "${BLANK#/dev/}" "$(mount_of "$PREPARED")" "${DIRTY#/dev/}" "$(mount_of "$DIRTY")" "$WORK/images" <<'PY'
+python3 - "$WORK/cards.json" "${OLD#/dev/}" "${PREPARED#/dev/}" "${DAMAGED#/dev/}" "${BLANK#/dev/}" "$(mount_of "$PREPARED")" "${DIRTY#/dev/}" "$(mount_of "$DIRTY")" "$WORK/images" "$(mount_of "$OLD")" <<'PY'
 import json, sys
 import os
-path, old, prepared, damaged, blank, mount, dirty, dirty_mount, images = sys.argv[1:]
+path, old, prepared, damaged, blank, mount, dirty, dirty_mount, images, old_mount = sys.argv[1:]
 os.makedirs(images, exist_ok=True)
 json.dump({"old": old, "prepared": prepared, "damaged": damaged, "blank": blank, "dirty": dirty,
+           "oldLabel": "OLDCARD", "oldMount": old_mount,
            "preparedLabel": "OWL_01", "preparedMount": mount, "dirtyLabel": "OWL_09", "dirtyMount": dirty_mount,
            "stateDir": os.environ["A3EM_HELPER_STATE_DIR"], "imageDir": images}, open(path, "w"), indent=2)
 PY

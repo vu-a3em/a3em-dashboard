@@ -16,6 +16,7 @@ import { quickCardChecks } from '../lib/cardChecks';
 import { buildZip, downloadBlob } from '../lib/zip';
 import type { useCard } from '../lib/useCard';
 import type { Helper } from '../lib/useHelper';
+import type { CardDevice } from '../lib/useCardDevice';
 import type { PreparedUnit } from '../components/ConnectedCards';
 import { loadConnectedCards } from '../lib/helperViews';
 
@@ -54,8 +55,11 @@ export function BatchPrepare({
   onUnitsChange,
   onEditConfiguration,
   onRecover,
+  cardDevice,
 }: Readonly<{
   card: Card;
+  /** Which card the open folder is on, so preparing that card can let go of what was read from it. */
+  cardDevice?: CardDevice;
   /** The card helper; its panel appears when it is installed. */
   helper: Helper;
   config: DeploymentConfig;
@@ -191,7 +195,15 @@ export function BatchPrepare({
     some cards and then writing settings to others reports twice within one action, and the
     second report must not put back what the first recorded.
   */
-  const recordPrepared = (prepared: PreparedUnit[]) =>
+  const recordPrepared = (prepared: PreparedUnit[]) => {
+    // The card open in the dashboard, if it was one of these: what was read from it is out of date.
+    const open = cardDevice?.device ?? null;
+    const opened = open ? prepared.find((entry) => entry.device === open.id) : undefined;
+    if (opened?.erased) {
+      void card.erased(`${card.name ?? 'The card'} was erased to prepare it as ${opened.label}`);
+    } else if (opened?.ok) {
+      void card.rescan();
+    }
     onUnitsChange((current) =>
       current.map((unit) => {
         const match = prepared.find((entry) => entry.label === unit.label);
@@ -201,6 +213,7 @@ export function BatchPrepare({
           : { ...unit, status: 'error', cardName: match.node, error: match.note, note: null };
       }),
     );
+  };
   const waiting = units
     .filter((unit, index) => unit.status !== 'written' && labelProblems[index].length === 0)
     .map((unit) => unit.label);

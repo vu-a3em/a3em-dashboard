@@ -161,6 +161,17 @@ export interface ScanProgress {
  * — the reported failure mode is a transfer that stops at the first bad file and looks
  * like it finished.
  */
+/**
+ * The card's folder itself cannot be opened: the card was taken out, or erased and renamed — as
+ * preparing it does — or access to it was withdrawn. Nothing on the card was read, so this is
+ * not a finding about the card, as an unreadable file within it would be.
+ */
+export class CardGoneError extends Error {
+  constructor(readonly folder: string) {
+    super(`${folder} can no longer be opened`);
+  }
+}
+
 export async function scanCard(
   root: FileSystemDirectoryHandle,
   options: { onProgress?: (progress: ScanProgress) => void; signal?: AbortSignal } = {},
@@ -179,7 +190,8 @@ export async function scanCard(
         entries: () => AsyncIterableIterator<[string, FileSystemHandle]>;
       }).entries();
     } catch (error) {
-      unreadable.push({ path: prefix || '/', reason: describeError(error) });
+      if (!prefix) throw new CardGoneError(root.name);
+      unreadable.push({ path: prefix, reason: describeError(error) });
       return;
     }
 
@@ -187,6 +199,7 @@ export async function scanCard(
     try {
       for await (const child of iterator) children.push(child);
     } catch (error) {
+      if (!prefix && !children.length) throw new CardGoneError(root.name);
       unreadable.push({ path: prefix || '/', reason: describeError(error) });
       return;
     }

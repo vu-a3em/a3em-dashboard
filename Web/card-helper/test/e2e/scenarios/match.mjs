@@ -1,5 +1,6 @@
 // "Connect SD card", matched to its physical card: the header can eject it, and Review card
-// shows the card itself. Leaves no marker file behind.
+// shows the card itself — a card prepared and not yet deployed, which each page says rather than
+// showing an empty deployment. Leaves no marker file behind.
 import { helperReady, rail, until } from './common.mjs';
 
 export default async ({ evaluate, shot, sleep, out, expect }) => {
@@ -20,7 +21,15 @@ export default async ({ evaluate, shot, sleep, out, expect }) => {
   await evaluate(`document.querySelector('details.physical-card').scrollIntoView(); $btn('Check the filesystem', document.querySelector('details.physical-card')).click()`);
   out.check = await until(evaluate, sleep, `$text(document.querySelector('details.physical-card .card-result'))`, 3000);
   expect('the filesystem check finds no problems', /No problems found/.test(out.check ?? ''), out.check);
+  out.reviewNote = await evaluate(`$text([...document.querySelectorAll('.content > .card')].find((c) => c.querySelector('h2')?.textContent === 'Not deployed yet'))`);
+  expect('Review card says the card is not deployed yet, in place of an empty deployment', /prepared for unit OWL_01/.test(out.reviewNote ?? '') && /no deployment to review yet/.test(out.reviewNote ?? '') && !/set to run from/.test(out.reviewNote ?? ''), out.reviewNote);
   await shot('1-review');
+  for (const [tab, words] of [['Listen', 'nothing to listen to yet'], ['Check & copy', 'nothing to check or copy yet']]) {
+    await evaluate(rail(tab));
+    const note = await until(evaluate, sleep, `(() => { const c = [...document.querySelectorAll('.content .card')].find((e) => e.querySelector('h2')?.textContent === 'Not deployed yet'); return c ? $text(c) : null; })()`, 100);
+    expect(`${tab} says the card is not deployed yet`, (note ?? '').includes(words), note ?? (await evaluate(`$text(document.querySelector('.content'))`))?.slice(0, 300));
+  }
+  await evaluate(rail('Review card'));
 
   await evaluate(`$btn('Eject', document.querySelector('.topbar')).click()`);
   out.afterEject = await until(evaluate, sleep, `(() => { const t = $text(document.querySelector('.topbar')); return t.includes('Reopen') ? t : null; })()`, 300);

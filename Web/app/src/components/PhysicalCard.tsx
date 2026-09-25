@@ -5,7 +5,7 @@ import { checkCardFilesystem, copyCardToImage } from '../lib/cardImage';
 import { useKept } from '../lib/keptState';
 import type { CardDevice } from '../lib/useCardDevice';
 import type { Helper } from '../lib/useHelper';
-import { Activity, useCardLogs } from './CardActivity';
+import { Activity, useCardLogs, without } from './CardActivity';
 import { RepairDialog, useCardRepair } from './CardRepair';
 import { Pane } from './Pane';
 
@@ -58,6 +58,20 @@ export function PhysicalCard({
   const busy = helper.task !== null || working !== null;
   const deviceId = device?.id ?? null;
   const record = (id: string, patch: Found) => setResults((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
+
+  // Kept by device, which outlives what is on it: a card erased and prepared again, or another
+  // card in the same reader, has a new volume. What was found on the old one is then let go of.
+  const volumeUuid = device?.volumes.find((volume) => volume.id === volumeId)?.uuid ?? null;
+  const [volumes, setVolumes] = useKept<Record<string, string>>('review:volumes', {});
+  const { forget } = logs;
+  useEffect(() => {
+    if (!deviceId || !volumeUuid || volumes[deviceId] === volumeUuid) return;
+    if (volumes[deviceId] !== undefined) {
+      setResults((current) => without(current, [deviceId]));
+      forget([deviceId]);
+    }
+    setVolumes((current) => ({ ...current, [deviceId]: volumeUuid }));
+  }, [deviceId, volumeUuid, volumes, setVolumes, setResults, forget]);
 
   const repair = useCardRepair(helper, logs, (repaired, report) => {
     record(repaired.id, { repaired: report });

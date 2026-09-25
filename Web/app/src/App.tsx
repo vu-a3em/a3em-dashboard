@@ -221,6 +221,7 @@ export default function App() {
               onUnitsChange={setBatch}
               onEditConfiguration={() => setView('configure')}
               onRecover={recover}
+              cardDevice={cardDevice}
             />
           ) : null}
           {view === 'review' ? (

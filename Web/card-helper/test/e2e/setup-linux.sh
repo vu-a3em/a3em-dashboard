@@ -73,6 +73,7 @@ python3 - "$WORK" "${OLD#/dev/}" "${PREPARED#/dev/}" "${DAMAGED#/dev/}" "${BLANK
 import json, os, sys
 work, old, prepared, damaged, blank, mount, dirty, dirty_mount = sys.argv[1:]
 json.dump({"old": old, "prepared": prepared, "damaged": damaged, "blank": blank, "dirty": dirty,
+           "oldLabel": "OLDCARD", "oldMount": "/run/media/a3em/e2e-old",
            "preparedLabel": "OWL_01", "preparedMount": mount, "dirtyLabel": "OWL_09", "dirtyMount": dirty_mount,
            "stateDir": os.path.join(work, "state"), "imageDir": os.path.join(work, "images")},
           open(os.path.join(work, "cards.json"), "w"), indent=2)

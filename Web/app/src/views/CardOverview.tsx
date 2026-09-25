@@ -28,6 +28,7 @@ import { Pane } from '../components/Pane';
 import type { CardDevice } from '../lib/useCardDevice';
 import { loadPhysicalCard } from '../lib/helperViews';
 import { RecoverHint } from '../components/RecoverHint';
+import { isUndeployed, NotDeployed } from '../components/NotDeployed';
 import type { Helper } from '../lib/useHelper';
 
 type Card = ReturnType<typeof useCard>;
@@ -331,6 +332,27 @@ export function CardOverview({
   }
 
   const { layout, unreadable } = card.contents;
+  if (isUndeployed(layout)) {
+    return (
+      <>
+        {cardDevice.device ? (
+          <Suspense fallback={null}>
+            <PhysicalCard cardDevice={cardDevice} helper={helper} onReopened={() => void card.rescan()} />
+          </Suspense>
+        ) : null}
+        {unreadable.length ? (
+          <div className="banner crit">
+            <strong>
+              {unreadable.length.toLocaleString()} {unreadable.length === 1 ? 'file or folder' : 'files and folders'} could
+              not be read
+            </strong>
+            Everything else on the card was read normally.
+          </div>
+        ) : null}
+        <NotDeployed name={card.name} layout={layout} config={card.existingConfig} configText={card.contents.configText} nothing="no deployment to review" />
+      </>
+    );
+  }
   const telemetry = log?.telemetry ?? [];
   const health = log?.microphoneHealth ?? [];
   // Only firmware from 2026.08 onward reports these, so a legacy card shows nothing

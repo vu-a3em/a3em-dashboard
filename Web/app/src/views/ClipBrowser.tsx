@@ -27,6 +27,7 @@ import type { CorrectionState } from '../App';
 import type { useCard } from '../lib/useCard';
 import { useClockCorrection } from '../lib/useClockCorrection';
 import { RecoverHint } from '../components/RecoverHint';
+import { isUndeployed, NotDeployed } from '../components/NotDeployed';
 
 type Card = ReturnType<typeof useCard>;
 
@@ -238,6 +239,9 @@ export function ClipBrowser({
         <RecoverHint available={recoverable} onRecover={onRecover} />
       </div>
     );
+  }
+  if (isUndeployed(card.contents.layout)) {
+    return <NotDeployed name={card.name} layout={card.contents.layout} config={card.existingConfig} configText={card.contents.configText} nothing="nothing to listen to" />;
   }
   if (!clips.length) {
     return (
