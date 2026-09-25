@@ -36,13 +36,13 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
   await evaluate(rail('Configure'));
   // The batch's card has these settings: Configure says so before anything is changed.
   out.before = await until(evaluate, sleep, banner('warn'), 100);
-  expect('Configure warns that changing the settings would split the batch', /A card of your batch has been written with these settings/.test(out.before ?? '') && /OWL_01/.test(out.before ?? ''), out.before);
+  expect('Configure warns that changing the settings would split the batch', /A device in your current batch has been written with these settings/.test(out.before ?? '') && /OWL_01/.test(out.before ?? ''), out.before);
   await type('label', 'OWL_01');
   expect('a label of its own is no change to the batch', Boolean(await evaluate(banner('warn'))));
   // And one setting changed from what the step above wrote, so there is something to write.
   await evaluate(`document.getElementById('rtc-at-activation').click()`);
   out.after = await until(evaluate, sleep, banner('crit'), 100);
-  expect('and once changed, says the card written already now differs', /A card of your batch was written with different settings/.test(out.after ?? '') && /back to “No card yet”/.test(out.after ?? ''), out.after);
+  expect('and once changed, says the card written already now differs', /A device in your current batch was written with different settings/.test(out.after ?? '') && /back to “No card yet”/.test(out.after ?? ''), out.after);
   await shot('0-batch-differs');
   out.button = await until(evaluate, sleep, `$btn('Configure SD Card')?.textContent ?? null`, 100);
   expect('Configure offers "Configure SD Card" for the open card', out.button === 'Configure SD Card', out.button);
@@ -104,7 +104,7 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
     /OWL_01 configured as OWL_02/.test(out.renamed ?? '') && /Settings written, card named OWL_02; nothing needed erasing/.test(out.renamed ?? ''),
     out.renamed ?? (await evaluate(`$text(${sidebar})`)),
   );
-  expect('and the folder the new name moved is let go of, saying so', /Renaming it closed the folder/.test(out.renamed ?? '') && /OWL_01 was renamed OWL_02/.test(await evaluate(`$text(document.querySelector('.topbar'))`)), await evaluate(`$text(document.querySelector('.topbar'))`));
+  expect('and the folder the new name moved is let go of, the header saying so', /OWL_01 was renamed OWL_02/.test(await evaluate(`$text(document.querySelector('.topbar'))`)), await evaluate(`$text(document.querySelector('.topbar'))`));
   await shot('4-renamed');
 
   // The card as it was for the scenarios after this one: named OWL_01, with OWL_01's settings.

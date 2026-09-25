@@ -64,7 +64,7 @@ export function PrepareFromConfigure({
     note([id], write ? `Writing ${label}’s settings to the card${rename ? `, and naming it ${rename}` : ''}.` : `Naming the card ${rename}.`);
     const written = await writeUnitSettings(device, config, label, read, follow([id]), rename, write);
     const closed = written.renamed && renameMovesFolder(helper.identity);
-    setPrepared({ kind: 'settings', card: name, label, summary: settingsSummary(written, rename, write), closed });
+    setPrepared({ kind: 'settings', card: name, label, summary: settingsSummary(written, rename, write) });
     finish([id]);
     if (closed) onRenamed(rename!);
     else onSettingsWritten();

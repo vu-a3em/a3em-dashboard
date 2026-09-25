@@ -296,7 +296,7 @@ export function DeploymentEditor({
         {batch?.outdated.length ? (
           <div className="banner crit">
             <strong>
-              {batch.outdated.length === 1 ? 'A card' : `${batch.outdated.length} cards`} of your batch{' '}
+              {batch.outdated.length === 1 ? 'A device' : `${batch.outdated.length} devices`} in your current batch{' '}
               {batch.outdated.length === 1 ? 'was' : 'were'} written with different settings
             </strong>
             {listLabels(batch.outdated)} would record differently from devices prepared with the settings as they are now.
@@ -307,7 +307,7 @@ export function DeploymentEditor({
         ) : batch?.current.length ? (
           <div className="banner warn">
             <strong>
-              {batch.current.length === 1 ? 'A card' : `${batch.current.length} cards`} of your batch{' '}
+              {batch.current.length === 1 ? 'A device' : `${batch.current.length} devices`} in your current batch{' '}
               {batch.current.length === 1 ? 'has' : 'have'} been written with these settings
             </strong>
             Changing anything here now would leave {listLabels(batch.current)} recording differently from any device
@@ -1469,11 +1469,7 @@ function Forecast({
               {prepared.card} configured as {prepared.label}
             </strong>
             {prepared.summary.charAt(0).toUpperCase() + prepared.summary.slice(1)}.
-            {prepared.kind === 'prepared'
-              ? ' Erasing it closed the folder open on it; connect it again to see it as it is now.'
-              : prepared.closed
-                ? ' Renaming it closed the folder open on it; connect it again to see it as it is now.'
-                : ''}{' '}
+            {prepared.kind === 'prepared' ? ' Erasing it closed the folder open on it; connect it again to see it as it is now.' : ''}{' '}
             <button className="link-button" onClick={onDismissPrepared}>
               Dismiss
             </button>
