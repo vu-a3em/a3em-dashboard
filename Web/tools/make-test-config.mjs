@@ -16,6 +16,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defaultConfig, defaultPhase } from '../packages/config-schema/dist/defaults.js';
 import { serializeConfig } from '../packages/config-schema/dist/serialize.js';
 import { validateConfig } from '../packages/config-schema/dist/validate.js';
@@ -226,7 +227,8 @@ const errors = issues.filter((i) => i.severity === 'error');
 const warnings = issues.filter((i) => i.severity === 'warning');
 
 const text = serializeConfig(config);
-const outDir = path.join(process.cwd(), 'test-configs');
+// Kept out of the repository with the rest of the hardware-test material.
+const outDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ignore', 'test-configs');
 fs.mkdirSync(outDir, { recursive: true });
 const outFile = path.join(outDir, `${kind}_a3em.cfg`);
 fs.writeFileSync(outFile, text);

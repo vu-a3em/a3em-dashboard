@@ -1,155 +1,139 @@
-# A3EM web dashboard
+# A3EM Dashboard — source
 
-Browser-based replacement for the Tkinter management dashboard in [`../Python`](../Python).
+The A3EM Dashboard is a static web application. Everything it does with an SD card happens in the
+browser, through the File System Access API: there is no server, and nothing on a card is ever
+uploaded. Two optional pieces extend it: the **A3EM Card Helper**, a native program with a
+browser extension, for what a web page cannot do with a card, and **accounts**, which keep a
+person's saved protocols across computers.
 
-```bash
+## Getting started
+
+You need Node.js 22 or later, Python 3 for the snapshot checks in `npm run ci`, and Go 1.22 or
+later for the helper. Clone with `--recurse-submodules`: the checks read the recorder's
+firmware from the `a3em-firmware` submodule.
+
+```sh
 cd Web
 npm install
-npm run dev        # http://localhost:5173
-npm run build      # builds the schema package, then the app
-npm run ci         # snapshot drift check, tests, and build
+npm run dev        # the dashboard at http://localhost:5173
+npm test           # the schema package's tests
+npm run ci         # everything: drift checks, lint, tests, build
+npm run build      # the static site, in app/dist
 ```
 
-Chrome, Edge, or Opera for direct SD card access.
-
-## Layout
+## What is here
 
 | Path | Holds |
 | --- | --- |
-| [`packages/config-schema`](packages/config-schema) | Everything that understands an A3EM card: config, device info, IMU files, logs, self-test results, plus the forecast model and validation. No UI. |
-| [`app`](app) | The interface. Vite, React, TypeScript. |
-| [`card-helper`](card-helper) | The native card helper, in Go, for macOS, Windows and Linux: lists the cards plugged in, checks one is ready to deploy, and prepares cards — capacity test, write test, the reference exFAT layout, verification, configuration — in one step. Installers are published as GitHub releases. |
-| [`extension`](extension) | The Chromium extension that bridges the page to that host. A relay, nothing more. |
-| [`firebase`](firebase) | Optional accounts: the Firestore security rules that are their whole server side, their tests, and how to set up the Firebase project. |
-| [`tools`](tools) | Snapshot extractors for the firmware and the planner spreadsheet, plus `check-card.mjs` and `helper.mjs`, which builds and registers the card helper. See [MAINTENANCE.md](MAINTENANCE.md). |
-| [`reference`](reference) | The planner spreadsheet and the generated snapshots. |
+| [`app`](app) | The dashboard: React and TypeScript, built with Vite. |
+| [`packages/config-schema`](packages/config-schema) | Everything that understands an A3EM card: the `_a3em.cfg` format and its validation, the storage and battery forecast, and readers for recordings, IMU files, logs, the device file and self-test results. No interface. |
+| [`card-helper`](card-helper) | The A3EM Card Helper's native program, in Go, for macOS, Windows and Linux, with its installers. |
+| [`extension`](extension) | The A3EM Card Helper's browser extension, which relays messages between the dashboard and the program. |
+| [`firebase`](firebase) | Optional accounts: the database rules, their tests, and how to set up the Firebase project. |
+| [`tools`](tools) | Scripts for the checks, the snapshots, the helper and the extension. |
+| [`reference`](reference) | The deployment planner spreadsheet, and snapshots generated from it, the firmware and the earlier desktop tool. |
+| [`deployment.json`](deployment.json) | The one hand-edited copy of the extension's identity and the account settings. `npm run sync:extension` writes them wherever they are needed. |
 
-## What exists so far
+## The dashboard
 
-**Protocols** — the recording settings a lab reuses, saved by name and versioned, so a
-new deployment is a label, a date range, and a device. Four starters ship with the app.
-A protocol never stores a device label, dates, or a timezone; applying one keeps whatever
-is already entered and rebases phase boundaries onto the current window. Local storage
-for now, in the shape that will sync when accounts exist.
+Its tabs follow a deployment from start to finish.
 
-**Configure** — device, schedule, recording, and motion settings, with live storage and
-battery forecasting and inline validation. Writes `_a3em.cfg` directly to a connected
-card, or downloads it. Validation is parameterized by firmware version, read from the
-card when available and otherwise assumed to be the older, more dangerous behavior.
+**Configure.** The device label, the deployment's dates and time zone, and how it records: its
+phases, each with a schedule (continuous, periods by clock time or anchored to sunrise and sunset,
+intervals, or amplitude-triggered), sample rate, clip length, WAV or Opus, silence detection and
+filtering, and the motion sensor. Settings are checked as they are entered, against what the
+current firmware accepts and does, and the forecast shows how much of the card and the battery the
+deployment will use, when each runs out, and the cluster size to format the card with. Settings
+used again and again are saved as **protocols**; six starters ship with the dashboard. The
+configuration is written to the card as `_a3em.cfg`, or downloaded. With the helper, the
+open card is prepared instead: checked, then given only what it needs.
 
-**Listen** — browse a card's recordings by day at corrected times, with each file's own
-sample rate shown, since the device patches the rate it measured into every header and a
-card can hold files at more than one, see each one's
-waveform and levels, and play it. Reports what the levels mean rather than only what they
-are: a dead or disconnected microphone reads as a constant, which looks identical to a
-quiet site on a waveform and is completely different in what it costs. Nothing is read
-until a recording is chosen, and playback corrects the header in memory so legacy and
-interrupted clips play at their true length without the card being touched.
+**Prepare devices.** A batch of units, labeled from a prefix, all with the same settings. Without
+the helper, each unit's configuration is written to its card through the folder picker, or
+the batch is downloaded as one archive. With it, the cards plugged into the computer are listed
+and each is checked and prepared: the capacity test that catches counterfeit cards, a write-speed
+test, the reference exFAT layout, verified, and the unit's configuration. Settings changed on
+Configure after some cards are written return those units to "No card yet".
 
-**Coverage and position** — an hour-by-hour grid of when the deployment recorded against
-when its configuration said it should, separating hours that are genuinely missing from
-hours that were never scheduled, and reporting the end of recording once rather than as
-one gap per hour. Positions from the log are plotted with a scale bar and no basemap, so
-it works with no connectivity.
+**Review card.** A card back from the field: the self-test, how the deployment went and whether
+it stopped early, what the device did, battery and temperature over time, microphone health, an
+hour-by-hour grid of when it recorded against its schedule, and a plot of the positions in its log
+(with no basemap, so it works offline). A clock set wrong is corrected once and applied to every
+time shown. With the helper, the card itself is checked too: its layout, what this computer
+recorded when it prepared it, its filesystem, which the helper can repair, and a copy of the whole
+card to an image file.
 
-**Check and copy** — a structural check over every recording, then a copy that continues
-past anything it cannot read and says exactly what it left behind. Recordings the device
-never closed — power lost mid-clip, leaving the audio intact but its length unrecorded —
-are identified separately from genuine losses and repaired in the copy. The card itself is
-never written to.
+**Listen.** Recordings by day, at corrected times, each with its sample rate, waveform, spectrogram
+and levels. The levels are explained: a dead microphone and a quiet site look alike on a waveform
+and mean very different things. Playback corrects a clip's header in memory, so an interrupted
+clip plays at its true length without the card being touched.
 
-**Review card** — connect a retrieved card and see whether the hardware self-test
-passed, whether the deployment ended early and why, battery and temperature over time,
-microphone health across the deployment, and anything on the card that could not be
-read. Clock correction is entered once and applied to every displayed time; nothing on
-the card is modified.
+**Check & copy.** Every recording checked, then copied to a folder on the computer, continuing past
+anything unreadable and saying what it left behind. Recordings the device never closed, because it
+lost power, keep their audio but not their length; they are told apart from real losses and
+repaired in the copy. With the helper, the copy also recovers what logs and IMU files hold
+past their recorded end, and the card can be ejected afterward. The card is never written to.
 
-## Not built yet
+**Recover card.** With the helper: a card that no longer opens is copied to an image, checked,
+and repaired.
 
-Everything requiring accounts. The position plot has never been exercised against a real
-GPS fix — see `data.gps-log-sample` in the open items. See [`design-plan.html`](design-plan.html) for where those
-fit — with one correction to it: there is no ultrasonic starter protocol, because the
-maximum sample rate is 48 kHz and nothing above 24 kHz can be recorded at all.
+### Browsers
 
-## Card formats
+Reading and writing cards needs the File System Access API, which Chrome, Edge and the other
+Chromium browsers have (Brave behind a flag, which the dashboard points out). Firefox and Safari
+can build a configuration and download it. The A3EM Card Helper's extension installs from the
+Chrome Web Store.
 
-Two are supported: **v1**, the legacy prose logs and date-based filenames from firmware
-before this repository's, and **v2**, whatever the current firmware writes. There are
-correspondingly two capability profiles, told apart by evidence on the card rather than a
-version number — current firmware writes a device file at the root, so its absence beside
-real recordings dates the card. Formats from builds in between are not carried — the contract is checked against the firmware source on every
-run, so there is no need to guess at intermediate shapes.
+### Card formats
 
-## Deploying to GitHub Pages
+Two are read: **v1**, the prose logs and date-based file names of firmware from before this
+repository, and **v2**, what the current firmware writes. They are told apart by what is on the
+card rather than by a version number: current firmware writes a device file at the card's root,
+so recordings without one date the card.
 
-The dashboard is a static bundle. Every card operation runs in the browser through the
-File System Access API and there is no server to talk to, so Pages hosts the whole thing
-rather than part of it. Nothing here needs a custom response header, which is the usual
-reason a single-page app cannot live on Pages.
+## Keeping in step with the firmware
 
-[`.github/workflows/pages.yml`](../.github/workflows/pages.yml) builds `Web/` on every
-push to `main` and publishes `Web/app/dist`. It runs the full `npm run ci` rather than a
-bare `vite build`, so a stale firmware snapshot, a lint error or a failing test stops the
-deploy instead of shipping.
+The dashboard must describe the recorder exactly, so the facts it depends on come from their
+sources and are checked on every `npm run ci`:
 
-To turn it on: **Settings → Pages → Build and deployment → Source: GitHub Actions.** That
-is the only setting the workflow needs. The repository must be public, or on a plan that
-allows private Pages.
+- **Firmware constants.** Every limit and enumeration in
+  [`firmware-constants.ts`](packages/config-schema/src/firmware-constants.ts) cites the firmware
+  file it came from, and `reference/firmware-snapshot.json`, extracted from the `a3em-firmware`
+  submodule, must match both the code and the firmware.
+- **Power measurements**, from the planner spreadsheet, in `reference/planner-snapshot.json`.
+- **The earlier desktop tool's output**, in `reference/desktop-parity.json`, where the two should
+  agree.
 
-### Which URL, and why it matters
+`npm run sync` regenerates the snapshots after the firmware or the spreadsheet changes, and
+`npm run check:solar` compiles the firmware's sunrise and sunset calculation and compares it with
+the dashboard's copy. `npm --workspace @a3em/config-schema run open-items` lists what is still
+unmeasured or unresolved.
 
-Pages serves a project site at `https://<owner>.github.io/<repo>/` unless a custom domain
-is configured. Both work without touching the build: `vite.config.ts` sets `base: './'`,
-so every asset reference in `index.html` is relative and the bundle runs from any path.
+## The A3EM Card Helper
 
-What does NOT float is the Chromium extension. `deployment.json` declares
-`dashboardOrigin`, and `npm run sync:extension` writes it into the extension's
-`externally_connectable.matches`; `npm run ci` fails if the two drift. The extension will
-only talk to a page served from that exact origin, so card tools — format, recover, eject
-— go dead on any other URL. Pick one:
+The program and the extension are released separately from the dashboard, and the dashboard works
+without them: `tools/check-helper-isolation.mjs`, part of `npm run ci`, fails if anything in the
+dashboard's own card path starts depending on the helper.
+[`card-helper/README.md`](card-helper/README.md) covers what the program does, its safety rules,
+testing, and releasing and signing it; [`extension/README.md`](extension/README.md) covers the
+extension.
 
-- **Custom domain** (what `deployment.json` currently says: `https://config.a3em.com`).
-  Point a DNS `CNAME` record for that name at `<owner>.github.io`, set it under
-  Settings → Pages → Custom domain, and check **Enforce HTTPS** once the certificate is
-  issued. Nothing in the repository changes.
-- **The default project URL.** Set `dashboardOrigin` in `deployment.json` to
-  `https://<owner>.github.io`, run `npm run sync:extension`, and reload the unpacked
-  extension. Note the origin is the host alone — an origin has no path — so an extension
-  pinned this way can talk to every Pages site under that account, which is a reason to
-  prefer the custom domain.
+## Accounts
 
-If a configured custom domain ever comes unset (it is stored as a repository setting, not
-in the tree), commit a file at `Web/app/public/CNAME` containing just the hostname:
-`public/` is copied verbatim into `dist`, so the domain then travels with the artifact.
-Only do this once the domain is real, because that file makes the `github.io` URL redirect.
+Sign-in and storage are Firebase, on its free plan, and store only a person's saved protocols.
+With no Firebase configuration in `deployment.json`, the dashboard offers no sign-in at all.
+[`firebase/README.md`](firebase/README.md) covers setting up the project, the sign-in methods, and
+the database rules.
 
-### The firmware submodule
+## Other commands
 
-The snapshot checks in `npm run ci` read `a3em-firmware`, so the workflow checks out
-submodules. If that repository is private to your account, the checkout fails with a
-permissions error; either grant the workflow a token that can read it, or drop `npm run
-ci` to the steps that do not need it:
-
-```yaml
-- run: node tools/sync-extension-manifest.mjs --check
-- run: node tools/check-helper-isolation.mjs
-- run: npm run lint
-- run: npm test
-- run: npm run build
-```
-
-You lose only the "is the committed snapshot still current?" check. The tests themselves
-still compare against the committed snapshots, so drift is caught the next time anyone
-runs CI with the firmware present. No `pip install` is needed either way: the parity tool
-falls back to a built-in pytz shim and loads `Python/dashboard/write_config.py` directly
-rather than importing the Tkinter application.
-
-## Related documents
-
-- [FIRMWARE-FINDINGS.md](FIRMWARE-FINDINGS.md) — what the firmware actually does, and every place the desktop tool disagreed with it
-- [FIRMWARE-CHANGE-PLAN.md](FIRMWARE-CHANGE-PLAN.md) — the firmware changes and why
-- [NATIVE-HELPER-PLAN.md](NATIVE-HELPER-PLAN.md) — proposed Chromium extension and native host for mounting, formatting, and recovering cards directly
-- [MAINTENANCE.md](MAINTENANCE.md) — keeping the app in step with firmware and the power model
-- `npm run check-card -- <directory>` — runs the integrity check over a card outside the browser, for a mounted image or a copied folder
-- `npm run helper-doctor` — checks whether the card helper is installed and actually runs (`npm run test:helper` runs its tests; both need Go)
-- `npm --workspace @a3em/config-schema run open-items` — everything still unmeasured or unresolved
+| Command | |
+| --- | --- |
+| `npm run check-card -- <folder>` | The dashboard's recording checks, outside the browser, on a mounted card, an image or a copied folder. |
+| `npm run install-helper` | Builds the A3EM Card Helper's program and registers it with every Chromium browser found. |
+| `npm run helper-doctor` | Checks the helper's registrations, and that it starts and answers. |
+| `npm run test:helper` | The helper program's tests. |
+| `npm run release:helper` | Tags an A3EM Card Helper release: see [`card-helper/README.md`](card-helper/README.md#releasing). |
+| `npm run package:extension` | Builds the extension's zip for the Chrome Web Store. |
+| `npm run test:rules` | The account database rules, against the Firebase emulator. |
+| `npm run deploy:rules` | Publishes the database rules. |

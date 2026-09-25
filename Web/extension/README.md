@@ -1,13 +1,13 @@
 # A3EM Card Helper — browser extension
 
-A relay between the dashboard page and the native host. It contains no card logic and
-should not acquire any.
+The A3EM Card Helper's browser extension: a relay between the dashboard page and the helper
+program on the same computer. It contains no card logic and should not acquire any.
 
 ## Why it is this small
 
 The extension is distributed through the Chrome Web Store, so every change to
 [`background.js`](background.js) needs a review — hours to weeks, unpredictable. The
-native host updates by installer with no review at all. Keeping the extension a dumb pipe
+helper program updates by installer with no review at all. Keeping the extension a dumb pipe
 means it is reviewed roughly once and then left alone, while the part that actually
 changes stays free to change.
 
@@ -25,7 +25,7 @@ development, gets the published extension's ID.
 The Chrome Web Store assigns the published ID when the item is first uploaded. Copy that item's
 public key from the Developer Dashboard (Package tab, "View public key", as one line without the
 BEGIN/END lines) into `extensionPublicKey`, its ID into `extensionId`, and run
-`npm run sync:extension`. Do it before releasing the card helper: the helper answers only the
+`npm run sync:extension`. Do it before releasing the helper program: it answers only the
 extension it names.
 
 `externally_connectable` names the dashboard's origin, from `dashboardOrigin`. Changing the
@@ -33,10 +33,9 @@ hostname later means a new extension version and another store review.
 
 ## Publishing
 
-`npm run package:extension` builds the zip to upload, without the manifest's `key` (the store
-keeps its own). What to enter in each tab of the listing is in
-[`STORE-LISTING.md`](STORE-LISTING.md); the privacy policy it links to is
-[`PRIVACY.md`](PRIVACY.md).
+`npm run package:extension` builds the zip to upload: the manifest, the service worker and the
+icons, without the manifest's `key` (the store keeps its own). [`PRIVACY.md`](PRIVACY.md) is the
+extension's privacy statement, the extension's part of the dashboard's full policy.
 
 ### A new version
 
@@ -60,7 +59,7 @@ helper, which ships without a store review. A new extension version is needed on
 
 1. `chrome://extensions` → enable Developer mode → **Load unpacked** → this folder.
 2. Copy the extension ID it shows.
-3. Register the native host (needs Go 1.22 or later), or install a release of it:
+3. Register the helper program (needs Go 1.22 or later), or install a release of it:
 
    ```bash
    npm run install-helper -- --extension-id <id>
@@ -81,8 +80,9 @@ helper, which ships without a store review. A new extension version is needed on
 ## Debugging
 
 - **Service worker logs**: `chrome://extensions` → the extension → "service worker".
-- **Host logs**: the host writes diagnostics to stderr, which Chrome surfaces in that same
-  console.
+- **Helper logs**: the helper program writes diagnostics to stderr, which Chrome sends to its own
+  error log. On macOS and Linux, start Chrome from a terminal to see it; on Windows, start it with
+  `--enable-logging`.
 - **"Specified native messaging host not found"**: the manifest is missing, in the wrong
   directory for this browser, or its `path` points somewhere that does not exist. Run
   `npm run helper-doctor` — it checks all three.
@@ -100,10 +100,7 @@ extension and helper as they are, but turns off the File System Access API the r
 dashboard reads cards with; `brave://flags/#file-system-access-api` turns it on, and the
 dashboard says so.
 
-Firefox and Safari cannot run it. Firefox has native messaging, but no `externally_connectable`,
-so a page cannot talk to an extension directly; Safari extensions must ship inside a Mac app.
-Neither has the File System Access API either, so the dashboard falls back to downloads there.
-
-Firefox is not supported: it has never implemented `externally_connectable` for web pages
-(bug 1319168). Safari is not supported: its native messaging requires a signed, notarized
-containing app. Both keep the dashboard's existing download fallback.
+Firefox and Safari cannot run it. Firefox has native messaging, but has never implemented
+`externally_connectable` for web pages (bug 1319168), so a page cannot talk to an extension
+directly; Safari's native messaging requires a signed, notarized containing app. Neither has the
+File System Access API either, so the dashboard falls back to downloads there.

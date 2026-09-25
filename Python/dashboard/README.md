@@ -1,14 +1,16 @@
-# A3EM Dashboard
+# A3EM Dashboard (desktop)
 
-This dashboard provides a GUI for interacting with A3EM audio recording devices.
+The earlier, desktop version of the A3EM Dashboard, which provides a window for configuring A3EM
+recorders. The website at [config.a3em.com](https://config.a3em.com) replaces it; see the
+[repository's README](../../README.md).
 
-To bring up the dashboard without installing it first, enter:
+To open the dashboard without installing it first, enter:
 
 ```bash
 python3 dashboard.py
 ```
 
-If the dashboard has been installed, you can access it anywhere by entering:
+Once it has been installed, it opens from anywhere with:
 
 ```bash
 a3em

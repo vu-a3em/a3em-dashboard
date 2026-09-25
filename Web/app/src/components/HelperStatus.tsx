@@ -106,7 +106,7 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
             title={helper.status === 'outdated' ? `A3EM Card Helper ${helper.identity?.version} is older than this dashboard.` : undefined}
             onClick={() => setShowGuide(true)}
           >
-            {helper.status === 'outdated' ? 'Update…' : 'Enable…'}
+            {helper.status === 'outdated' ? 'Update…' : 'Install…'}
           </button>
         ) : update || issues.length ? (
           <span className="rail-foot-value ok" title={`A3EM Card Helper ${helper.identity?.version} on ${helper.identity?.platform}`}>

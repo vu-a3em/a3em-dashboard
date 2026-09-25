@@ -10,7 +10,7 @@ requests fail until the next day.
 | Sign-in | Firebase Authentication: Google, GitHub, Apple or Microsoft in a popup, or an email address and password; whichever `accounts.signInProviders` in [`deployment.json`](../deployment.json) lists |
 | Storage | Cloud Firestore, one record per protocol at `users/<uid>/protocols/<id>` |
 | Server side | [`firestore.rules`](firestore.rules), and nothing else: each person can read and write only their own folder |
-| App code | [`app/src/lib/firebase.ts`](../app/src/lib/firebase.ts), sign-in, loaded after the page when accounts are configured (about 37 kB compressed); [`firestore.ts`](../app/src/lib/firestore.ts), the database, loaded only once someone signs in (about 160 kB); [`useAccount.ts`](../app/src/lib/useAccount.ts); the sync in [`useProtocols.ts`](../app/src/lib/useProtocols.ts) |
+| App code | [`app/src/lib/firebase.ts`](../app/src/lib/firebase.ts), sign-in, loaded after the page when accounts are configured (about 39 kB compressed); [`firestore.ts`](../app/src/lib/firestore.ts), the database, loaded only once someone signs in (about 160 kB); [`useAccount.ts`](../app/src/lib/useAccount.ts); the sync in [`useProtocols.ts`](../app/src/lib/useProtocols.ts) |
 | Record format | [`packages/config-schema/src/protocol-sync.ts`](../packages/config-schema/src/protocol-sync.ts), whose limits the rules repeat |
 
 How it behaves:

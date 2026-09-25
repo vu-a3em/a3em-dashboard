@@ -1,7 +1,7 @@
 # End-to-end tests: the dashboard's A3EM Card Helper screens against the real helper
 
 `e2e.mjs` serves the built dashboard, stands in for the browser extension, and drives headless
-Chrome through the card screens. Every request the page makes goes to the **real** card helper,
+Chrome through the card screens. Every request the page makes goes to the **real** helper program,
 started as a browser starts it and spoken to in native messaging's framing — one helper for the
 whole run, so a Stop reaches the copy it stops — in test mode (`A3EM_HELPER_VIRTUAL_ONLY=1` hides
 every real device), and only the virtual disks named in `cards.json` are listed. The harness also
@@ -56,9 +56,8 @@ A setup script creates five virtual disks and writes `cards.json`:
 `localImageDir` is optional: without it, the harness looks for a stopped copy's leftovers in
 `imageDir`, which is right unless the helper runs in a container.
 
-Device ids are the helper's own (`listDevices`): `disk19` on macOS, `loop1` on Linux, the disk
-number on Windows. `setup-macos.sh` and `setup-linux.sh` exist; a Windows one would do the same
-with VHDs.
+Device ids are the helper's own (`listDevices`): `disk19` on macOS, `loop1` on Linux. The setup
+scripts are `setup-macos.sh` and `setup-linux.sh`.
 
 ## Running
 
@@ -89,11 +88,9 @@ A3EM_HELPER_TEST_NEEDS_ADMIN -e A3EM_HELPER_STATE_DIR -e A3EM_HELPER_SAVE_AS_DIR
 harness sees it. `review` and `match` then cannot write their marker file, so run
 `--only configure,recover,prepare`.
 
-## Where it has run
+## Platforms
 
-- macOS 26, Apple silicon: all six pass (2026-09-25, with `A3EM_HELPER_TEST_NEEDS_ADMIN`, the
-  helper's own check and repairs, and Stop).
-- Linux 6.12 (Docker Desktop's VM, Ubuntu 24.04 container, exfatprogs 1.2.2) with the helper in
-  the container: `configure`, `recover` and `prepare` pass, Stop included. These runs found two
-  Linux defects, since fixed: loop devices without udev reported no partition table, and a repair
-  fsck.exfat reported as "errors corrected" (exit 1) was shown as incomplete.
+- **macOS** (26, Apple silicon): all six scenarios.
+- **Linux** (an Ubuntu 24.04 container on Docker Desktop, exfatprogs 1.2.2, with the helper in the
+  container): `configure`, `recover` and `prepare`, which are the scenarios that do not write to a
+  card's mount point from the harness.

@@ -5,8 +5,7 @@ on SD cards directly: list the cards plugged into this computer, check whether o
 deploy, and prepare cards — test, erase, format, verify and configure them — in one step.
 
 It is written in Go so that it ships as one self-contained executable per platform, with no
-runtime to install. It replaces the earlier TypeScript helper, which needed Node.js and only
-ever worked on macOS.
+runtime to install.
 
 ## What it does
 
@@ -22,7 +21,7 @@ ever worked on macOS.
 | `image` | A sector-by-sector copy to a file, continuing past unreadable sectors. |
 | `chooseImage` | The system's own save dialog for a card's image (AppleScript on macOS, the desktop portal's — GNOME's, KDE's — on Linux, else zenity or kdialog, Windows Forms on Windows), then whether the image fits there: free space, and the 4 GB file limit of a FAT32 drive. `image` makes the same check itself before reading a byte, writes to `<name>.partial`, and moves it into place only once it is whole. Without a dialog — a Linux session with no portal, zenity or kdialog — the image goes in `Documents/A3EM card images`. |
 | `stop` | Stops a running `image` or `diagnose`, named by its request id; a stopped image's unfinished file is deleted. The page sends it for its Stop button, and the page closing stops them too. A `prepare`, `format` or `repair` is never stopped partway: a half-written card is worse than a slow one. |
-| `hello` | The version, platform and operations, and anything this computer lacks that the tools rely on — on Linux, `pkexec`, a polkit agent, `udisks2`, the exFAT driver, a save dialog — which `doctor` prints too, and the dashboard shows beside "Card tools". |
+| `hello` | The version, platform and operations, and anything this computer lacks that the tools rely on — on Linux, `pkexec`, a polkit agent, `udisks2`, the exFAT driver, a save dialog — which `doctor` prints too, and the dashboard shows under "A3EM Card Helper" in its menu. |
 | `mount`, `unmount`, `eject`, `inspect`, `identify`, `writeConfig` | The small ones. |
 
 The helper reports facts; the dashboard decides what they mean. The rules for what the
@@ -37,9 +36,9 @@ golden test fails if the two ever disagree.
 [`internal/exfat`](internal/exfat) builds the whole card image itself rather than asking the
 system's formatter, so every card gets exactly the layout the recorders were validated against:
 an MBR with one exFAT partition at the 2 MiB mark, the FAT and cluster heap aligned to 1 MiB, the
-canonical up-case table, and the label `A3EM` unless a unit label is given. It began as a port
-of `exfat_image.py`, a Python formatter now retired, and its tests compare it byte for byte with
-that script's recorded output for 42 combinations of card size and cluster size
+canonical up-case table, and the unit's label as the card's name where it can be one (at most 11
+letters, digits, spaces, hyphens and underscores), `A3EM` otherwise. Its tests compare it byte for byte with the recorded output of the
+Python formatter it was ported from, for 42 combinations of card size and cluster size
 (`internal/exfat/testdata/python-golden.json`).
 
 The format writes, in order: zeros over the first MiB (removing the old partition table, so the
@@ -168,8 +167,8 @@ docker run --rm --privileged -v /dev:/dev -v "$PWD/test:/test:ro" -v /tmp/helper
   debian:bookworm-slim sh -c 'apt-get update -qq && apt-get install -y -qq util-linux fdisk exfatprogs python3 >/dev/null && /test/integration-linux.sh /helper'
 ```
 
-Nothing here has formatted a real card. Before a release, prepare one real card on each
-platform, then check it in a recorder.
+The tests never touch a real card. Before a release, prepare a real card on each platform, then
+check it in a recorder.
 
 ## Releasing
 

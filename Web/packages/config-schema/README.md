@@ -1,80 +1,104 @@
 # @a3em/config-schema
 
-The authoritative definition of an A3EM deployment configuration: the `_a3em.cfg`
-serializer and parser, every validation rule, and the storage/battery forecast model.
+Everything the dashboard knows about an A3EM recorder and its SD card, with no interface: the
+`_a3em.cfg` format and every rule for it, the storage and battery forecast, what a card needs to
+be ready, and readers for what a recorder writes. The dashboard and the scripts in
+[`tools`](../../tools) use it, so a rule is written once and read the same everywhere. The card
+helper, in Go, repeats the one rule it must enforce on its own, what a format request may ask for,
+and a shared test fails if the two disagree.
 
-Both the web dashboard and any server-side tooling import this package, so validation
-cannot drift between them.
-
-```bash
-npm install
-npm run build
-npm test
+```sh
+npm test      # from Web/: builds the package and runs its tests
 ```
 
-## Why this exists
+## Why it exists
 
-The firmware parses `_a3em.cfg` with hand-rolled C. Its behavior around key ordering,
-line length, array bounds, and value clamping is load-bearing and mostly undocumented.
-This package encodes that behavior once, with the firmware file and line cited at each
-constraint, and pins it with tests.
-
-See [`../FIRMWARE-FINDINGS.md`](../FIRMWARE-FINDINGS.md) for what the firmware actually
-does and where the desktop dashboard disagrees with it.
+The firmware reads `_a3em.cfg` with hand-written C, and its behavior around key order, line
+length, array bounds and clamping matters and is mostly undocumented. This package encodes it
+once, citing the firmware file and symbol behind each constraint, and pins it with tests that are
+checked against the firmware source itself.
 
 ## Layout
 
+**The configuration**
+
 | File | Holds |
 | --- | --- |
-| `firmware-constants.ts` | Every limit and enum, each citing its firmware source. **Edit here when firmware changes.** |
-| `types.ts` | The in-app config shape. Not a mirror of the file format. |
-| `defaults.ts` | Starting values, with the two deliberate departures from firmware defaults documented. |
-| `serialize.ts` | Config → `_a3em.cfg`. The firmware contract lives here. |
-| `parse.ts` | `_a3em.cfg` → config, reproducing the firmware's own reading, including its truncation behavior. |
-| `validate.ts` | All rules, as `error` (blocks writing) or `warning`. |
-| `timezone.ts` | Offset resolution via `Intl`. No timezone dependency. |
-| `power/measurements.ts` | Power constants from the planner spreadsheet. **Edit here when new measurements arrive.** |
-| `power/forecast.ts` | The model. Reads everything from `measurements.ts`. |
+| `firmware-constants.ts` | Every limit and enumeration, each citing its firmware source. **Edit here when the firmware changes.** |
+| `firmware-profile.ts` | The two firmware generations a card can come from, and what differs between them. |
+| `types.ts`, `defaults.ts` | The configuration as the dashboard holds it, and its starting values. |
+| `serialize.ts` | Configuration → `_a3em.cfg`, the exact text the firmware parses. |
+| `parse.ts` | `_a3em.cfg` → configuration, reading it the way the firmware does. |
+| `validate.ts` | Every rule, as an `error`, which blocks writing, or a `warning`. |
+| `schedule.ts`, `solar.ts`, `timezone.ts` | Recording periods, sunrise and sunset (a mirror of the firmware's own calculation), and time zones through `Intl`, with no time zone dependency. |
+| `audio-clock.ts`, `audio-threshold.ts`, `silence-band.ts` | The sample rates the microphone clocks can actually reach, the amplitude trigger in decibels, and the band the silence filter really judges. |
+| `summaries.ts` | One-line summaries of the settings. |
+| `protocol.ts`, `protocol-sync.ts` | Saved protocols, the starters, and how a browser's protocols join an account's. |
+
+**The forecast and the card**
+
+| File | Holds |
+| --- | --- |
+| `power/measurements.ts` | Power and storage measurements from the planner spreadsheet, each with its cell and a confidence. **Edit here when new measurements arrive.** |
+| `power/forecast.ts` | The model: storage, battery and when each runs out. Reads everything from `measurements.ts`. |
+| `allocation-unit.ts`, `card-capacity.ts` | The cluster size a deployment should use, and how much of a card is left for recordings. |
+| `card-format.ts` | What the firmware requires of a card's filesystem, and the checks on a format request. |
+| `card-readiness.ts` | Whether a card is ready to deploy, from what the card helper reports, and the least that preparing it needs. |
+
+**Reading a card**
+
+| File | Holds |
+| --- | --- |
+| `card-layout.ts` | What is on a card, under both naming schemes. |
+| `device-info.ts`, `self-test.ts`, `log-file.ts` | Readers for `_a3em.dev`, `_a3em.test.results` and `a3em.log`, in both formats. |
+| `audio-clip.ts`, `spectrogram.ts`, `imu-file.ts` | A clip's format, levels and spectrogram, and `.imu` files in both header layouts. |
+| `integrity.ts`, `recovery.ts` | Whether a recording is sound, and how much of what lies past a file's recorded end belongs to it. |
+| `coverage.ts`, `geo.ts` | When a deployment recorded against when it was meant to, and where it was. |
+
+**Keeping it honest**
+
+| File | Holds |
+| --- | --- |
+| `snapshots.ts` | Loads the snapshots of the firmware and the spreadsheet in `reference/`, for the tests. Nothing in the dashboard reads them. |
+| `open-items.ts` | Everything still unmeasured or unresolved, so a placeholder never quietly becomes load-bearing. `npm run open-items` lists it. |
 
 ## Usage
 
 ```ts
-import {
-  defaultConfig, serializeConfig, parseConfig, validateConfig, forecast,
-} from '@a3em/config-schema';
+import { defaultConfig, forecast, parseConfig, serializeConfig, validateConfig } from '@a3em/config-schema';
 
 const config = defaultConfig('America/Chicago');
-config.deviceLabel = 'BEAR-04';
+config.deviceLabel = 'BEAR_04';
 
 const issues = validateConfig(config);
-if (issues.some((i) => i.severity === 'error')) throw new Error('not writable');
+if (issues.some((issue) => issue.severity === 'error')) throw new Error('not writable');
 
 const plan = forecast({ config, sdCardCapacityGb: 128, batteryCapacityMah: 7000 });
-console.log(plan.cardFullAt, plan.batteryDays, plan.confidence);
+console.log(plan.cardFullAt, plan.batteryDays, plan.confidence, plan.caveats);
 
-const text = serializeConfig(config); // write this to the card as _a3em.cfg
+const text = serializeConfig(config); // written to the card as _a3em.cfg
 const { config: readBack, warnings } = parseConfig(text);
 ```
 
-`forecast()` returns a `confidence` reflecting the weakest measurement feeding it, and a
-`caveats` array. Surface both — several inputs are still unmeasured placeholders, and an
-estimate presented as fact is worse than no estimate.
+`forecast()` returns a `confidence`, the weakest of the measurements behind it, and `caveats`.
+Show both: some inputs are still estimates, and an estimate presented as fact is worse than none.
 
 ## Updating the power model
 
-New bench measurements go in `power/measurements.ts` and nowhere else. Each entry carries
-its spreadsheet cell and a confidence tag; changing a value is a one-line edit and the
-arithmetic never moves.
-
-`power/forecast.test.ts` pins the model against all ten average-current figures from
-`A3EM Deployment Planner.xlsx` plus its storage and battery day counts. **Those tests
-will fail when you update a constant — that is intended.** Re-derive the expected values
-from the sheet (or delete the row if the sheet is superseded) and say so in the commit.
+New bench measurements go into the planner spreadsheet, `reference/A3EM Deployment Planner.xlsx`,
+and into `power/measurements.ts`. `npm run sync` (from `Web/`) regenerates
+`reference/planner-snapshot.json` from the spreadsheet. The tests then check that
+`measurements.ts` agrees with it, and that the forecast reproduces the spreadsheet's own computed
+figures, which they read from the snapshot: they fail only when the model and the spreadsheet
+disagree.
 
 ## Updating for a firmware change
 
-1. Update `firmware-constants.ts` and bump `CONFIG_SCHEMA_VERSION`.
-2. Add or reorder keys in `parse.ts`'s `KEY_ORDER` — the prefix-shadowing test will tell
-   you if the new order is unsafe on device.
+1. Update `firmware-constants.ts`, and run `npm run sync` from `Web/` so the firmware snapshot
+   matches. The tests compare the constants, the configuration keys, the log events and the stop
+   reasons with the firmware source.
+2. Add or reorder keys in `parse.ts`'s `KEY_ORDER`. A test fails if the order would let one key
+   be read as another on the device.
 3. Add validation rules for any new limit.
-4. Add a migration if existing stored configs need one.
+4. Bump `CONFIG_SCHEMA_VERSION` only for a change that saved drafts and protocols cannot be read
+   under: those saved under another version are no longer loaded.
