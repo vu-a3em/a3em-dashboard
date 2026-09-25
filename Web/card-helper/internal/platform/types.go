@@ -87,6 +87,9 @@ type Platform interface {
 	Mount(volumeID string) error
 	Unmount(volumeID string) error
 	Eject(deviceID string) error
+	// Rename gives a volume a new name, leaving it mounted as it was. On Windows that takes
+	// administrator rights, so there it runs in the elevated worker.
+	Rename(volumeID, label string) error
 	Diagnose(volumeID string) (FsckReport, error)
 	Repair(volumeID string) (FsckReport, error)
 	Identity(device Device) Identity

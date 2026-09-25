@@ -38,6 +38,13 @@ call "$REQUEST"; check refused reply.json bad-grant
 
 call '{"op":"readiness","device":"'"$ID"'","deep":true}'; check ready reply.json "$CONFIG"
 call '{"op":"diagnose","volume":"'"$ID"'p1"}'; check clean reply.json
+
+# Renamed, and mounted again; the system sees the new name.
+call '{"op":"rename","volume":"'"$ID"'p1","label":"OWL_02"}'
+python3 -c 'import json,sys; r=json.load(open("reply.json")); sys.exit(0 if r.get("ok") and r.get("renamed") else "rename failed: %s" % r)'
+[ "$(blkid -p -s LABEL -o value "${LOOP}p1")" = OWL_02 ] || { echo "rename: the system does not see OWL_02"; exit 1; }
+echo "rename: the system sees OWL_02"
+
 call '{"op":"eject","device":"'"$ID"'"}'
 fsck.exfat -n "${LOOP}p1"
 echo "linux integration: passed"

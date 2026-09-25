@@ -24,6 +24,19 @@ export async function settle(evaluate, sleep, box, limit = 3000) {
   return seen;
 }
 
+// A request straight to the helper, through the harness's bridge: its last line is the reply.
+export async function helperCall(request) {
+  const response = await fetch('http://127.0.0.1:8790/', { method: 'POST', body: JSON.stringify({ id: `scenario-${Date.now()}`, ...request }) });
+  return JSON.parse((await response.text()).trim().split('\n').at(-1));
+}
+
+/** Names a test card back to what the scenarios after this one expect. */
+export async function renameBack(device, label) {
+  const listed = await helperCall({ op: 'listDevices' });
+  const volume = listed.devices?.find((entry) => entry.id === device)?.volumes?.[0]?.id;
+  return volume ? helperCall({ op: 'rename', volume, label }) : null;
+}
+
 export async function helperReady(evaluate, sleep) {
   return until(evaluate, sleep, `document.querySelector('.rail-foot')?.textContent.includes('ready')`, 200);
 }

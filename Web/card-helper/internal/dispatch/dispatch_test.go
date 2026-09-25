@@ -67,6 +67,12 @@ func (f *fake) Inspect(string) (platform.Geometry, error) {
 func (f *fake) Mount(string) error   { return nil }
 func (f *fake) Unmount(string) error { return nil }
 func (f *fake) Eject(string) error   { return nil }
+func (f *fake) Rename(_ string, label string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.label = label
+	return nil
+}
 func (f *fake) Diagnose(string) (platform.FsckReport, error) {
 	return platform.FsckReport{Clean: true}, nil
 }
@@ -142,6 +148,32 @@ func TestOnlyTheCardIsVisible(t *testing.T) {
 		if reply := call(t, d, map[string]any{"op": "challenge", "device": id, "operation": "format"}); reply["ok"] != false {
 			t.Errorf("a challenge was issued for %s", id)
 		}
+	}
+}
+
+func TestRenameNamesOnlyACardAndOnlyWithAName(t *testing.T) {
+	plat := newFake(t)
+	plat.mounted, plat.label = true, "sdfa_01"
+	d, _ := newDispatcher(t, plat)
+	if reply := call(t, d, map[string]any{"op": "rename", "volume": "disk4s1", "label": "OWL_02"}); reply["ok"] != true || reply["renamed"] != true {
+		t.Fatalf("rename %v", reply)
+	}
+	if plat.label != "OWL_02" {
+		t.Fatalf("the card is named %q", plat.label)
+	}
+	if reply := call(t, d, map[string]any{"op": "rename", "volume": "disk4s1", "label": "OWL_02"}); reply["renamed"] != false {
+		t.Errorf("a card already so named was renamed: %v", reply)
+	}
+	for _, label := range []string{"", "TestDevice_01", "OWL/02"} {
+		if reply := call(t, d, map[string]any{"op": "rename", "volume": "disk4s1", "label": label}); reply["ok"] != false || reply["code"] != "bad-request" {
+			t.Errorf("%q was accepted: %v", label, reply)
+		}
+	}
+	if reply := call(t, d, map[string]any{"op": "rename", "volume": "disk0s1", "label": "OWL_02"}); reply["ok"] != false {
+		t.Errorf("a volume that is not on a card was renamed: %v", reply)
+	}
+	if plat.label != "OWL_02" {
+		t.Errorf("a refused rename changed the name to %q", plat.label)
 	}
 }
 

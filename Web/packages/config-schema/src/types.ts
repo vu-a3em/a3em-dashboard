@@ -68,7 +68,7 @@ export interface PhaseConfig {
   /**
    * AMPLITUDE mode only. A FRACTION OF FULL SCALE in 0..1 — despite the desktop
    * dashboard labeling this field "dB". audio.c receives it as
-   * `float trigger_threshold_percent`. See FIRMWARE-FINDINGS.md #4.
+   * `float trigger_threshold_percent`.
    */
   audioTriggerThreshold: number;
 

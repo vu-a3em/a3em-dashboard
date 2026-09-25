@@ -37,7 +37,7 @@ export function NotDeployed({
       <div className="card">
         <h2>Not deployed yet</h2>
         <p className="hint">
-          {config?.deviceLabel ? `This card is prepared for unit ${config.deviceLabel}` : `${card} is prepared`}, and
+          {config?.deviceLabel ? `This card is prepared for ${config.deviceLabel}` : `${card} is prepared`}, and
           nothing a recorder writes is on it yet, so there is {nothing} yet.
           {config && setsSchedule(configText)
             ? ` Its deployment is set to run from ${formatZonedDisplay(config.startTime, config.timezone)} to ${formatZonedDisplay(config.endTime, config.timezone)}.`

@@ -68,7 +68,7 @@ export function ConfirmDialog({
                 {entry.description}
                 <br />
                 <span className="muted">
-                  Becomes unit {entry.label}. Erasing fixes {listed(entry.fixes)}.
+                  Becomes {entry.label}. Erasing fixes {listed(entry.fixes)}.
                 </span>
               </span>
             </label>

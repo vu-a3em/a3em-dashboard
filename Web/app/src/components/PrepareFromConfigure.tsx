@@ -1,23 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CardReadinessReport, DeploymentConfig, FirmwareProfile } from '@a3em/config-schema';
-import { HelperError, requestChallenge, type HelperDevice } from '../lib/helper';
-import { eraseAndPrepare, judgeCard, planFor, readCards, summarize, writeUnitSettings } from '../lib/cardPreparation';
+import { helperRenames, HelperError, renameMovesFolder, requestChallenge, type HelperDevice } from '../lib/helper';
+import { eraseAndPrepare, judgeCard, planFor, readCards, renameFor, settingsSummary, summarize, writeUnitSettings } from '../lib/cardPreparation';
 import { useConfigurePrepared } from '../lib/configurePrepared';
 import type { Helper } from '../lib/useHelper';
 import { Activity, useCardLogs } from './CardActivity';
 import { ConfirmDialog, type Confirmation } from './EraseConfirm';
 
 /**
- * "Prepare {card}…" on Configure: the card that is open, prepared with the settings on screen.
+ * "Configure SD Card" on Configure: the card that is open, prepared with the settings on screen.
  *
  * Writing only the configuration, as Configure did before, could leave a card the recorder would
  * erase at start, or one too slow, or not the size it claims, looking ready. So with the card
- * tools this runs what "Prepare this card" runs on Prepare devices (`lib/cardPreparation`): the
- * card checked, then the least that makes it ready — the settings alone, or, confirmed first, the
- * card erased and set up again — for the unit the configuration names.
+ * helper this runs what "Prepare this card" runs on Prepare devices (`lib/cardPreparation`): the
+ * card checked, then the least that makes it ready — the settings and the card's name, or,
+ * confirmed first, the card erased and set up again — for the device the configuration names.
  *
- * Erasing takes the folder open on the card with it, so the dashboard lets go of the folder
- * (`onErased`), and the outcome is kept here to be read after it has gone.
+ * Erasing takes the folder open on the card with it, and so does renaming it where the card is
+ * mounted under its name, so the dashboard lets go of the folder (`onErased`, `onRenamed`), and
+ * the outcome is kept here to be read after it has gone.
  */
 
 function message(error: unknown): string {
@@ -34,6 +35,7 @@ export function PrepareFromConfigure({
   disabled,
   onSettingsWritten,
   onErased,
+  onRenamed,
 }: Readonly<{
   helper: Helper;
   device: HelperDevice;
@@ -44,6 +46,7 @@ export function PrepareFromConfigure({
   disabled: boolean;
   onSettingsWritten: () => void;
   onErased: (label: string) => void;
+  onRenamed: (label: string) => void;
 }>) {
   const logs = useCardLogs('configure');
   const { begin, note, follow, finish, forget } = logs;
@@ -56,28 +59,32 @@ export function PrepareFromConfigure({
   const busy = helper.task !== null || logs.working !== null;
   const id = device.id;
 
-  const settings = async (read: CardReadinessReport) => {
-    note([id], `Writing unit ${label}’s settings to the card.`);
-    await writeUnitSettings(device, config, label, read, follow([id]));
-    setPrepared({ kind: 'settings', card: name, label, summary: `unit ${label}’s settings written; nothing needed erasing` });
+  // The settings, the card's name, or both; `write` false when the settings are already right.
+  const settings = async (read: CardReadinessReport, rename: string | null, write: boolean) => {
+    note([id], write ? `Writing ${label}’s settings to the card${rename ? `, and naming it ${rename}` : ''}.` : `Naming the card ${rename}.`);
+    const written = await writeUnitSettings(device, config, label, read, follow([id]), rename, write);
+    const closed = written.renamed && renameMovesFolder(helper.identity);
+    setPrepared({ kind: 'settings', card: name, label, summary: settingsSummary(written, rename, write), closed });
     finish([id]);
-    onSettingsWritten();
+    if (closed) onRenamed(rename!);
+    else onSettingsWritten();
   };
 
   const prepare = async () => {
     setPrepared(null);
-    begin([id], 'Checking the card first, to see what preparing it needs.');
+    begin([id], 'Checking the card first, to see what it needs.');
     try {
       const [read] = await readCards(helper, [id], follow([id]));
       if (!read) throw new Error('The A3EM Card Helper gave no reading of the card.');
       const { verdict, plan: preparation } = judgeCard(config, plan, read, label);
+      const rename = renameFor(read, label, helperRenames(helper.identity));
       if (preparation.kind === 'blocked') {
-        finish([id], `It cannot be prepared. ${preparation.reason}`);
-      } else if (preparation.kind === 'none') {
-        note([id], verdict.status === 'ready' ? `Nothing to prepare: it is ready for unit ${label}.` : 'Nothing to prepare: preparing would not change anything.');
+        finish([id], `It cannot be configured. ${preparation.reason}`);
+      } else if (preparation.kind === 'none' && !rename) {
+        note([id], verdict.status === 'ready' ? `Nothing to configure: it is ready for ${label}.` : 'Nothing to configure: configuring it would not change anything.');
         finish([id]);
-      } else if (preparation.kind === 'settings') {
-        await settings(read);
+      } else if (preparation.kind === 'settings' || preparation.kind === 'none') {
+        await settings(read, rename, preparation.kind === 'settings');
       } else {
         note([id], 'Asking the A3EM Card Helper to describe the card, so you can confirm it before anything is erased.');
         const challenge = await requestChallenge(id, 'prepare');
@@ -128,10 +135,10 @@ export function PrepareFromConfigure({
         className="btn primary"
         style={{ width: '100%', justifyContent: 'center' }}
         disabled={disabled || busy || !label}
-        title="Checks the card, then does only what it needs: this unit’s settings, or, confirmed first, erasing the card and setting it up again."
+        title="Checks the card, then does only what it needs: this device’s settings and name, or, confirmed first, erasing the card and setting it up again."
         onClick={() => void prepare()}
       >
-        {logs.isWorking(id) ? 'Preparing…' : `Prepare ${name}…`}
+        {logs.isWorking(id) ? 'Configuring…' : 'Configure SD Card'}
       </button>
       {log ? <Activity log={log} running={logs.isWorking(id)} now={logs.now} /> : null}
       {confirming ? <ConfirmDialog entries={confirming} onChange={setConfirming} onCancel={cancel} onConfirm={(entries) => void erase(entries)} /> : null}

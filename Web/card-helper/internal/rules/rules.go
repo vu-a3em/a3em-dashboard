@@ -31,16 +31,21 @@ func ValidateFormat(allocationUnitBytes int64, label string) []string {
 	if !allowed {
 		problems = append(problems, "Allocation unit must be one of 4 kB, 8 kB, 16 kB, 32 kB, 64 kB, 128 kB, 256 kB, or 512 kB.")
 	}
+	return append(problems, ValidateLabel(label)...)
+}
+
+// ValidateLabel returns what is wrong with a card name, for a format and for a rename alike.
+func ValidateLabel(label string) []string {
 	trimmed := strings.TrimSpace(label)
 	switch {
 	case trimmed == "":
-		problems = append(problems, "A volume label is required.")
+		return []string{"A volume label is required."}
 	case len([]rune(trimmed)) > VolumeLabelMaxLen:
-		problems = append(problems, fmt.Sprintf("Volume label must be %d characters or fewer.", VolumeLabelMaxLen))
+		return []string{fmt.Sprintf("Volume label must be %d characters or fewer.", VolumeLabelMaxLen)}
 	case !labelPattern.MatchString(trimmed):
-		problems = append(problems, "Volume label may contain only letters, digits, spaces, hyphens, and underscores.")
+		return []string{"Volume label may contain only letters, digits, spaces, hyphens, and underscores."}
 	}
-	return problems
+	return nil
 }
 
 // ConfigFileName and ConfigMaxBytes bound what writeConfig may put on a card: exactly the one

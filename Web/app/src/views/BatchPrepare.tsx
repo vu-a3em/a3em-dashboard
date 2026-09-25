@@ -12,6 +12,7 @@ import {
   type ProtocolProvenance,
 } from '@a3em/config-schema';
 import { CARD_ACCESS_SUPPORTED, downloadConfig, pickCard, writeConfig } from '../lib/card';
+import { renameMovesFolder } from '../lib/helper';
 import { quickCardChecks } from '../lib/cardChecks';
 import { buildZip, downloadBlob } from '../lib/zip';
 import type { useCard } from '../lib/useCard';
@@ -114,7 +115,7 @@ export function BatchPrepare({
   const labelProblems = units.map((unit) => {
     const problems = deviceLabelProblems(unit.label);
     if ((labelCounts.get(unit.label.trim().toLowerCase()) ?? 0) > 1) {
-      problems.push('Another unit in this batch has the same label.');
+      problems.push('Another device in this batch has the same label.');
     }
     return problems;
   });
@@ -199,6 +200,9 @@ export function BatchPrepare({
     const opened = open ? prepared.find((entry) => entry.device === open.id) : undefined;
     if (opened?.erased) {
       void card.erased(`${card.name ?? 'The card'} was erased to prepare it as ${opened.label}`);
+    } else if (opened?.renamed && renameMovesFolder(helper.identity)) {
+      // Mounted under its new name, the card is no longer where the open folder points.
+      void card.erased(`${card.name ?? 'The card'} was renamed ${opened.label}`);
     } else if (opened?.ok && !opened.found) {
       void card.rescan();
     }
@@ -233,7 +237,7 @@ export function BatchPrepare({
       status: 'pending',
       cardName: null,
       error: null,
-      note: `${was} before the settings changed on “Configure”, so it would record differently from units prepared now. ${again}, or change the settings back.`,
+      note: `${was} before the settings changed on “Configure”, so it would record differently from devices prepared now. ${again}, or change the settings back.`,
     };
   });
 
@@ -266,8 +270,8 @@ export function BatchPrepare({
             {outdated.length === 1 ? 'One card was' : `${outdated.length} cards were`} written with settings that have since changed
           </strong>
           The settings changed on <TabLink to="configure" /> after {listLabels(outdated.map((unit) => unit.label))}{' '}
-          {outdated.length === 1 ? 'was' : 'were'} written, so {outdated.length === 1 ? 'that unit' : 'those units'} would
-          record differently from units prepared with the settings as they are now. {outdated.length === 1 ? 'It is' : 'They are'} back to “No card yet”
+          {outdated.length === 1 ? 'was' : 'were'} written, so {outdated.length === 1 ? 'that device' : 'those devices'} would
+          record differently from devices prepared with the settings as they are now. {outdated.length === 1 ? 'It is' : 'They are'} back to “No card yet”
           below: {direct ? 'prepare' : 'write'} {outdated.length === 1 ? 'its card' : 'their cards'} again, or change the settings back.
         </div>
       ) : null}
@@ -276,7 +280,7 @@ export function BatchPrepare({
       <div className="card">
         <h2>What each card will contain</h2>
         <p className="hint">
-          The settings from <TabLink to="configure" />, with each unit's own label.
+          The settings from <TabLink to="configure" />, with each device's own label.
         </p>
         <ul className="batch-summary">
           <li>
@@ -311,7 +315,7 @@ export function BatchPrepare({
           ) : null}
         </h2>
         <p className="hint">
-          Every unit gets the same settings with its own label. Labels are numbered from the prefix.
+          Every device gets the same settings with its own label. Labels are numbered from the prefix.
         </p>
         <div className="row">
           <div className="field">
@@ -323,7 +327,7 @@ export function BatchPrepare({
               onChange={(event) => setPrefix(event.target.value)}
             />
             <p className="help">
-              Labels are up to {DEVICE_LABEL_MAX_LEN} characters. A longer prefix is shortened so every unit
+              Labels are up to {DEVICE_LABEL_MAX_LEN} characters. A longer prefix is shortened so every device
               keeps its number.
             </p>
           </div>
@@ -359,10 +363,10 @@ export function BatchPrepare({
             */}
             <p className="hint">
               {direct
-                ? 'Each unit starts as “No card yet”. It changes to “Card written” when you use “Prepare this card” on a card assigned to it in the “Cards connected to this computer” pane below.'
+                ? 'Each device starts with a “No card yet” status. After preparation using the pane below, the device status changes to “Card written”.'
                 : CARD_ACCESS_SUPPORTED
-                  ? 'Insert a unit’s card and press “Write card”, then choose the card itself when the folder picker opens, so each unit’s settings go onto its own card.'
-                  : `This browser cannot write to a card directly. Download the batch as one archive, then copy each unit's ${CONFIG_FILE_NAME} to the top level of its card.`}
+                  ? 'Insert a device’s card and press “Write card”, then choose the card itself when the folder picker opens, so each device’s settings go onto its own card.'
+                  : `This browser cannot write to a card directly. Download the batch as one archive, then copy each device's ${CONFIG_FILE_NAME} to the top level of its card.`}
             </p>
             {!CARD_ACCESS_SUPPORTED ? (
               <button className="btn primary" style={{ marginBottom: 14 }} onClick={downloadAll}>
@@ -384,7 +388,7 @@ export function BatchPrepare({
                     className="batch-label"
                     value={unit.label}
                     maxLength={DEVICE_LABEL_MAX_LEN}
-                    aria-label={`Label for unit ${index + 1}`}
+                    aria-label={`Label for device ${index + 1}`}
                     aria-invalid={labelProblems[index].length > 0}
                     onChange={(event) => setUnit(index, { label: event.target.value })}
                   />
@@ -419,11 +423,11 @@ export function BatchPrepare({
 
             {written === units.length ? (
               <div className="banner ok" style={{ marginTop: 16, marginBottom: 0 }}>
-                <strong>{units.length === 1 ? 'The unit is prepared' : `All ${units.length} units prepared`}</strong>
+                <strong>{units.length === 1 ? 'The device is prepared' : `All ${units.length} devices prepared`}</strong>
                 {units.length === 1 ? 'Its card has its own label.' : 'Each card has its own label.'}{' '}
                 {config.ledsEnabled
-                  ? `The device runs its self-test at activation, so check the LED before sealing ${units.length === 1 ? 'the' : 'each'} unit.`
-                  : 'The LEDs are off in this configuration, so a unit gives no visible sign that it activated or passed its self-test.'}
+                  ? `The device runs its self-test at activation, so check the LED before sealing ${units.length === 1 ? 'the' : 'each'} device.`
+                  : 'The LEDs are off in this configuration, so a device gives no visible sign that it activated or passed its self-test.'}
               </div>
             ) : null}
           </div>

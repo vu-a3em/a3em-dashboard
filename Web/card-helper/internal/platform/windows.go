@@ -242,6 +242,18 @@ func (windows) Unmount(volumeID string) error {
 	return err
 }
 
+// Rename runs in the elevated worker: Windows renames a drive only for an administrator, as
+// Explorer's own rename asks. The drive letter, and so the path, stays as it was.
+func (windows) Rename(volumeID, label string) error {
+	disk, part, err := locate(volumeID)
+	if err != nil {
+		return err
+	}
+	_, err = powershell(time.Minute, fmt.Sprintf("Get-Partition -DiskNumber %d -PartitionNumber %d | Get-Volume | Set-Volume -NewFileSystemLabel %s",
+		disk.Number, part.Number, psQuote(label)))
+	return err
+}
+
 func (windows) Eject(deviceID string) error {
 	disks, err := listDisks()
 	if err != nil {

@@ -1,5 +1,5 @@
 // Package dbus is just enough of a D-Bus client to ask a Linux desktop's portal for its file
-// chooser: connect to the session bus, call a method, and wait for a signal.
+// chooser, and udisks2 to rename a card: connect to a bus, call a method, and wait for a signal.
 //
 // It is written here rather than taken from a library because the helper has no dependencies
 // outside Go's own, and what it needs is small. The wire format is the D-Bus specification's:

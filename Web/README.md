@@ -45,15 +45,17 @@ filtering, and the motion sensor. Settings are checked as they are entered, agai
 current firmware accepts and does, and the forecast shows how much of the card and the battery the
 deployment will use, when each runs out, and the cluster size to format the card with. Settings
 used again and again are saved as **protocols**; six starters ship with the dashboard. The
-configuration is written to the card as `_a3em.cfg`, or downloaded. With the helper, the
-open card is prepared instead: checked, then given only what it needs.
+configuration is written to the card as `_a3em.cfg`, or downloaded. With the helper, "Configure
+SD Card" prepares the open card instead: checked, then given only what it needs, which may be
+only its settings and its name, or, confirmed first, erasing it and setting it up again.
 
-**Prepare devices.** A batch of units, labeled from a prefix, all with the same settings. Without
-the helper, each unit's configuration is written to its card through the folder picker, or
+**Prepare devices.** A batch of devices, labeled from a prefix, all with the same settings. Without
+the helper, each device's configuration is written to its card through the folder picker, or
 the batch is downloaded as one archive. With it, the cards plugged into the computer are listed
 and each is checked and prepared: the capacity test that catches counterfeit cards, a write-speed
-test, the reference exFAT layout, verified, and the unit's configuration. Settings changed on
-Configure after some cards are written return those units to "No card yet".
+test, the reference exFAT layout, verified, and the device's configuration; a card that needs
+only its settings gets them without being erased, and the device's name with them. Settings changed on
+Configure after some cards are written return those devices to "No card yet".
 
 **Review card.** A card back from the field: the self-test, how the deployment went and whether
 it stopped early, what the device did, battery and temperature over time, microphone health, an

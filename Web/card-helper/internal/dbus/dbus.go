@@ -213,6 +213,20 @@ func Session() (*Conn, error) {
 		}
 		address = "unix:path=" + runtime + "/bus"
 	}
+	return dial(address)
+}
+
+// System connects to the system bus, where udisks2 answers.
+func System() (*Conn, error) {
+	address := os.Getenv("DBUS_SYSTEM_BUS_ADDRESS")
+	if address == "" {
+		address = "unix:path=/var/run/dbus/system_bus_socket"
+	}
+	return dial(address)
+}
+
+// dial connects to the first address in a bus address that answers.
+func dial(address string) (*Conn, error) {
 	var last error = errors.New("dbus: no usable address in " + address)
 	for _, path := range socketPaths(address) {
 		file, err := dialUnix(path)

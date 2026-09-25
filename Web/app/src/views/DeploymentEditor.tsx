@@ -251,7 +251,7 @@ export function DeploymentEditor({
       found.push({
         severity: 'warning',
         message: `The recorder would erase this card when it starts, configuration and all: ${erasing.issues[0]?.message ?? 'its format does not suit the firmware.'} ${
-          preparing ? 'Preparing it sets it up again.' : 'Prepare it under “Prepare devices” first.'
+          preparing ? '“Configure SD Card” sets it up again.' : 'Prepare it under “Prepare devices” first.'
         }`,
       });
     }
@@ -298,7 +298,7 @@ export function DeploymentEditor({
               {batch.outdated.length === 1 ? 'A card' : `${batch.outdated.length} cards`} of your batch{' '}
               {batch.outdated.length === 1 ? 'was' : 'were'} written with different settings
             </strong>
-            {listLabels(batch.outdated)} would record differently from units prepared with the settings as they are now.
+            {listLabels(batch.outdated)} would record differently from devices prepared with the settings as they are now.
             On the <TabLink to="batch" /> page, {batch.outdated.length === 1 ? 'it is' : 'they are'} back to “No card yet”:
             prepare {batch.outdated.length === 1 ? 'its card' : 'their cards'} again, or change the settings back. If
             these settings are for other devices, rebuild the list there to start a new batch.
@@ -309,10 +309,10 @@ export function DeploymentEditor({
               {batch.current.length === 1 ? 'A card' : `${batch.current.length} cards`} of your batch{' '}
               {batch.current.length === 1 ? 'has' : 'have'} been written with these settings
             </strong>
-            Changing anything here now would leave {listLabels(batch.current)} recording differently from any unit
+            Changing anything here now would leave {listLabels(batch.current)} recording differently from any device
             prepared afterward. If you do change something, prepare{' '}
             {batch.current.length === 1 ? 'that card' : 'those cards'} again on the <TabLink to="batch" /> page, so every
-            unit in the batch records the same way.
+            device in the batch records the same way.
           </div>
         ) : null}
 
@@ -544,7 +544,7 @@ export function DeploymentEditor({
               ) : (
                 'The device keeps the clock it already has. After activation, it records one minute for voice ' +
                   'notes, then waits for the start time before recording. Use this only when the clock is already ' +
-                  'set, such as on a unit with GPS.'
+                  'set, such as on a device with GPS.'
               )}
             </p>
           </div>
@@ -999,7 +999,8 @@ export function DeploymentEditor({
                 firmware={card.targetFirmware}
                 disabled={blocking.length > 0 || checks.some((check) => check.severity === 'error')}
                 onSettingsWritten={() => void card.rescan()}
-                onErased={(label) => void card.erased(`${card.name ?? 'The card'} was erased to prepare it as ${label}`)}
+                onErased={(label) => void card.erased(`${card.name ?? 'The card'} was erased and configured as ${label}`)}
+                onRenamed={(label) => void card.erased(`${card.name ?? 'The card'} was renamed ${label}`)}
               />
             </Suspense>
           ) : null
@@ -1464,10 +1465,14 @@ function Forecast({
         {prepared ? (
           <div className="banner ok" style={{ marginTop: 10, marginBottom: 0 }}>
             <strong>
-              {prepared.kind === 'prepared' ? `${prepared.card} prepared as unit ${prepared.label}` : `${prepared.card} is unit ${prepared.label}`}
+              {prepared.card} configured as {prepared.label}
             </strong>
             {prepared.summary.charAt(0).toUpperCase() + prepared.summary.slice(1)}.
-            {prepared.kind === 'prepared' ? ' Erasing it closed the folder open on it; connect it again to see it as it is now.' : ''}{' '}
+            {prepared.kind === 'prepared'
+              ? ' Erasing it closed the folder open on it; connect it again to see it as it is now.'
+              : prepared.closed
+                ? ' Renaming it closed the folder open on it; connect it again to see it as it is now.'
+                : ''}{' '}
             <button className="link-button" onClick={onDismissPrepared}>
               Dismiss
             </button>

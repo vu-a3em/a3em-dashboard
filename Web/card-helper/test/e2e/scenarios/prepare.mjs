@@ -1,7 +1,8 @@
 // "Check this card", then one "Prepare this card" that does the least each card needs: erasing
-// the old card, only writing settings to the prepared one, and nothing for a card with no unit.
+// the old card, only writing settings to the prepared one and naming it for its device, and
+// nothing for a card with no device.
 // The old card is open in the dashboard meanwhile, and is let go of once it is erased.
-import { card, helperReady, rail, settle, until } from './common.mjs';
+import { card, helperReady, rail, renameBack, settle, until } from './common.mjs';
 
 const pick = (id, label) =>
   `(() => { const s = ${card(id)}.querySelector('select'); const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(s, ${JSON.stringify(label)}); s.dispatchEvent(new Event('change', { bubbles: true })); })()`;
@@ -38,7 +39,7 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
   out.checkFirst = await until(evaluate, sleep, `(() => { const l = ${card(cards.old)}.querySelector('.card-log'); return l && /Checking the cards? first/.test(l.textContent) ? $text(l) : null; })()`, 100);
   expect('it checks the cards first', Boolean(out.checkFirst), out.checkFirst);
   out.dialog = await until(evaluate, sleep, `$text(document.querySelector('dialog[open]'))`, 1200);
-  expect('only the card being erased is confirmed', (out.dialog ?? '').includes('Becomes unit A3EM_01') && !(out.dialog ?? '').includes('A3EM_02'), out.dialog);
+  expect('only the card being erased is confirmed', (out.dialog ?? '').includes('Becomes A3EM_01') && !(out.dialog ?? '').includes('A3EM_02'), out.dialog);
   out.plans = { old: await evaluate(`$text(${card(cards.old)}.querySelector('.card-log'))`) };
   await shot('1-confirm');
   await evaluate(`document.querySelectorAll('dialog[open] input[type=checkbox]').forEach((box) => box.click())`);
@@ -51,7 +52,7 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
   const banner = (id) => evaluate(`$text(${card(id)}.querySelector('.card-result .banner'))`);
   out.after = { old: await banner(cards.old), prepared: await banner(cards.prepared) };
   expect('the old card is prepared', /^Prepared/.test(out.after.old ?? ''), out.after.old);
-  expect('the prepared card has its settings', /^Settings written/.test(out.after.prepared ?? ''), out.after.prepared);
+  expect('the prepared card has its settings, and the name of its device', /^Settings written/.test(out.after.prepared ?? '') && /The card is named A3EM_02/.test(out.after.prepared ?? ''), out.after.prepared);
   // Checked first, as part of preparing it: that check's layout stands, rather than "not checked".
   out.preparedResult = await evaluate(`$text(${card(cards.prepared)}.querySelector('.card-result'))`);
   expect('and its layout, checked on the way, is still shown as checked', /Layout matches the reference/.test(out.preparedResult ?? '') && !/Layout not checked/.test(out.preparedResult ?? ''), out.preparedResult);
@@ -72,4 +73,8 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
     expect('and "Review card" shows no card, not the old one', out.reviewAfterErase === 'No card connected', out.reviewAfterErase);
   }
   await shot('2-prepared');
+
+  // The prepared card as the scenarios after this one expect it: named OWL_01.
+  const back = await renameBack(cards.prepared, 'OWL_01');
+  expect('the prepared card can be named back', back?.ok === true, back);
 };

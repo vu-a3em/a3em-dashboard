@@ -307,6 +307,13 @@ func (darwin) Unmount(volumeID string) error {
 	return err
 }
 
+// Rename needs no password: a removable card's volume belongs to the person using the computer,
+// as it does when they rename it in the Finder. Its mount point changes with the name.
+func (darwin) Rename(volumeID, label string) error {
+	_, err := Run(time.Minute, "diskutil", []string{"rename", volumeID, label})
+	return err
+}
+
 func (darwin) Eject(deviceID string) error {
 	_, err := Run(time.Minute, "diskutil", []string{"eject", deviceID})
 	return err

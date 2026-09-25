@@ -12,6 +12,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/dbus"
 )
 
 /*
@@ -332,6 +334,77 @@ func (p linux) Unmount(volumeID string) error {
 	}
 	_, err := Run(time.Minute, "umount", []string{node})
 	return err
+}
+
+// Rename unmounts the card, names it, and mounts it again: exFAT cannot be renamed while
+// mounted. As the person at the computer, udisks2 does it, which renames a removable card for
+// them as it mounts one; its command-line tool has no command for it, so it is asked over D-Bus.
+// As root, with no udisks2 to ask, the filesystem's own tool does it. The mount point changes
+// with the name.
+func (p linux) Rename(volumeID, label string) error {
+	_, v, err := p.find(volumeID)
+	if err != nil {
+		return err
+	}
+	mounted := v.MountPoint != nil
+	if mounted {
+		if err := p.Unmount(volumeID); err != nil {
+			return err
+		}
+	}
+	if os.Geteuid() != 0 {
+		err = udisksRename(volumeID, label)
+	} else {
+		err = relabel(volumeID, v, label)
+	}
+	if mounted {
+		if again := p.Mount(volumeID); err == nil {
+			err = again
+		}
+	}
+	return err
+}
+
+func relabel(volumeID string, v *Volume, label string) error {
+	filesystem := ""
+	if v.Filesystem != nil {
+		filesystem = *v.Filesystem
+	}
+	tool := map[string]string{"exfat": "exfatlabel", "vfat": "fatlabel"}[filesystem]
+	if tool == "" || !have(tool) {
+		return &CommandError{Message: "This computer has no tool to rename the card. Install exfatprogs.", Command: "exfatlabel"}
+	}
+	_, err := Run(time.Minute, tool, []string{"/dev/" + volumeID, label})
+	return err
+}
+
+func udisksRename(volumeID, label string) error {
+	bus, err := dbus.System()
+	if err != nil {
+		return &CommandError{Message: "udisks2 could not be reached to rename the card: " + err.Error(), Command: "udisks2"}
+	}
+	defer bus.Close()
+	// Two minutes, for a password prompt if the system's policy asks for one.
+	_, err = bus.Call("org.freedesktop.UDisks2", "/org/freedesktop/UDisks2/block_devices/"+udisksName(volumeID),
+		"org.freedesktop.UDisks2.Filesystem", "SetLabel", 2*time.Minute, "sa{sv}", label, map[string]dbus.Variant{})
+	if err != nil {
+		return &CommandError{Message: "udisks2 did not rename the card: " + err.Error(), Command: "udisks2 SetLabel"}
+	}
+	return nil
+}
+
+// udisksName is a block device's name as udisks2 writes it in an object path: letters and
+// digits as they are, anything else as _ and two hex digits.
+func udisksName(name string) string {
+	var out strings.Builder
+	for _, b := range []byte(name) {
+		if b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9' {
+			out.WriteByte(b)
+		} else {
+			fmt.Fprintf(&out, "_%02x", b)
+		}
+	}
+	return out.String()
 }
 
 func (p linux) Eject(deviceID string) error {

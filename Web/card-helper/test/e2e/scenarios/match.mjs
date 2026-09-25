@@ -22,7 +22,7 @@ export default async ({ evaluate, shot, sleep, out, expect }) => {
   out.check = await until(evaluate, sleep, `$text(document.querySelector('details.physical-card .card-result'))`, 3000);
   expect('the filesystem check finds no problems', /No problems found/.test(out.check ?? ''), out.check);
   out.reviewNote = await evaluate(`$text([...document.querySelectorAll('.content > .card')].find((c) => c.querySelector('h2')?.textContent === 'Not deployed yet'))`);
-  expect('Review card says the card is not deployed yet, in place of an empty deployment', /prepared for unit OWL_01/.test(out.reviewNote ?? '') && /no deployment to review yet/.test(out.reviewNote ?? '') && !/set to run from/.test(out.reviewNote ?? ''), out.reviewNote);
+  expect('Review card says the card is not deployed yet, in place of an empty deployment', /prepared for OWL_01/.test(out.reviewNote ?? '') && /no deployment to review yet/.test(out.reviewNote ?? '') && !/set to run from/.test(out.reviewNote ?? ''), out.reviewNote);
   await shot('1-review');
   for (const [tab, words] of [['Listen', 'nothing to listen to yet'], ['Check & copy', 'nothing to check or copy yet']]) {
     await evaluate(rail(tab));

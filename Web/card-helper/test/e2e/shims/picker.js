@@ -10,8 +10,8 @@
   let picks = 0;
   window.showDirectoryPicker = async () => {
     const root = await navigator.storage.getDirectory();
-    // After the card, a folder to copy it into.
-    if (picks++ > 0) return root.getDirectoryHandle('copy-destination', { create: true });
+    // After the card, a folder to copy it into, unless a scenario asks for the card again.
+    if (picks++ > 0 && !window.__PICK_CARD_AGAIN__) return root.getDirectoryHandle('copy-destination', { create: true });
     const dir = await root.getDirectoryHandle(NAME, { create: true });
     const cfg = await dir.getFileHandle('_a3em.cfg', { create: true });
     const writer = await cfg.createWritable();

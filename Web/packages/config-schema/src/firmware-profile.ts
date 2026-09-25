@@ -21,7 +21,7 @@
 
 export interface FirmwareCapabilities {
   /**
-   * FINDING 1. `AUDIO_MAX_CLIPS_NUMBER = 0` no longer silently stops the device
+   * `AUDIO_MAX_CLIPS_NUMBER = 0` no longer silently stops the device
    * recording. On legacy firmware it meant "never arm the trigger"; current firmware
    * rewrites it to a single clip per window and reports the file as corrected. Neither
    * is what zero implies, so the editor refuses to write it either way — this flag now
@@ -33,7 +33,7 @@ export interface FirmwareCapabilities {
   zeroClipCapIsRewritten: boolean;
 
   /**
-   * FINDING 2. `parse_line()` bounds-checks the phase and schedule arrays instead
+   * `parse_line()` bounds-checks the phase and schedule arrays instead
    * of writing past the end of them.
    *
    * Either way the app must respect the 6-phase / 12-window ceilings; this flag
@@ -42,14 +42,14 @@ export interface FirmwareCapabilities {
   boundsCheckedArrays: boolean;
 
   /**
-   * FINDING 9. The WAV `data` chunk size is written correctly rather than four
+   * The WAV `data` chunk size is written correctly rather than four
    * bytes over. Readers must stay tolerant regardless — cards written by older
    * firmware are not going away.
    */
   correctWavChunkSize: boolean;
 
   /**
-   * FINDING 5. `IMU_TRIGGER_THRESHOLD` actually reaches the sensor, as a fraction of
+   * `IMU_TRIGGER_THRESHOLD` actually reaches the sensor, as a fraction of
    * the accelerometer full scale.
    */
   adjustableMotionThreshold: boolean;

@@ -12,6 +12,8 @@ export interface ConfigurePrepared {
   card: string;
   label: string;
   summary: string;
+  /** Whether renaming the card, without erasing it, closed the folder open on it. */
+  closed?: boolean;
 }
 
 export function useConfigurePrepared() {

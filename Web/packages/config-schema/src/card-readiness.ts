@@ -286,11 +286,11 @@ export function judgeReadiness(report: CardReadinessReport, expected: ReadinessE
     const same = normalize(config.text) === normalize(expected.configText);
     add(
       'config-match',
-      same ? 'Configuration matches this unit' : 'Configuration is not this unit’s',
+      same ? 'Configuration matches this device' : 'Configuration is not this device’s',
       same ? 'pass' : 'fail',
       same
         ? 'Identical to the configuration being prepared.'
-        : 'The configuration on the card differs from the one being prepared for this unit.',
+        : 'The configuration on the card differs from the one being prepared for this device.',
     );
   }
 

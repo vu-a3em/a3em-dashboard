@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -45,7 +46,7 @@ const ProtocolVersion = 2
 var Operations = []string{
 	"hello", "listDevices", "identify", "inspect", "mount", "unmount", "eject", "diagnose",
 	"challenge", "repair", "image", "format", "prepare", "readiness", "verify", "writeConfig",
-	"chooseImage", "stop",
+	"chooseImage", "stop", "rename",
 }
 
 // Dispatcher answers requests.
@@ -266,6 +267,9 @@ func (d *Dispatcher) route(req protocol.Request) (reply, error) {
 			return nil, &jobs.Failed{Message: "Could not write the configuration: " + err.Error(), Code: "write-failed"}
 		}
 		return reply{"bytes": len(req.Text), "path": filepath.Join(*volume.MountPoint, rules.ConfigFileName)}, nil
+
+	case "rename":
+		return d.rename(req)
 	}
 	return nil, refuse("Unknown operation.", "unknown-op")
 }
@@ -843,4 +847,38 @@ func truncate(text string) string {
 		return text[:4000]
 	}
 	return text
+}
+
+// rename names a card: nothing on it changes but its name, so it needs no confirmation, as
+// writing its configuration needs none. A card already so named is left alone.
+func (d *Dispatcher) rename(req protocol.Request) (reply, error) {
+	device, volume, err := d.holding(req.Volume)
+	if err != nil {
+		return nil, err
+	}
+	if problems := rules.ValidateLabel(req.Label); len(problems) > 0 {
+		return nil, refuse(strings.Join(problems, " "), "bad-request")
+	}
+	label := strings.TrimSpace(req.Label)
+	if volume.Label != nil && *volume.Label == label {
+		return reply{"renamed": false}, nil
+	}
+	if runtime.GOOS != "windows" {
+		if err := d.Plat.Rename(volume.ID, label); err != nil {
+			return nil, err
+		}
+		return reply{"renamed": true}, nil
+	}
+	job := jobs.Job{Kind: jobs.KindRename, Volume: volume.ID, Label: label,
+		Targets: []jobs.Target{{Device: *device, Fingerprint: grant.Fingerprint(*device), RawPath: d.Plat.RawPath(*device)}}}
+	result, err := d.long(req, func(report jobs.Reporter) (jobs.Result, error) {
+		return d.Execute(job, []string{d.Plat.VolumeRawPath(volume.ID)}, report, "rename "+describeCard(*device))
+	})
+	if err != nil {
+		return nil, err
+	}
+	if result.Error != "" {
+		return nil, &jobs.Failed{Message: result.Error, Code: result.Code, Detail: result.Detail}
+	}
+	return reply{"renamed": true}, nil
 }

@@ -9,9 +9,18 @@ import {
   type ReadinessStatus,
   type ReadinessVerdict,
 } from '@a3em/config-schema';
-import { ejectDevice, HelperError, requestChallenge, type HelperDevice, type PreparedCard } from '../lib/helper';
+import { ejectDevice, helperRenames, HelperError, requestChallenge, type HelperDevice, type PreparedCard } from '../lib/helper';
 import { cardCondition } from '../lib/cardCondition';
-import { eraseAndPrepare, judgeCard, planFor, readCards as readThroughHelper, summarize, writeUnitSettings } from '../lib/cardPreparation';
+import {
+  eraseAndPrepare,
+  judgeCard,
+  planFor,
+  readCards as readThroughHelper,
+  renameFor,
+  settingsSummary,
+  summarize,
+  writeUnitSettings,
+} from '../lib/cardPreparation';
 import { ConfirmDialog, listed, type Confirmation } from './EraseConfirm';
 import { useKept } from '../lib/keptState';
 import { useDeviceWatch, type Helper } from '../lib/useHelper';
@@ -53,12 +62,26 @@ export interface PreparedUnit {
   note: string;
   /** Found ready for the unit already, so nothing was written to it. */
   found?: boolean;
+  /** Given the device's name without being erased, which moves a folder open on it. */
+  renamed?: boolean;
 }
 
 /** The card as last read, and what was last done to it here. */
 interface CardState {
   report: CardReadinessReport | null;
-  outcome?: { kind: 'prepared'; result: PreparedCard } | { kind: 'settings' };
+  outcome?:
+    | { kind: 'prepared'; result: PreparedCard }
+    | { kind: 'settings'; written: boolean; renamed: string | null; renameError: string | null };
+}
+
+/** A card to get its device's settings, its name, or both, erasing nothing. */
+interface SettingsEntry {
+  device: HelperDevice;
+  /** Whether its log is already running, from the check that found what it needs. */
+  continuing: boolean;
+  checked: CardReadinessReport | null;
+  rename: string | null;
+  write: boolean;
 }
 
 const MARK: Record<ReadinessStatus, string> = { pass: '✓', warn: '!', fail: '✕', unknown: '?' };
@@ -102,7 +125,7 @@ export function ConnectedCards({
   const awaiting = useRef<string[] | null>(null);
   // Cards that need only their settings, written once the ones being erased are done, and
   // whether each one's log is already running from the check that found it.
-  const thenSettings = useRef<Array<{ device: HelperDevice; continuing: boolean; checked: CardReadinessReport | null }>>([]);
+  const thenSettings = useRef<SettingsEntry[]>([]);
   const busy = helper.task !== null || working !== null;
   useDeviceWatch(helper, !busy);
 
@@ -141,9 +164,16 @@ export function ConnectedCards({
     [devices, config, firmware],
   );
 
-  /** A reading judged afresh, so choosing another unit changes the answer at once. */
-  const judge = (device: HelperDevice, report: CardReadinessReport) => judgeCard(config, plans[device.id], report, unitOf(device));
-  const judged = (device: HelperDevice): { verdict: ReadinessVerdict; plan: PreparationPlan } | null => {
+  /**
+   * A reading judged afresh, so choosing another device changes the answer at once, with the
+   * name the card would be given without erasing it, where it has another.
+   */
+  const canRename = helperRenames(helper.identity);
+  const judge = (device: HelperDevice, report: CardReadinessReport) => {
+    const unit = unitOf(device);
+    return { ...judgeCard(config, plans[device.id], report, unit), rename: unit ? renameFor(report, unit, canRename) : null };
+  };
+  const judged = (device: HelperDevice): { verdict: ReadinessVerdict; plan: PreparationPlan; rename: string | null } | null => {
     const report = states[device.id]?.report;
     return report ? judge(device, report) : null;
   };
@@ -153,14 +183,15 @@ export function ConnectedCards({
    * and a unit, not a check: pressed on a card not yet checked, it checks it first.
    */
   const readiness = (device: HelperDevice): { can: boolean; why: string } => {
-    if (!batch) return { can: false, why: 'Create a batch in the “Devices in this batch” pane above first. A batch of one is fine.' };
-    if (!unitOf(device)) return { can: false, why: 'Every unit in the batch already has a card.' };
+    if (!batch) return { can: false, why: 'Create a batch in the “Devices in this batch” pane above first. A batch of 1 is fine.' };
+    if (!unitOf(device)) return { can: false, why: 'Every device in the batch already has a card.' };
     const found = judged(device);
     if (!found) return { can: true, why: 'Checks the card, then does what the check finds is needed.' };
-    const { plan } = found;
+    const { plan, rename } = found;
     if (plan.kind === 'blocked') return { can: false, why: plan.reason };
-    if (plan.kind === 'none') return { can: false, why: 'Nothing to prepare.' };
-    return { can: true, why: plan.kind === 'erase' ? 'Erases the card and sets it up again.' : 'Writes this unit’s settings, erasing nothing.' };
+    if (plan.kind === 'none') return rename ? { can: true, why: `Names the card ${rename}.` } : { can: false, why: 'Nothing to prepare.' };
+    if (plan.kind === 'erase') return { can: true, why: 'Erases the card and sets it up again.' };
+    return { can: true, why: rename ? `Writes this device’s settings and names the card ${rename}, erasing nothing.` : 'Writes this device’s settings, erasing nothing.' };
   };
 
   /** Reads the cards, changing nothing, with the helper's progress in each one's log. */
@@ -206,22 +237,29 @@ export function ConnectedCards({
    * that check is handed over as `earlier`: it is not in `states` yet, which is still the render
    * that began preparing, so looking there would lose the layout it read.
    */
-  const writeSettings = async (device: HelperDevice, continuing = false, checked: CardReadinessReport | null = null) => {
+  const writeSettings = async ({ device, continuing, checked, rename, write }: SettingsEntry) => {
     const volume = device.volumes[0];
     const label = unitOf(device);
     if (!volume || !label) return;
     const earlier = checked ?? states[device.id]?.report;
-    const first = `Writing unit ${label}’s settings to the card.`;
+    const first = write
+      ? `Writing ${label}’s settings to the card${rename ? `, and naming it ${rename}` : ''}.`
+      : `Naming the card ${rename}.`;
     if (continuing) note([device.id], first);
     else begin([device.id], first);
     try {
-      const report = await writeUnitSettings(device, config, label, earlier ?? null, follow([device.id]));
+      const written = await writeUnitSettings(device, config, label, earlier ?? null, follow([device.id]), rename, write);
       setAssigned((current) => ({ ...current, [device.id]: label }));
       setStates((current) => ({
         ...current,
-        [device.id]: { report: report ?? current[device.id]?.report ?? null, outcome: { kind: 'settings' } },
+        [device.id]: {
+          report: written.report ?? current[device.id]?.report ?? null,
+          outcome: { kind: 'settings', written: write, renamed: written.renamed ? rename : null, renameError: written.renameError },
+        },
       }));
-      onPrepared([{ label, node: device.node, device: device.id, erased: false, ok: true, note: 'settings written' }]);
+      onPrepared([
+        { label, node: device.node, device: device.id, erased: false, renamed: written.renamed, ok: true, note: settingsSummary(written, rename, write) },
+      ]);
       finish([device.id]);
     } catch (failure) {
       finish([device.id], message(failure));
@@ -258,21 +296,25 @@ export function ConnectedCards({
       }
     }
     const erase: Array<{ device: HelperDevice; label: string; fixes: string[] }> = [];
-    const settings: Array<{ device: HelperDevice; continuing: boolean; checked: CardReadinessReport | null }> = [];
+    const settings: SettingsEntry[] = [];
     const nothing: string[] = [];
     for (const id of ids) {
       const device = devices.find((candidate) => candidate.id === id);
       const label = device ? unitOf(device) : null;
       const report = reports[id];
-      const plan = device && label && report ? judge(device, report).plan : null;
+      const judgment = device && label && report ? judge(device, report) : null;
+      const plan = judgment?.plan;
+      const entry = { continuing: unchecked.includes(id), checked: report ?? null, rename: judgment?.rename ?? null };
       if (device && label && plan?.kind === 'erase') erase.push({ device, label, fixes: plan.fixes });
-      else if (device && plan?.kind === 'settings') settings.push({ device, continuing: unchecked.includes(id), checked: report ?? null });
+      else if (device && plan?.kind === 'settings') settings.push({ device, ...entry, write: true });
+      // Only its name to give it: its settings are already this device's.
+      else if (device && plan?.kind === 'none' && entry.rename) settings.push({ device, ...entry, write: false });
       else nothing.push(id);
     }
     // A card checked just now that needs nothing: the check was all there was to do.
     finish(nothing.filter((id) => unchecked.includes(id)));
     if (!erase.length) {
-      for (const { device, continuing, checked } of settings) await writeSettings(device, continuing, checked);
+      for (const entry of settings) await writeSettings(entry);
       return;
     }
     thenSettings.current = settings;
@@ -378,7 +420,7 @@ export function ConnectedCards({
     }
     const rest = thenSettings.current;
     thenSettings.current = [];
-    for (const { device, continuing, checked } of rest) await writeSettings(device, continuing, checked);
+    for (const entry of rest) await writeSettings(entry);
   };
 
   const eject = async (id: string) => {
@@ -405,9 +447,8 @@ export function ConnectedCards({
         </button>
       </div>
       <p className="hint">
-        Card readers and built-in SD slots appear here; other drives never do. “Check this card” verifies whether a card
-        is ready for deployment. “Prepare this card” checks the card, if needed, and then fully prepares it for
-        deployment.
+        Card readers and built-in SD slots appear here. “Check this card” verifies whether a card is ready for
+        deployment. “Prepare this card” also checks the card if needed, and then fully prepares it for deployment.
       </p>
 
       {devices.length === 0 ? (
@@ -462,7 +503,7 @@ export function ConnectedCards({
                     </div>
                     <div className="connected-card-actions">
                       <label className="muted" htmlFor={`unit-${device.id}`}>
-                        Unit
+                        Device
                       </label>
                       {!batch ? (
                         <span className="muted">none yet</span>
@@ -475,7 +516,7 @@ export function ConnectedCards({
                         >
                           {unit ? null : (
                             <option value="" disabled>
-                              No unit left
+                              No device left
                             </option>
                           )}
                           {[...new Set([...(unit ? [unit] : []), ...labels])].map((label) => (
@@ -518,6 +559,7 @@ export function ConnectedCards({
                       state={state}
                       verdict={found.verdict}
                       plan={found.plan}
+                      rename={found.rename}
                       unit={unit}
                       batch={batch}
                       clusters={plan ? formatAllocationUnit(plan.allocationUnitBytes) : null}
@@ -535,8 +577,8 @@ export function ConnectedCards({
           </div>
           {!batch ? (
             <p className="banner">
-              To prepare a card, first create a batch in the “Devices in this batch” pane above; a batch of one is fine.
-              Each card becomes one of its units. Checking a card needs no batch.
+              To prepare a card, first create a batch in the “Devices in this batch” pane above. A batch of 1 is fine.
+              Checking a card needs no batch.
             </p>
           ) : null}
           <p className="card-help">
@@ -561,22 +603,30 @@ export function ConnectedCards({
  * What "Prepare this card" will do, said before it is pressed: everything it fixes, by the
  * titles in the list above — not only the one that made erasing necessary — and what it cannot.
  */
-function planText(plan: PreparationPlan, verdict: ReadinessVerdict, unit: string | null, batch: boolean, clusters: string | null): string {
-  if (!batch) return 'To prepare it, create a batch in the “Devices in this batch” pane above; a batch of one is fine.';
+function planText(
+  plan: PreparationPlan,
+  verdict: ReadinessVerdict,
+  unit: string | null,
+  batch: boolean,
+  clusters: string | null,
+  rename: string | null,
+): string {
+  if (!batch) return 'To prepare it, create a batch in the “Devices in this batch” pane above. A batch of 1 is fine.';
   if (!unit) {
-    return 'Every unit in the batch already has a card, so there is no unit to prepare this one for. Add units in the “Devices in this batch” pane above.';
+    return 'Every device in the batch already has a card, so there is none to prepare this one for. Add devices in the “Devices in this batch” pane above.';
   }
   const cannot = (titles: string[]) => (titles.length ? ` It cannot fix ${listed(titles)}.` : '');
   switch (plan.kind) {
     case 'blocked':
       return `It cannot be prepared. ${plan.reason}`;
     case 'erase':
-      return `“Prepare this card” will erase it and set it up again as unit ${unit}${clusters ? `, with ${clusters} clusters` : ''}. That fixes ${listed(plan.fixes)}.${cannot(plan.cannotFix)}`;
+      return `“Prepare this card” will erase it and set it up again as ${unit}${clusters ? `, with ${clusters} clusters` : ''}. That fixes ${listed(plan.fixes)}.${cannot(plan.cannotFix)}`;
     case 'settings':
-      return `“Prepare this card” will write unit ${unit}’s settings to it, which fixes ${listed(plan.fixes)}. Nothing needs erasing.${cannot(plan.cannotFix)}`;
+      return `“Prepare this card” will write ${unit}’s settings to it${rename ? ` and name it ${rename}` : ''}, which fixes ${listed(plan.fixes)}. Nothing needs erasing.${cannot(plan.cannotFix)}`;
     default:
+      if (rename) return `“Prepare this card” will name it ${rename}. Nothing else needs doing.`;
       return verdict.status === 'ready'
-        ? `Nothing to prepare: it is ready for unit ${unit}.`
+        ? `Nothing to prepare: it is ready for ${unit}.`
         : 'Nothing to prepare: preparing would not change anything noted above.';
   }
 }
@@ -585,6 +635,7 @@ function CardResult({
   state,
   verdict,
   plan,
+  rename,
   unit,
   batch,
   clusters,
@@ -592,6 +643,7 @@ function CardResult({
   state: CardState;
   verdict: ReadinessVerdict;
   plan: PreparationPlan;
+  rename: string | null;
   unit: string | null;
   batch: boolean;
   clusters: string | null;
@@ -611,8 +663,11 @@ function CardResult({
           </div>
         )
       ) : outcome?.kind === 'settings' ? (
-        <div className="banner ok">
-          <strong>Settings written</strong> Unit {unit}’s {CONFIG_FILE_NAME} is on the card.
+        <div className={`banner ${outcome.renameError ? 'warn' : 'ok'}`}>
+          <strong>{outcome.written ? 'Settings written' : 'Card renamed'}</strong>
+          {outcome.written ? `${unit}’s ${CONFIG_FILE_NAME} is on the card. ` : ''}
+          {outcome.renamed ? `The card is named ${outcome.renamed}.` : ''}
+          {outcome.renameError ? `It kept its name, since it could not be renamed: ${outcome.renameError}` : ''}
         </div>
       ) : null}
       <p className={`readiness-verdict ${verdict.status}`}>
@@ -639,7 +694,7 @@ function CardResult({
           {text}
         </p>
       ))}
-      <p className={`readiness-plan ${plan.kind}`}>{planText(plan, verdict, unit, batch, clusters)}</p>
+      <p className={`readiness-plan ${plan.kind}`}>{planText(plan, verdict, unit, batch, clusters, rename)}</p>
       {report?.identity ? <Identity identity={report.identity} /> : null}
     </div>
   );

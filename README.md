@@ -14,9 +14,9 @@ your browser and are never uploaded anywhere.
   label, dates and time zone. The dashboard checks the settings as you go, estimates how long the
   SD card and the battery will last, and writes the settings file onto the card. Settings you use
   again and again can be saved as a *protocol*.
-- **Prepare devices** in a batch: one set of settings, with each unit's own label, written card
+- **Prepare devices** in a batch: one set of settings, with each device's own label, written card
   after card. If the settings change after some cards are written, the dashboard marks those
-  cards to be prepared again, so every unit in a batch records the same way.
+  cards to be prepared again, so every device in a batch records the same way.
 - **Review a card** from a recorder that has come back: whether its self-test passed, whether and
   why it stopped early, battery and temperature over time, the health of its microphone, the hours
   it recorded against the hours it was meant to, and where it went, if it had GPS. A clock that

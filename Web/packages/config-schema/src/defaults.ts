@@ -16,7 +16,7 @@ import type { DeploymentConfig, PhaseConfig } from './types.js';
  *  - `maxAudioClips` is 60/hour rather than the firmware's 0. Zero disarms the
  *    amplitude trigger entirely (`num_clips_stored < max_clips` is never true),
  *    so a device configured with the firmware default in threshold mode records
- *    nothing at all. See FIRMWARE-FINDINGS.md #3.
+ *    nothing at all.
  *
  *  - `maxFrequencyHz` is the clamped ceiling rather than rate/2, so the value
  *    shown in the app is the value the device runs.

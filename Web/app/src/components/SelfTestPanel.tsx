@@ -112,7 +112,7 @@ export function SelfTestPanel({
             <strong>{results.passed ? 'All checks passed' : `FAILED — ${results.failedSubsystem}`}</strong>
             {results.passed
               ? 'Storage, motion, power, and the microphone path were all verified before this deployment began.'
-              : 'This unit reported a fault before recording started. The measurements below say which.'}
+              : 'This device reported a fault before recording started. The measurements below say which.'}
           </div>
 
           {clip ? (

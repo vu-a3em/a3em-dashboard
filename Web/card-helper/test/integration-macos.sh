@@ -33,6 +33,12 @@ for CLUSTER in 4096 131072; do
   call '{"op":"diagnose","volume":"'"$ID"'s1"}'; check clean reply.json
 done
 
+# Renamed as the person using the computer, with no password; the system sees the new name.
+call '{"op":"rename","volume":"'"$ID"'s1","label":"OWL_02"}'
+python3 -c 'import json,sys; r=json.load(open("reply.json")); sys.exit(0 if r.get("ok") and r.get("renamed") else "rename failed: %s" % r)'
+diskutil info "${ID}s1" | grep -q 'Volume Name: *OWL_02$' || { echo "rename: the system does not see OWL_02"; exit 1; }
+echo "rename: the system sees OWL_02"
+
 # The same job, through the worker's job directory rather than in this process.
 export A3EM_HELPER_WORKER=direct
 call '{"op":"challenge","device":"'"$ID"'","operation":"format"}'; TOKEN=$(check token reply.json)

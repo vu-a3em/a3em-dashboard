@@ -14,6 +14,7 @@ import {
 import {
   checkReadinessOfCards,
   prepareCards,
+  renameVolume,
   requestChallenge,
   writeCardConfig,
   type HelperDevice,
@@ -56,9 +57,19 @@ export function cardNameFor(label: string): string | null {
     : null;
 }
 
-/** The name a card is given when it is prepared: the unit's label, or else the formatter's default. */
+/** The name a card is given when it is prepared: the device's label, or else the formatter's default. */
 export function volumeLabelFor(label: string): string {
   return cardNameFor(label) ?? 'A3EM';
+}
+
+/**
+ * The name to give a card without erasing it: the device's label, where the card has another
+ * and the helper can rename it. None for a label that cannot be a card's name.
+ */
+export function renameFor(report: CardReadinessReport | null | undefined, label: string, canRename: boolean): string | null {
+  const name = cardNameFor(label);
+  if (!canRename || !name || !report?.volume) return null;
+  return report.volume.label === name ? null : name;
 }
 
 /** A card's reading judged for a unit, and the least that would make it ready for it. */
@@ -88,10 +99,23 @@ export function readCards(helper: Helper, ids: string[], track: (progress: TaskP
   );
 }
 
+/** What writing a device's settings did: the card as it now reads, and whether it was renamed. */
+export interface SettingsWritten {
+  report: CardReadinessReport | null;
+  renamed: boolean;
+  /** Why the card could not be renamed, when its settings were written but its name was not. */
+  renameError: string | null;
+}
+
 /**
- * The unit's settings, straight onto the card, erasing nothing; then the card read back, so what
- * is shown is what it now holds. A layout checked earlier is carried over rather than read again,
- * which would ask for the password once more.
+ * The device's settings, straight onto the card, erasing nothing, and the card given the
+ * device's name where it has another (`rename`); then the card read back, so what is shown is
+ * what it now holds. A layout checked earlier is carried over rather than read again, which
+ * would ask for the password once more. A card whose settings are already right is only
+ * renamed (`write` false).
+ *
+ * The name is the lesser part: a card that could not be renamed still has its settings, and
+ * says why it kept its name.
  */
 export async function writeUnitSettings(
   device: HelperDevice,
@@ -99,13 +123,32 @@ export async function writeUnitSettings(
   label: string,
   earlier: CardReadinessReport | null,
   track: (progress: TaskProgress) => void,
-): Promise<CardReadinessReport | null> {
+  rename: string | null = null,
+  write = true,
+): Promise<SettingsWritten> {
   const volume = device.volumes[0];
   if (!volume) throw new Error('The card has no volume to write the settings to.');
-  await writeCardConfig(volume.id, serializeConfig({ ...config, deviceLabel: label }));
+  if (write) await writeCardConfig(volume.id, serializeConfig({ ...config, deviceLabel: label }));
+  let renamed = false;
+  let renameError: string | null = null;
+  if (rename) {
+    try {
+      renamed = await renameVolume(volume.id, rename);
+    } catch (failure) {
+      if (!write) throw failure;
+      renameError = failure instanceof Error ? failure.message : String(failure);
+    }
+  }
   const [read] = await checkReadinessOfCards([device.id], false, track);
-  if (read && !read.layout && earlier?.layout) return { ...read, layout: earlier.layout, layoutSkipped: undefined };
-  return read ?? null;
+  const report = read && !read.layout && earlier?.layout ? { ...read, layout: earlier.layout, layoutSkipped: undefined } : (read ?? null);
+  return { report, renamed, renameError };
+}
+
+/** What writing a device's settings did, in a line: "settings written, card named OWL_02". */
+export function settingsSummary(written: SettingsWritten, name: string | null, write: boolean): string {
+  const parts = [write ? 'settings written' : null, written.renamed ? `card named ${name}` : null].filter(Boolean);
+  const kept = written.renameError ? `; it kept its name, since it could not be renamed: ${written.renameError}` : '';
+  return `${parts.join(', ')}; nothing needed erasing${kept}`;
 }
 
 /** A card confirmed for erasing, as the helper described it then. */

@@ -581,6 +581,29 @@ export async function writeCardConfig(volume: string, text: string): Promise<voi
   await call({ op: 'writeConfig', volume, text });
 }
 
+/**
+ * Names a card, leaving it mounted: false when it already had the name. Where the system asks
+ * for administrator rights to rename a drive, as Windows does, the reply waits for the prompt.
+ */
+export async function renameVolume(volume: string, label: string): Promise<boolean> {
+  const reply = await call<{ renamed: boolean }>({ op: 'rename', volume, label }, { silenceMs: 5 * 60_000 });
+  return reply.renamed;
+}
+
+/** Whether this helper can rename a card: releases before the operation cannot. */
+export function helperRenames(identity: HelperIdentity | null): boolean {
+  return identity?.implemented.includes('rename') ?? false;
+}
+
+/**
+ * Whether renaming a card moves the folder the dashboard has open on it. On macOS and Linux a
+ * card is mounted under its name, so the folder's path goes with the old one; on Windows the
+ * drive letter stays.
+ */
+export function renameMovesFolder(identity: HelperIdentity | null): boolean {
+  return identity?.platform !== 'win32';
+}
+
 /** One thing the helper's own check found wrong, in words. */
 export interface FilesystemFinding {
   kind: string;

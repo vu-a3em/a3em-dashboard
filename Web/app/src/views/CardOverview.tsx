@@ -865,7 +865,7 @@ export function CardOverview({
             title="Temperature"
             note={temperatureRange}
           >
-            <p className="hint">A flat trace can mean a buried or waterlogged unit</p>
+            <p className="hint">A flat trace can mean a buried or waterlogged device</p>
             <TimeSeriesChart
               points={plotted.map((t) => ({ timestamp: t.timestamp, value: t.temperatureC }))}
               color="var(--signal)"

@@ -37,15 +37,19 @@ const (
 	// back to the system's tool for what it cannot fix (internal/exfat).
 	KindCheck = "check"
 	KindFix   = "fix"
+	// KindRename names a card, on Windows, where the system renames a drive only for an
+	// administrator. Elsewhere the helper renames it as the person using the computer.
+	KindRename = "rename"
 )
 
 // Job is one piece of raw-device work, serializable for the elevated worker.
 type Job struct {
 	Kind    string   `json:"kind"`
 	Targets []Target `json:"targets,omitempty"`
-	// Volume and Repair are for a filesystem check.
+	// Volume and Repair are for a filesystem check; Volume and Label for a rename.
 	Volume string `json:"volume,omitempty"`
 	Repair bool   `json:"repair,omitempty"`
+	Label  string `json:"label,omitempty"`
 	// Destination is where an image is written.
 	Destination string `json:"destination,omitempty"`
 	// Owner is who should own files the job creates, when it runs as root on someone's behalf.
@@ -183,6 +187,8 @@ func Run(job Job, plat platform.Platform, report Reporter) Result {
 		return check(job, plat, report)
 	case KindFix:
 		return fix(job, plat, report)
+	case KindRename:
+		return rename(job, plat)
 	}
 	return Result{Error: "Unknown job.", Code: "unexpected"}
 }
@@ -202,6 +208,23 @@ func recheck(devices []platform.Device, target Target) error {
 		return &Failed{"The card changed since you confirmed. Check which card is connected and try again.", "bad-grant", ""}
 	}
 	return nil
+}
+
+// rename names the card's volume, once the device is confirmed to be the card it was.
+func rename(job Job, plat platform.Platform) Result {
+	devices, err := plat.ListDevices()
+	if err != nil {
+		return failure(err)
+	}
+	for _, target := range job.Targets {
+		if err := recheck(devices, target); err != nil {
+			return failure(err)
+		}
+	}
+	if err := plat.Rename(job.Volume, job.Label); err != nil {
+		return failure(err)
+	}
+	return Result{}
 }
 
 func prepare(plat platform.Platform, target Target, outcome *TargetResult, report Reporter) {

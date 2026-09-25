@@ -49,6 +49,13 @@ try {
   $v = Get-Volume -DriveLetter $letter
   Write-Host "Windows reports: $($v.FileSystem), $($v.AllocationUnitSize)-byte clusters, label $($v.FileSystemLabel)"
   if ($v.FileSystem -ne 'exFAT' -or $v.AllocationUnitSize -ne 32768 -or $v.FileSystemLabel -ne 'FIELD1') { throw 'Windows disagrees with the helper' }
+
+  # Renamed through the worker's job, which runs here since the runner is already elevated.
+  Invoke-Helper @{ op = 'rename'; volume = $volume; label = 'OWL_02' }
+  $renamed = Get-Content $reply | ConvertFrom-Json
+  if (-not $renamed.ok -or -not $renamed.renamed) { throw "rename failed: $(Get-Content $reply)" }
+  if ((Get-Volume -DriveLetter $letter).FileSystemLabel -ne 'OWL_02') { throw 'Windows does not see OWL_02' }
+  Write-Host 'rename: Windows sees OWL_02'
   Write-Host 'windows integration: passed'
 }
 finally {

@@ -13,7 +13,7 @@ runtime to install.
 | --- | --- |
 | `listDevices` | Removable cards only. The startup disk, internal disks, external drives, and anything outside 1 GiB–2 TiB never appear, so the page can never offer them. |
 | `readiness` | Everything about a card that can be learned without writing to it: its layout compared byte for byte with the reference, lock switch, contents, `_a3em.cfg`, free space, the card's identity (its CID register, where the reader exposes it), and what this computer recorded when it prepared it. The dashboard judges the facts with `judgeReadiness` in the schema package. |
-| `prepare` | For each card: the capacity probe, the write-latency test, the reference exFAT layout written and read back, the layout verified, the card mounted, and its unit's `_a3em.cfg` written. A batch is one operation, so it costs one administrator prompt; every card still needs its own confirmation. |
+| `prepare` | For each card: the capacity probe, the write-latency test, the reference exFAT layout written and read back, the layout verified, the card mounted, and its device's `_a3em.cfg` written. A batch is one operation, so it costs one administrator prompt; every card still needs its own confirmation. |
 | `verify` | The layout comparison on its own. |
 | `format` | `prepare` without the two tests, for a card that is known to be good. |
 | `diagnose` | [This helper's own check](#the-filesystem-check) of an exFAT card, read-only, the same on every platform; what is wrong in words, with the files it touches. A card that is not exFAT goes to the system's checker. Also hands over what logs and IMU files hold past their recorded end — the recorder records a file's length only when it syncs or closes it — for the dashboard to judge and add to their copies ([`internal/exfat/tails.go`](internal/exfat/tails.go)). |
@@ -22,6 +22,7 @@ runtime to install.
 | `chooseImage` | The system's own save dialog for a card's image (AppleScript on macOS, the desktop portal's — GNOME's, KDE's — on Linux, else zenity or kdialog, Windows Forms on Windows), then whether the image fits there: free space, and the 4 GB file limit of a FAT32 drive. `image` makes the same check itself before reading a byte, writes to `<name>.partial`, and moves it into place only once it is whole. Without a dialog — a Linux session with no portal, zenity or kdialog — the image goes in `Documents/A3EM card images`. |
 | `stop` | Stops a running `image` or `diagnose`, named by its request id; a stopped image's unfinished file is deleted. The page sends it for its Stop button, and the page closing stops them too. A `prepare`, `format` or `repair` is never stopped partway: a half-written card is worse than a slow one. |
 | `hello` | The version, platform and operations, and anything this computer lacks that the tools rely on — on Linux, `pkexec`, a polkit agent, `udisks2`, the exFAT driver, a save dialog — which `doctor` prints too, and the dashboard shows under "A3EM Card Helper" in its menu. |
+| `rename` | A card's new name, where it has another and nothing else needs changing: the dashboard renames it when it writes a device's settings without erasing the card. Nothing but the name changes, so it needs no confirmation. The system renames it as the person using the computer, except on Windows, which renames a drive only for an administrator; there it runs in the elevated worker. A dashboard that finds no `rename` in `hello` leaves the name as it is. |
 | `mount`, `unmount`, `eject`, `inspect`, `identify`, `writeConfig` | The small ones. |
 
 The helper reports facts; the dashboard decides what they mean. The rules for what the
@@ -36,7 +37,7 @@ golden test fails if the two ever disagree.
 [`internal/exfat`](internal/exfat) builds the whole card image itself rather than asking the
 system's formatter, so every card gets exactly the layout the recorders were validated against:
 an MBR with one exFAT partition at the 2 MiB mark, the FAT and cluster heap aligned to 1 MiB, the
-canonical up-case table, and the unit's label as the card's name where it can be one (at most 11
+canonical up-case table, and the device's label as the card's name where it can be one (at most 11
 letters, digits, spaces, hyphens and underscores), `A3EM` otherwise. Its tests compare it byte for byte with the recorded output of the
 Python formatter it was ported from, for 42 combinations of card size and cluster size
 (`internal/exfat/testdata/python-golden.json`).
@@ -122,6 +123,7 @@ checker satisfied and every file byte for byte as it was.
 | Raw access | `/dev/rdiskN`, `F_NOCACHE` | `/dev/sdX`, `O_DIRECT` | `\\.\PhysicalDriveN`, unbuffered |
 | Elevation | `security authorize` once, then `authopen` per device | `pkexec` | `Start-Process -Verb RunAs` |
 | Filesystem check | this helper's own; `fsck_exfat` for other filesystems and repairs | the same; `fsck.exfat` (exfatprogs) | the same; `chkdsk` |
+| Rename | `diskutil rename` | unmounted, renamed by udisks2 over D-Bus (by `exfatlabel` as root), mounted again | `Set-Volume`, elevated |
 | Save dialog | AppleScript `choose file name` | the XDG desktop portal's file chooser, over D-Bus ([`internal/dbus`](internal/dbus)); else zenity or kdialog | Windows Forms `SaveFileDialog` |
 | Card identity | CID, in the built-in reader | CID, in a native SD slot | reader only |
 
