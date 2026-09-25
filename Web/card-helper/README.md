@@ -18,7 +18,7 @@ ever worked on macOS.
 | `verify` | The layout comparison on its own. |
 | `format` | `prepare` without the two tests, for a card that is known to be good. |
 | `diagnose` | [This helper's own check](#the-filesystem-check) of an exFAT card, read-only, the same on every platform; what is wrong in words, with the files it touches. A card that is not exFAT goes to the system's checker. |
-| `repair` | This helper's own repair where the check shows it fixes everything — the allocation bitmap rebuilt from the files, or a boot region restored from its intact copy — saving what it replaces first; otherwise the system's tool, `fsck_exfat` / `fsck.exfat` / `chkdsk`. |
+| `repair` | This helper's own repair where the check shows it fixes everything — the allocation bitmap rebuilt from the files, or a boot region restored from its intact copy — saving what it replaces first, in the state folder's `repairs`, kept 30 days and at most 256 MB; otherwise the system's tool, `fsck_exfat` / `fsck.exfat` / `chkdsk`. |
 | `image` | A sector-by-sector copy to a file, continuing past unreadable sectors. |
 | `chooseImage` | The system's own save dialog for a card's image (AppleScript on macOS, the desktop portal's — GNOME's, KDE's — on Linux, else zenity or kdialog, Windows Forms on Windows), then whether the image fits there: free space, and the 4 GB file limit of a FAT32 drive. `image` makes the same check itself before reading a byte, writes to `<name>.partial`, and moves it into place only once it is whole. Without a dialog — a Linux session with no portal, zenity or kdialog — the image goes in `Documents/A3EM card images`. |
 | `stop` | Stops a running `image` or `diagnose`, named by its request id; a stopped image's unfinished file is deleted. The page sends it for its Stop button, and the page closing stops them too. A `prepare`, `format` or `repair` is never stopped partway: a half-written card is worse than a slow one. |
@@ -213,6 +213,10 @@ installed helper speaks shows "Card tools: Update…" instead of calling it, so 
 before deploying a dashboard that needs it.
 
 Installed helpers do not update themselves: people install the new release over the old one.
+Publishing a release rebuilds the dashboard ([Pages workflow](../../.github/workflows/pages.yml)),
+which then knows the newest version from the tags, and "Card tools" says "update available" to
+anyone whose helper is older. A helper too old for the dashboard's protocol says "Update…"
+instead, as before.
 
 ### Signing credentials
 

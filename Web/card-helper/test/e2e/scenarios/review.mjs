@@ -63,7 +63,7 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
   out.repair = await settlePane(evaluate, sleep);
   out.repaired = await evaluate(`[...${pane}.querySelectorAll('.card-result')].map((r) => $text(r)).join(' || ')`);
   expect('the repair succeeds', /was repaired/.test(out.repaired ?? ''), out.repaired);
-  expect('it says what it repaired, and where the old bytes are', /record of which space is in use, rebuilt from the files/.test(out.repaired ?? '') && /saved in/.test(out.repaired ?? ''), out.repaired);
+  expect('it says what it repaired, and where the old bytes are', /record of which space is in use, rebuilt from the files/.test(out.repaired ?? '') && /kept in .* for 30 days/.test(out.repaired ?? ''), out.repaired);
   out.reopened = await until(evaluate, sleep, `(() => { const t = $text(document.querySelector('.topbar')); return t.includes('Eject') ? t : null; })()`, 300);
   expect('the card is open again afterward', Boolean(out.reopened), await evaluate(`$text(document.querySelector('.topbar'))`));
   out.probesLeft = Number(await (await fetch('http://127.0.0.1:8790/probes?role=dirty')).text());

@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf16"
 
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/blockdev"
@@ -367,5 +369,33 @@ func TestTheFilesAMisMarkedRegionTouchesAreCounted(t *testing.T) {
 	}
 	if !strings.Contains(f.Message, "25 files use") {
 		t.Errorf("the message should count the files: %s", f.Message)
+	}
+}
+
+func TestSavedRepairsAreLetGoOfInTime(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 9, 25, 12, 0, 0, 0, time.Local)
+	defer func(limit int64) { maxSaved = limit }(maxSaved)
+	maxSaved = 256
+	write := func(name string, size int) {
+		if err := os.WriteFile(filepath.Join(dir, name), make([]byte, size), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("2026-08-01 090000 allocation bitmap.bin", 10)  // older than 30 days
+	write("2026-09-20 090000 allocation bitmap.bin", 200) // recent, but the oldest of two over the cap
+	write("2026-09-24 090000 allocation bitmap.bin", 100)
+	write("2026-09-24 100000 boot region.bin", 10)
+	write("notes.txt", 10)          // not the helper's
+	write("2026-09-24 bad.bin", 10) // not named as a repair names them
+	PruneSaved(dir, now)
+	var left []string
+	entries, _ := os.ReadDir(dir)
+	for _, entry := range entries {
+		left = append(left, entry.Name())
+	}
+	want := []string{"2026-09-24 090000 allocation bitmap.bin", "2026-09-24 100000 boot region.bin", "2026-09-24 bad.bin", "notes.txt"}
+	if strings.Join(left, "|") != strings.Join(want, "|") {
+		t.Fatalf("left %q, want %q", left, want)
 	}
 }

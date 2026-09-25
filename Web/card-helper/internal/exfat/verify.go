@@ -97,7 +97,8 @@ func Verify(dev blockdev.Device) (LayoutCheck, error) {
 }
 
 // inUse recognizes the differences that using a card leaves behind, as opposed to damage or a
-// different formatter's layout. The same rules the retired Python formatter's verify applied.
+// different formatter's layout. The same rules the retired Python formatter's verify applied,
+// and one it lacked, for the FAT.
 func inUse(name string, expected, actual []byte) (string, bool) {
 	var diffs []int
 	for i := range expected {
@@ -107,38 +108,71 @@ func inUse(name string, expected, actual []byte) (string, bool) {
 	}
 	switch name {
 	case "boot region", "boot region backup":
-		// VolumeFlags (the dirty bit) and PercentInUse change with use, and are excluded from the
-		// boot checksum for exactly that reason.
-		for _, d := range diffs {
-			if d != 0x6a && d != 0x6b && d != 0x70 {
-				return "", false
-			}
-		}
-		return "flags and usage updated since formatting", true
+		return bootInUse(diffs)
+	case "file allocation table":
+		return fatInUse(expected, actual)
 	case "root directory":
-		for _, d := range diffs {
-			if d < 96 {
-				return "", false
-			}
-		}
-		entries := 0
-		for offset := 96; offset < len(actual); offset += 32 {
-			if actual[offset] != 0 {
-				entries++
-			}
-		}
-		return fmt.Sprintf("%d directory entries added since formatting", entries), true
+		return rootInUse(diffs, actual)
 	case "allocation bitmap":
-		extra := 0
-		for _, d := range diffs {
-			if expected[d]&^actual[d] != 0 {
-				return "", false // a metadata cluster marked free
-			}
-			for bits := actual[d] &^ expected[d]; bits != 0; bits &= bits - 1 {
-				extra++
-			}
-		}
-		return fmt.Sprintf("%d clusters in use by files", extra), true
+		return bitmapInUse(diffs, expected, actual)
 	}
 	return "", false
+}
+
+// bootInUse: VolumeFlags (the dirty bit) and PercentInUse change with use, and are excluded
+// from the boot checksum for exactly that reason.
+func bootInUse(diffs []int) (string, bool) {
+	for _, d := range diffs {
+		if d != 0x6a && d != 0x6b && d != 0x70 {
+			return "", false
+		}
+	}
+	return "flags and usage updated since formatting", true
+}
+
+// fatInUse: the formatted FAT's first sector also holds the entries of the first clusters after
+// the card's own structures, which files chain through once written. Those may be anything; the
+// entries the format wrote may not change.
+func fatInUse(expected, actual []byte) (string, bool) {
+	chained := 0
+	for i := 0; i+4 <= len(expected); i += 4 {
+		want, got := binary.LittleEndian.Uint32(expected[i:]), binary.LittleEndian.Uint32(actual[i:])
+		if want != 0 && got != want {
+			return "", false
+		}
+		if want == 0 && got != 0 {
+			chained++
+		}
+	}
+	return fmt.Sprintf("%d cluster entries written by files", chained), true
+}
+
+// rootInUse: entries after the label, bitmap and up-case entries are the files added since.
+func rootInUse(diffs []int, actual []byte) (string, bool) {
+	for _, d := range diffs {
+		if d < 96 {
+			return "", false
+		}
+	}
+	entries := 0
+	for offset := 96; offset < len(actual); offset += 32 {
+		if actual[offset] != 0 {
+			entries++
+		}
+	}
+	return fmt.Sprintf("%d directory entries added since formatting", entries), true
+}
+
+// bitmapInUse: clusters may be marked in use by files, but the card's own may not be freed.
+func bitmapInUse(diffs []int, expected, actual []byte) (string, bool) {
+	extra := 0
+	for _, d := range diffs {
+		if expected[d]&^actual[d] != 0 {
+			return "", false // a metadata cluster marked free
+		}
+		for bits := actual[d] &^ expected[d]; bits != 0; bits &= bits - 1 {
+			extra++
+		}
+	}
+	return fmt.Sprintf("%d clusters in use by files", extra), true
 }

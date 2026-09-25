@@ -45,7 +45,8 @@ export async function stopACopy(evaluate, sleep, box, expect, out) {
   expect('the copy stops, and says the unfinished image is gone', /Stopped\. The unfinished image was deleted/.test(out.stopped), out.stopped);
   out.imagesAfterStop = (await images()).filter((name) => !before.includes(name));
   expect('and no image or partial file is left', out.imagesAfterStop.length === 0, out.imagesAfterStop);
-  expect('no copy is reported for a stopped copy', !/copied/.test((await evaluate(`$text(${box}.querySelector('.card-result'))`)) ?? ''));
+  const results = await evaluate(`[...${box}.querySelectorAll('.card-result')].map((r) => $text(r)).join(' || ')`);
+  expect('no copy is reported for a stopped copy', !/The whole card was copied|Copied, except/.test(results ?? ''), results);
   // Until the page has let go of the stopped copy, the next one is not offered.
   await until(evaluate, sleep, `!$btn('Copy to an image file', ${box})?.disabled`, 100);
 }

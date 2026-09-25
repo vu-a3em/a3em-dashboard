@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/blockdev"
@@ -62,7 +64,8 @@ func Repair(dev blockdev.Device, saveDir string) (RepairResult, error) {
 		return RepairResult{}, ErrNotFixableHere
 	}
 	var result RepairResult
-	stamp := time.Now().Format("2006-01-02 150405")
+	PruneSaved(saveDir, time.Now())
+	stamp := time.Now().Format(savedStamp)
 	save := func(what string, data []byte) error {
 		if err := os.MkdirAll(saveDir, 0o755); err != nil {
 			return err
@@ -190,4 +193,60 @@ func (v *volume) repairBitmap(save func(string, []byte) error) error {
 	}
 	boot[112] = byte(used * 100 / v.clusterCount)
 	return blockdev.WriteAll(v.dev, boot, v.start*BytesPerSector, nil)
+}
+
+// What a repair replaced is kept this long, and the folder no larger than this: long enough to
+// notice a repair gone wrong, without the folder growing for as long as the helper is installed.
+const (
+	keepSaved   = 30 * 24 * time.Hour
+	savedStamp  = "2006-01-02 150405"
+	savedSuffix = ".bin"
+)
+
+var maxSaved int64 = 256 << 20
+
+// PruneSaved deletes what repairs saved more than keepSaved ago, then the oldest until the
+// rest fit in maxSaved. Only files named as a repair names them are touched.
+func PruneSaved(dir string, now time.Time) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	type save struct {
+		path  string
+		at    time.Time
+		bytes int64
+	}
+	var kept []save
+	var total int64
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, savedSuffix) || len(name) < len(savedStamp) {
+			continue
+		}
+		at, err := time.ParseInLocation(savedStamp, name[:len(savedStamp)], time.Local)
+		if err != nil {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		if now.Sub(at) > keepSaved {
+			os.Remove(path)
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		kept = append(kept, save{path, at, info.Size()})
+		total += info.Size()
+	}
+	sort.Slice(kept, func(i, j int) bool { return kept[i].at.Before(kept[j].at) })
+	for _, s := range kept {
+		if total <= maxSaved {
+			break
+		}
+		if os.Remove(s.path) == nil {
+			total -= s.bytes
+		}
+	}
 }

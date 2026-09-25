@@ -73,3 +73,26 @@ func TestVerifyExplainsAForeignCard(t *testing.T) {
 		t.Fatalf("%+v %v", check, err)
 	}
 }
+
+func TestACardWithRecordingsStillHasTheReferenceLayout(t *testing.T) {
+	// Files with FAT chains, as a recorder or a computer writes them, among the first clusters,
+	// whose entries share the FAT's first sector with the card's own structures.
+	c, _ := withFiles(t)
+	check, err := Verify(c.dev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !check.Reference {
+		t.Fatalf("a card in use was reported as not having the reference layout: %+v", check.Regions)
+	}
+	for _, region := range check.Regions {
+		if region.Name == "file allocation table" && (region.Status != "in-use" || region.Note == "") {
+			t.Errorf("the FAT should be reported as in use: %+v", region)
+		}
+	}
+	// A chain of the card's own structures changed is still a different layout.
+	c.fatEntry(uint32(c.l.BitmapCluster), 0x0fffffff)
+	if check, _ := Verify(c.dev); check.Reference {
+		t.Fatal("a changed chain of the card's own structures was accepted")
+	}
+}

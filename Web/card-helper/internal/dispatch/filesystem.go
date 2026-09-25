@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/exfat"
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/grant"
@@ -74,6 +75,8 @@ func (d *Dispatcher) diagnose(req protocol.Request) (reply, error) {
 	}
 	stop, done := d.stoppable(req.ID)
 	defer done()
+	// What past repairs saved is let go of in time, repair or not.
+	exfat.PruneSaved(filepath.Join(d.Grants.Dir, "repairs"), time.Now())
 	job := jobs.Job{Kind: jobs.KindCheck, Stop: stop, Targets: []jobs.Target{{Device: *device, Fingerprint: grant.Fingerprint(*device), RawPath: d.Plat.RawPath(*device)}}}
 	result, err := d.long(req, func(report jobs.Reporter) (jobs.Result, error) {
 		return d.Execute(job, []string{d.Plat.RawPath(*device)}, report, "check the filesystem on "+describeCard(*device))
