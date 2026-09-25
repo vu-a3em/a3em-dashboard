@@ -573,9 +573,7 @@ function planText(plan: PreparationPlan, verdict: ReadinessVerdict, unit: string
     case 'erase':
       return `“Prepare this card” will erase it and set it up again as unit ${unit}${clusters ? `, with ${clusters} clusters` : ''}. That fixes ${listed(plan.fixes)}.${cannot(plan.cannotFix)}`;
     case 'settings':
-      return `“Prepare this card” will write unit ${unit}’s settings to it, which fixes ${listed(plan.fixes)}. Nothing needs erasing.${
-        plan.leaves.length ? ` It leaves ${listed(plan.leaves)} as it is; the recorder does not mind.` : ''
-      }${cannot(plan.cannotFix)}`;
+      return `“Prepare this card” will write unit ${unit}’s settings to it, which fixes ${listed(plan.fixes)}. Nothing needs erasing.${cannot(plan.cannotFix)}`;
     default:
       return verdict.status === 'ready'
         ? `Nothing to prepare: it is ready for unit ${unit}.`

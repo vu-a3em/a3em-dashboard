@@ -76,7 +76,10 @@ export interface CardReadinessReport {
 export interface ReadinessExpectation {
   /** The exact `_a3em.cfg` this card should hold. */
   configText?: string | null;
-  /** The volume label the card should carry. */
+  /**
+   * The name the card is given when prepared for this unit, where the unit's label can be one.
+   * Left out for a label too long to be a card's name: then no name is expected of it.
+   */
   volumeLabel?: string | null;
   /** The deployment's recommended allocation unit. */
   allocationUnitBytes?: number | null;
@@ -106,11 +109,10 @@ export interface ReadinessCheck {
   detail: string;
   /**
    * What fixes it, where preparing can: `prepare`, only erasing and setting the card up again;
-   * `settings`, writing its configuration, which erasing does too; `relabel`, the card's name,
-   * which erasing sets but is no reason to erase. Absent when it passed, was not checked, or is
-   * something preparing cannot change — a lock switch, a counterfeit, a card too small.
+   * `settings`, writing its configuration, which erasing does too. Absent when it passed, was not
+   * checked, or is something preparing cannot change — a lock switch, a counterfeit, a card too small.
    */
-  fix?: 'prepare' | 'settings' | 'relabel';
+  fix?: 'prepare' | 'settings';
 }
 
 export interface ReadinessVerdict {
@@ -292,16 +294,19 @@ export function judgeReadiness(report: CardReadinessReport, expected: ReadinessE
     );
   }
 
+  /*
+    The card's name, which the recorder never reads: a card named otherwise is as ready as one
+    named for its unit, so a different name is a note rather than a check that could make it
+    less than ready. Writing only the settings leaves the name as it was, so a card prepared
+    again as another unit keeps the name it had.
+  */
   if (expected.volumeLabel && report.volume) {
     const label = report.volume.label ?? '';
     if (label === expected.volumeLabel) {
       add('label', 'Card name matches', 'pass', `The card is named ${label}.`);
     } else {
-      add(
-        'label',
-        'Card name differs',
-        'warn',
-        `The card is named ${label || 'nothing'}, not ${expected.volumeLabel}. The recorder does not mind; it only makes the card harder to tell apart.`,
+      notes.push(
+        `The card is named ${label || 'nothing'} rather than ${expected.volumeLabel}. The recorder does not read the name; it only helps people tell cards apart.`,
       );
     }
   }
@@ -337,17 +342,16 @@ export function judgeReadiness(report: CardReadinessReport, expected: ReadinessE
 }
 
 /** What fixes each check when it fails or warns. The rest are beyond what preparing can change. */
-const FIXES: Partial<Record<ReadinessCheckId, 'prepare' | 'settings' | 'relabel'>> = {
+const FIXES: Partial<Record<ReadinessCheckId, 'prepare' | 'settings'>> = {
   layout: 'prepare',
   format: 'prepare',
   empty: 'prepare',
   space: 'prepare',
   config: 'settings',
   'config-match': 'settings',
-  label: 'relabel',
 };
 
-function fixFor(id: ReadinessCheckId, status: ReadinessStatus): 'prepare' | 'settings' | 'relabel' | undefined {
+function fixFor(id: ReadinessCheckId, status: ReadinessStatus): 'prepare' | 'settings' | undefined {
   if (status === 'pass' || status === 'unknown') return undefined;
   // A card too small for the whole deployment is too small however it is prepared.
   if (id === 'space' && status === 'warn') return undefined;
@@ -365,13 +369,13 @@ function fixFor(id: ReadinessCheckId, status: ReadinessStatus): 'prepare' | 'set
  *  - `blocked` — preparing cannot help: the card is locked, or its capacity is counterfeit.
  *
  * Each names, by the checks' titles, everything it fixes — not only what made it necessary:
- * erasing also writes the configuration and names the card — and what it cannot fix, so
- * nothing is promised that will not happen. Writing settings also names what it leaves.
+ * erasing also writes the configuration — and what it cannot fix, so nothing is promised that
+ * will not happen.
  */
 export type PreparationPlan =
   | { kind: 'blocked'; reason: string }
   | { kind: 'erase'; fixes: string[]; cannotFix: string[] }
-  | { kind: 'settings'; fixes: string[]; leaves: string[]; cannotFix: string[] }
+  | { kind: 'settings'; fixes: string[]; cannotFix: string[] }
   | { kind: 'none' };
 
 export function planPreparation(verdict: ReadinessVerdict): PreparationPlan {
@@ -389,7 +393,7 @@ export function planPreparation(verdict: ReadinessVerdict): PreparationPlan {
   }
   const settings = verdict.checks.filter((check) => check.fix === 'settings');
   if (settings.length) {
-    return { kind: 'settings', fixes: titles(settings), leaves: titles(verdict.checks.filter((check) => check.fix === 'relabel')), cannotFix };
+    return { kind: 'settings', fixes: titles(settings), cannotFix };
   }
   return { kind: 'none' };
 }

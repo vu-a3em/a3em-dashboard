@@ -110,7 +110,6 @@ test('titles say what was found, so they never contradict the detail', () => {
   assert.equal(check(prepared(), 'empty')!.title, 'Card is empty');
   assert.equal(check(prepared({ config: { present: false, bytes: 0 } }), 'config')!.title, 'No configuration file');
   assert.equal(check(prepared({ device: { ...prepared().device, writeProtected: true } }), 'write-protect')!.title, 'Card is locked');
-  assert.equal(check(prepared({ volume: { ...prepared().volume!, label: 'CivicAlert' } }), 'label')!.title, 'Card name differs');
   assert.equal(check(prepared({ config: { present: false, bytes: 0 } }), 'empty')!.detail, 'Nothing is on it.');
   const folders = prepared({ contents: { files: 0, directories: 2, bytes: 0 } });
   assert.match(check(folders, 'empty')!.detail, /^It holds 2 folders from before\./);
@@ -170,7 +169,7 @@ test('a ready card needs nothing prepared', () => {
 
 test('a card missing only its configuration gets its settings, and nothing is erased', () => {
   const missing = planPreparation(judgeReadiness(prepared({ config: { present: false, bytes: 0 } }), expected));
-  assert.deepEqual(missing, { kind: 'settings', fixes: ['No configuration file'], leaves: [], cannotFix: [] });
+  assert.deepEqual(missing, { kind: 'settings', fixes: ['No configuration file'], cannotFix: [] });
   const other = planPreparation(judgeReadiness(prepared({ config: { present: true, text: OTHER, bytes: OTHER.length } }), expected));
   assert.equal(other.kind, 'settings');
 });
@@ -184,20 +183,24 @@ test('what only erasing fixes means erasing, and it says everything erasing fixe
   });
   assert.deepEqual(planPreparation(judgeReadiness(report, { ...expected, requiredBytes: 90e9 })), {
     kind: 'erase',
-    // Not only what made erasing necessary: the configuration and the name come with it.
-    fixes: ['Layout differs from the reference', 'Card has files on it', 'No configuration file', 'Card name differs'],
+    // Not only what made erasing necessary: the configuration comes with it.
+    fixes: ['Layout differs from the reference', 'Card has files on it', 'No configuration file'],
     cannotFix: ['Card too small for the whole deployment'],
   });
 });
 
-test('writing settings says what it leaves as it is', () => {
-  const report = prepared({ config: { present: false, bytes: 0 }, volume: { ...prepared().volume!, label: 'CivicAlert' } });
-  assert.deepEqual(planPreparation(judgeReadiness(report, expected)), {
-    kind: 'settings',
-    fixes: ['No configuration file'],
-    leaves: ['Card name differs'],
-    cannotFix: [],
-  });
+test('a card named otherwise is noted, and is as ready as one named for its unit', () => {
+  const renamed = judgeReadiness(prepared({ volume: { ...prepared().volume!, label: 'sdfa_01' } }), expected);
+  assert.equal(renamed.status, judgeReadiness(prepared(), expected).status);
+  assert.equal(renamed.checks.some((item) => item.id === 'label'), false);
+  assert.match(renamed.notes.join(' '), /named sdfa_01 rather than FIELD1\. The recorder does not read the name/);
+  assert.equal(check(prepared(), 'label')!.title, 'Card name matches');
+});
+
+test('no name is expected where the unit has none a card can carry', () => {
+  const verdict = judgeReadiness(prepared({ volume: { ...prepared().volume!, label: 'sdfa_01' } }), { ...expected, volumeLabel: null });
+  assert.equal(verdict.checks.some((item) => item.id === 'label'), false);
+  assert.doesNotMatch(verdict.notes.join(' '), /named/);
 });
 
 test('a card too small, a slow card, or a different name does not call for erasing', () => {

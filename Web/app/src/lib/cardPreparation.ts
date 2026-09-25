@@ -48,12 +48,17 @@ export function planFor(config: DeploymentConfig, firmware: FirmwareProfile, siz
   return { allocationUnitBytes: allocation.recommendedBytes, requiredBytes: Number.isFinite(required) ? required : null };
 }
 
-/** The unit's label as the volume's name, where exFAT allows it; otherwise the formatter's default. */
-export function volumeLabelFor(label: string): string {
+/** The unit's label as the card's name, where exFAT allows it: at most 11 characters, and not all of them. */
+export function cardNameFor(label: string): string | null {
   const trimmed = label.trim();
   return trimmed && validateFormatRequest({ device: 'x', allocationUnitBytes: 32768, label: trimmed }).length === 0
     ? trimmed
-    : 'A3EM';
+    : null;
+}
+
+/** The name a card is given when it is prepared: the unit's label, or else the formatter's default. */
+export function volumeLabelFor(label: string): string {
+  return cardNameFor(label) ?? 'A3EM';
 }
 
 /** A card's reading judged for a unit, and the least that would make it ready for it. */
@@ -65,7 +70,8 @@ export function judgeCard(
 ): { verdict: ReadinessVerdict; plan: PreparationPlan } {
   const verdict = judgeReadiness(report, {
     configText: label ? serializeConfig({ ...config, deviceLabel: label }) : null,
-    volumeLabel: label ? volumeLabelFor(label) : null,
+    // A label too long to be a name leaves any name as good as the default.
+    volumeLabel: label ? cardNameFor(label) : null,
     allocationUnitBytes: plan?.allocationUnitBytes ?? null,
     requiredBytes: plan?.requiredBytes ?? null,
   });
