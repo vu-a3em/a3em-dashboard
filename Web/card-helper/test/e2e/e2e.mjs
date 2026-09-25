@@ -23,7 +23,7 @@ const HELPER = resolve(args.helper ?? '');
 const CARDS = JSON.parse(readFileSync(args.cards, 'utf8'));
 const APP = resolve(args.app ?? join(HERE, '../../../app/dist'));
 const OUT = resolve(args.out ?? join(process.cwd(), 'e2e-results'));
-const ONLY = (args.only ?? 'configure,recover,prepare,review,match').split(',');
+const ONLY = (args.only ?? 'configure,recover,prepare,review,prepare-open,match').split(',');
 const WORK = mkdtempSync(join(tmpdir(), 'a3em-e2e-'));
 const PAGE_PORT = 8768;
 const BRIDGE_PORT = 8790;
@@ -123,6 +123,21 @@ const bridge = createServer((req, res) => {
     if (req.url === '/images') {
       const folder = CARDS.localImageDir ?? CARDS.imageDir ?? WORK;
       res.end(JSON.stringify(existsSync(folder) ? readdirSync(folder).filter((name) => /\.img|\.partial/.test(name)) : []));
+      return;
+    }
+    // A file left on a test card, as a card reused without copying off leaves one: onto a test
+    // card's own mount, and only a plain path within it.
+    if (req.url === '/put') {
+      const { role, path, bytes } = JSON.parse(body);
+      const mount = mountOf(role);
+      if (!mount || typeof path !== 'string' || !/^[\w.-]+(\/[\w.-]+)*$/.test(path) || path.split('/').includes('..')) {
+        res.writeHead(400);
+        res.end();
+        return;
+      }
+      mkdirSync(join(mount, dirname(path)), { recursive: true });
+      writeFileSync(join(mount, path), Buffer.alloc(Number(bytes) || 0, 7));
+      res.end('ok');
       return;
     }
     // The picker stand-in's marker file, written only onto the picked card's own volume.

@@ -6,19 +6,29 @@ name: Card helper
 # system's checker, on a volume the system formatted and wrote and then damaged four ways.
 # No real device is ever visible to these runs; A3EM_HELPER_VIRTUAL_ONLY hides them.
 
+# Not for the notes, or the end-to-end scripts, which run on a computer rather than here.
 on:
   push:
     paths:
       - 'Web/card-helper/**'
+      - '!Web/card-helper/**/*.md'
+      - '!Web/card-helper/test/e2e/**'
       - '.github/workflows/card-helper.yml'
   pull_request:
     paths:
       - 'Web/card-helper/**'
+      - '!Web/card-helper/**/*.md'
+      - '!Web/card-helper/test/e2e/**'
       - '.github/workflows/card-helper.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# A newer push to the same branch supersedes a run still going.
+concurrency:
+  group: card-helper-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -44,6 +54,13 @@ jobs:
         run: |
           go vet ./...
           go test ./...
+
+      # The extension's ID is written into the helper's registration; the dashboard's CI checked
+      # it too, but no longer runs for the helper alone.
+      - name: Extension ID matches
+        if: runner.os == 'Linux'
+        working-directory: Web
+        run: node tools/sync-extension-manifest.mjs --check
 
       - name: Build
         shell: bash

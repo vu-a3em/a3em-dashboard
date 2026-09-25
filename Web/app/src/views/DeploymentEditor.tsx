@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   applyProtocol,
   defaultConfig,
@@ -65,9 +65,15 @@ import { ProtocolLibrary } from '../components/ProtocolLibrary';
 import { ProtocolSave } from '../components/ProtocolSave';
 import { Pane } from '../components/Pane';
 import { TabLink, WithTabLinks } from '../components/TabLink';
+import { HelperOffer } from '../components/HelperOffer';
 import { ZonedDateTimeInput } from '../components/ZonedDateTimeInput';
 import { cardChecks as checkCard, type CardCheck } from '../lib/cardChecks';
 import { detectOs } from '../lib/helperInstall';
+import { useConfigurePrepared, type ConfigurePrepared } from '../lib/configurePrepared';
+import { loadPrepareFromConfigure } from '../lib/helperViews';
+import type { Helper } from '../lib/useHelper';
+
+const PrepareFromConfigure = lazy(() => loadPrepareFromConfigure().then((module) => ({ default: module.PrepareFromConfigure })));
 
 type Card = ReturnType<typeof useCard>;
 
@@ -88,6 +94,7 @@ export function DeploymentEditor({
   draft,
   library,
   cardDevice,
+  helper,
   onPrepareDevices,
 }: Readonly<{
   card: Card;
@@ -99,6 +106,8 @@ export function DeploymentEditor({
   library: ReturnType<typeof useProtocols>;
   /** The physical card the open folder is on, where the card helper can tell. */
   cardDevice?: CardDevice;
+  /** The card tools, which prepare the open card rather than only write its configuration. */
+  helper?: Helper;
   /** Opens "Prepare devices", where the card tools format cards. */
   onPrepareDevices?: () => void;
 }>) {
@@ -226,17 +235,25 @@ export function DeploymentEditor({
     since the verdict is about the card, and the configuration may be meant for another one.
   */
   const erasing = cardDevice?.device?.compatibility && !cardDevice.device.compatibility.usable ? cardDevice.device.compatibility : null;
+  /*
+    With the card tools, and the open folder matched to its card, the card is prepared rather
+    than only given its configuration: checked, then set up again where it needs to be.
+  */
+  const preparing = cardReady && helper?.status === 'ready' && cardDevice?.device ? cardDevice.device : null;
   const checks = useMemo(() => {
     if (!cardReady) return [];
     const found = checkCard(card.contents);
     if (erasing) {
       found.push({
         severity: 'warning',
-        message: `The recorder would erase this card when it starts, configuration and all: ${erasing.issues[0]?.message ?? 'its format does not suit the firmware.'} Prepare it under “Prepare devices” first.`,
+        message: `The recorder would erase this card when it starts, configuration and all: ${erasing.issues[0]?.message ?? 'its format does not suit the firmware.'} ${
+          preparing ? 'Preparing it sets it up again.' : 'Prepare it under “Prepare devices” first.'
+        }`,
       });
     }
     return found;
-  }, [cardReady, card.contents, erasing]);
+  }, [cardReady, card.contents, erasing, preparing]);
+  const [prepared, setPrepared] = useConfigurePrepared();
   const [writtenSummary, setWrittenSummary] = useState<string | null>(null);
 
   const write = async () => {
@@ -938,6 +955,32 @@ export function DeploymentEditor({
         onReconnect={() => void card.reconnect()}
         cardChecks={checks}
         writtenSummary={writtenSummary}
+        preparer={
+          preparing && helper ? (
+            <Suspense fallback={null}>
+              <PrepareFromConfigure
+                helper={helper}
+                device={preparing}
+                cardName={card.name}
+                config={config}
+                firmware={card.targetFirmware}
+                disabled={blocking.length > 0 || checks.some((check) => check.severity === 'error')}
+                onSettingsWritten={() => void card.rescan()}
+                onErased={(label) => void card.erased(`${card.name ?? 'The card'} was erased to prepare it as ${label}`)}
+              />
+            </Suspense>
+          ) : null
+        }
+        prepared={prepared}
+        onDismissPrepared={() => setPrepared(null)}
+        helperOffer={
+          helper ? (
+            <HelperOffer helper={helper} as="note">
+              Or let the dashboard do it: with the A3EM Card Helper, a small program with a browser extension, the{' '}
+              <TabLink to="batch" /> page formats the card for you, and checks it too.
+            </HelperOffer>
+          ) : null
+        }
         timezone={config.timezone}
         onPrepareDevices={cardDevice?.available ? onPrepareDevices : undefined}
         protocolPanel={
@@ -1057,6 +1100,10 @@ function Forecast({
   timezone,
   protocolPanel,
   onPrepareDevices,
+  preparer,
+  prepared,
+  onDismissPrepared,
+  helperOffer,
 }: Readonly<{
   plan: ReturnType<typeof forecast>;
   allocation: ReturnType<typeof recommendAllocationUnit>;
@@ -1083,6 +1130,13 @@ function Forecast({
   protocolPanel: React.ReactNode;
   /** With the card tools, where formatting is done: in their place of the manual steps. */
   onPrepareDevices?: () => void;
+  /** With the card tools and the card open, "Prepare {card}…", in place of writing its configuration. */
+  preparer: ReactNode;
+  /** What was last done from here, which outlasts a card erased by it. */
+  prepared: ConfigurePrepared | null;
+  onDismissPrepared: () => void;
+  /** Without the card tools: that with them, the dashboard formats the card itself. */
+  helperOffer: ReactNode;
 }>) {
   const usedPercent = Math.min(100, plan.cardUsedFraction * 100);
   const fillsEarly = plan.cardFullAt !== null;
@@ -1253,15 +1307,18 @@ function Forecast({
               Use the <TabLink to="batch" /> page to do it.
             </>
           ) : onPrepareDevices ? null : allocation.verdict === 'wasteful' || allocation.actualBytes === null ? (
-            <ol className="format-steps">
-              {formatSteps.map((step) => (
-                <li key={step.detail}>
-                  {step.detail}
-                  {/* Its own line: a shell command run out of a sentence is easy to mis-copy. */}
-                  {step.command ? <code>{step.command}</code> : null}
-                </li>
-              ))}
-            </ol>
+            <>
+              <ol className="format-steps">
+                {formatSteps.map((step) => (
+                  <li key={step.detail}>
+                    {step.detail}
+                    {/* Its own line: a shell command run out of a sentence is easy to mis-copy. */}
+                    {step.command ? <code>{step.command}</code> : null}
+                  </li>
+                ))}
+              </ol>
+              {helperOffer}
+            </>
           ) : null}
         </div>
         <div className="stat-note" style={{ marginTop: 6 }}>
@@ -1343,31 +1400,45 @@ function Forecast({
             Reconnect {cardName ?? 'the card'} to write to it
           </button>
         ) : null}
-        <button
-          className={`btn ${cardTarget === 'reconnectable' ? '' : 'primary'}`}
-          style={{ width: '100%', justifyContent: 'center' }}
-          disabled={
-            blocking > 0 ||
-            writeState === 'writing' ||
-            cardChecks.some((check) => check.severity === 'error')
-          }
-          onClick={onWrite}
-        >
-          {writeState === 'writing'
-            ? 'Writing…'
-            : cardTarget === 'ready'
-              ? `Write to ${cardName ?? 'the card'}`
-              : 'Download configuration'}
-        </button>
+        {preparer ?? (
+          <button
+            className={`btn ${cardTarget === 'reconnectable' ? '' : 'primary'}`}
+            style={{ width: '100%', justifyContent: 'center' }}
+            disabled={
+              blocking > 0 ||
+              writeState === 'writing' ||
+              cardChecks.some((check) => check.severity === 'error')
+            }
+            onClick={onWrite}
+          >
+            {writeState === 'writing'
+              ? 'Writing…'
+              : cardTarget === 'ready'
+                ? `Write to ${cardName ?? 'the card'}`
+                : 'Download configuration'}
+          </button>
+        )}
         {blocking > 0 ? (
           <p className="stat-note" style={{ textAlign: 'center', marginTop: 7 }}>
             Fix {blocking} {blocking === 1 ? 'error' : 'errors'} to continue
           </p>
         ) : null}
-        {writeState === 'written' ? (
+        {writeState === 'written' && !preparer ? (
           <p className="stat-note" style={{ textAlign: 'center', marginTop: 7, color: 'var(--ok)' }}>
             {writtenSummary ?? 'Downloaded — copy _a3em.cfg to the top level of the card.'}
           </p>
+        ) : null}
+        {prepared ? (
+          <div className="banner ok" style={{ marginTop: 10, marginBottom: 0 }}>
+            <strong>
+              {prepared.kind === 'prepared' ? `${prepared.card} prepared as unit ${prepared.label}` : `${prepared.card} is unit ${prepared.label}`}
+            </strong>
+            {prepared.summary.charAt(0).toUpperCase() + prepared.summary.slice(1)}.
+            {prepared.kind === 'prepared' ? ' Erasing it closed the folder open on it; connect it again to see it as it is now.' : ''}{' '}
+            <button className="link-button" onClick={onDismissPrepared}>
+              Dismiss
+            </button>
+          </div>
         ) : null}
         {writeError ? (
           <p className="stat-note" style={{ textAlign: 'center', marginTop: 7, color: 'var(--crit)' }}>{writeError}</p>

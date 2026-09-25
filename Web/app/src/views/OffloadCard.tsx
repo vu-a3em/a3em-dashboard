@@ -6,6 +6,8 @@ import { useClockCorrection } from '../lib/useClockCorrection';
 import { CARD_ACCESS_SUPPORTED } from '../lib/card';
 import { diagnoseVolume } from '../lib/helper';
 import { acceptTails, longestClip, useRecoveredTails } from '../lib/tails';
+import type { Helper } from '../lib/useHelper';
+import { HelperOffer } from '../components/HelperOffer';
 import {
   buildSkipManifest,
   checkIntegrity,
@@ -31,9 +33,12 @@ export function OffloadCard({
   task,
   correction: correctionState,
   cardDevice,
+  helper,
   onRecover,
 }: Readonly<{
   card: Card;
+  /** For saying what the card tools would add here, where they are not installed. */
+  helper: Helper;
   task: OffloadTask;
   correction: CorrectionState;
   /** The physical card the open folder is on, where the card helper can tell, to eject it. */
@@ -73,6 +78,9 @@ export function OffloadCard({
         <h2>No card connected</h2>
         <p className="hint">Connect a card to check it for damage and copy its recordings off.</p>
         <RecoverHint available={cardDevice.available} onRecover={onRecover} />
+        <HelperOffer helper={helper} as="note">
+          With the A3EM Card Helper, a small program with a browser extension, copying also recovers what a recorder wrote before it lost power but had not yet recorded, and the card can be ejected from here once it is copied.
+        </HelperOffer>
       </div>
     );
   }
@@ -196,6 +204,9 @@ export function OffloadCard({
 
   return (
     <>
+      <HelperOffer helper={helper}>
+        With the A3EM Card Helper, a small program with a browser extension, copying also recovers what a recorder wrote before it lost power but had not yet recorded, and the card can be ejected from here once it is copied.
+      </HelperOffer>
       {unreadable.length ? (
         <div className="banner crit">
           <strong>

@@ -30,6 +30,7 @@ import { loadPhysicalCard } from '../lib/helperViews';
 import { RecoverHint } from '../components/RecoverHint';
 import { isUndeployed, NotDeployed } from '../components/NotDeployed';
 import { longestClip } from '../lib/tails';
+import { HelperOffer } from '../components/HelperOffer';
 import type { Helper } from '../lib/useHelper';
 
 type Card = ReturnType<typeof useCard>;
@@ -328,14 +329,24 @@ export function CardOverview({
           anything on the card is unreadable.
         </p>
         <RecoverHint available={helper.status === 'ready'} onRecover={onRecover} />
+        <HelperOffer helper={helper} as="note">
+          With the A3EM Card Helper, a small program with a browser extension, this page can also check a card’s filesystem, copy the whole card to an image file, and repair it.
+        </HelperOffer>
       </div>
     );
   }
+  // Where "The card itself" goes with the card tools: what they would add here, without them.
+  const offer = (
+    <HelperOffer helper={helper}>
+      With the A3EM Card Helper, a small program with a browser extension, this page can also check a card’s filesystem, copy the whole card to an image file, and repair it.
+    </HelperOffer>
+  );
 
   const { layout, unreadable } = card.contents;
   if (isUndeployed(layout)) {
     return (
       <>
+        {offer}
         {cardDevice.device ? (
           <Suspense fallback={null}>
             <PhysicalCard
@@ -383,6 +394,7 @@ export function CardOverview({
   return (
     <>
       {/* The card as hardware, first: whether the recorder would erase it outranks what it holds. */}
+      {offer}
       {cardDevice.device ? (
         <Suspense fallback={null}>
           <PhysicalCard

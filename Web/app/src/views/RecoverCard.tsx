@@ -104,8 +104,8 @@ export function RecoverCard({ helper, onConnect }: Readonly<{ helper: Helper; on
         <h2>Recovering a card needs the card helper</h2>
         <p className="hint">
           A card whose filesystem is damaged may not appear in the card picker dialog box, so the dashboard can reach it
-          only through the A3EM card helper, a small program for this computer with a browser extension. With it, this
-          screen copies such a card to an image file, checks it, repairs it, and opens it again.
+          only through the A3EM Card Helper, a small program with a browser extension. When installed, you can use this
+          screen to repair a broken card.
         </p>
         {helper.status === 'unsupported' ? (
           <p className="hint">This browser cannot use the card helper. It needs Chrome, Edge, Brave, Vivaldi, Arc, or Opera.</p>

@@ -239,7 +239,7 @@ interface CallOptions {
 
 function unavailable(): HelperError {
   return isChromium()
-    ? new HelperError('The A3EM card helper extension is not installed.', 'helper-not-installed')
+    ? new HelperError('The A3EM Card Helper extension is not installed.', 'helper-not-installed')
     : new HelperError(
         'This browser cannot use the card helper. It needs a Chromium browser: Chrome, Edge, Brave, Vivaldi, Arc, or Opera.',
         'no-extension',
@@ -293,7 +293,7 @@ async function callOnce<T>(
         if (api.lastError || value === undefined) {
           reject(
             new HelperError(
-              'The A3EM card helper extension is not installed.',
+              'The A3EM Card Helper extension is not installed.',
               'helper-not-installed',
             ),
           );
@@ -383,7 +383,7 @@ async function callOverPort<T>(
       clearTimeout(timer);
       reject(
         new HelperError(
-          'The A3EM card helper extension is not installed.',
+          'The A3EM Card Helper extension is not installed.',
           'helper-not-installed',
         ),
       );

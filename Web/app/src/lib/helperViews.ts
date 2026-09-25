@@ -9,9 +9,11 @@
 export const loadConnectedCards = () => import('../components/ConnectedCards');
 export const loadPhysicalCard = () => import('../components/PhysicalCard');
 export const loadRecoverCard = () => import('../views/RecoverCard');
+export const loadPrepareFromConfigure = () => import('../components/PrepareFromConfigure');
 
 export function preloadHelperViews(): void {
   void loadConnectedCards();
   void loadPhysicalCard();
   void loadRecoverCard();
+  void loadPrepareFromConfigure();
 }

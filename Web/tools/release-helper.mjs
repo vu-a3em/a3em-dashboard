@@ -8,9 +8,11 @@
  *   npm run release:helper -- 0.4.2     exactly this
  *
  * The version lives nowhere but the tag. This checks the release is of what is on GitHub's
- * main — committed, pushed, nothing left over — tags that commit `card-helper-v<version>`, and
- * pushes the tag, which starts the release workflow: tests, then the signed installers, then
- * the GitHub release. It asks before tagging.
+ * main — committed, pushed, nothing left over — and that the Card helper workflow has passed on
+ * GitHub for the helper's code as it is now; then tags that commit `card-helper-v<version>`, and
+ * pushes the tag, which starts the release workflow: the signed installers, then the GitHub
+ * release. The tests are not run again there, since that is what this has just confirmed. It
+ * asks before tagging. `-- --without-ci-check` skips the check, for when GitHub cannot be asked.
  */
 import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
@@ -44,7 +46,51 @@ const released = git('tag', '--list', 'card-helper-v*')
   .sort(compare);
 const latest = released.at(-1) ?? null;
 
-const request = process.argv[2] ?? 'patch';
+/*
+  The Card helper workflow has passed for the helper's code as it is now: on this commit, or an
+  earlier one on main whose code is the same — a commit that changed only the dashboard, or only
+  the helper's notes, which that workflow does not run for, releases code it has already tested.
+*/
+const REPOSITORY = 'vu-a3em/a3em-dashboard';
+const code = (commit) => {
+  try {
+    return git('ls-tree', '-r', commit, '--', 'card-helper')
+      .split('\n')
+      .filter((line) => !/\.md$/.test(line) && !line.includes('/test/e2e/'))
+      .join('\n');
+  } catch {
+    return null; // a commit not fetched here
+  }
+};
+if (!process.argv.includes('--without-ci-check')) {
+  const now = code('HEAD');
+  let runs;
+  try {
+    const response = await fetch(`https://api.github.com/repos/${REPOSITORY}/actions/workflows/card-helper.yml/runs?branch=main&per_page=50`, {
+      headers: { Accept: 'application/vnd.github+json' },
+    });
+    if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
+    runs = (await response.json()).workflow_runs ?? [];
+  } catch (error) {
+    fail(`Could not ask GitHub whether the helper's tests passed (${error.message}). Try again, or pass --without-ci-check.`);
+  }
+  const tested = runs.filter((run) => code(run.head_sha) === now);
+  const passed = tested.find((run) => run.conclusion === 'success');
+  if (!passed) {
+    const running = tested.find((run) => run.status !== 'completed');
+    const failed = tested.find((run) => run.status === 'completed');
+    fail(
+      running
+        ? `The Card helper workflow is still testing this code: ${running.html_url}. Release once it has passed.`
+        : failed
+          ? `The Card helper workflow did not pass for this code (${failed.conclusion}): ${failed.html_url}. Fix it first.`
+          : 'The Card helper workflow has not tested this code on main yet. Push it, and release once it has passed.',
+    );
+  }
+  console.log(`✓ The Card helper workflow passed for this code: ${passed.html_url}`);
+}
+
+const request = process.argv.slice(2).find((arg) => !arg.startsWith('--')) ?? 'patch';
 let next;
 if (parse(request)) {
   next = parse(request);

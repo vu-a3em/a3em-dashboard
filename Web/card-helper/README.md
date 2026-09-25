@@ -180,10 +180,13 @@ npm run release:helper              # the next patch version, 0.2.0 → 0.2.1
 npm run release:helper -- minor     # 0.2.0 → 0.3.0; or major, or an exact version like 0.4.2
 ```
 
-It checks that `main` is committed and the same as GitHub's, shows what has changed in the helper
+It checks that `main` is committed and the same as GitHub's, and that the [Card helper
+workflow](../../.github/workflows/card-helper.yml) has passed on GitHub for the helper's code as
+it is now — so push, and wait for that run to pass. It then shows what has changed in the helper
 since the last release, and asks before tagging the commit `card-helper-v<version>` and pushing
-the tag. The [release workflow](../../.github/workflows/card-helper-release.yml) then runs the
-unit tests and builds:
+the tag. The [release workflow](../../.github/workflows/card-helper-release.yml) then builds,
+without running the tests again (`-- --without-ci-check` skips the check, for when GitHub cannot
+be asked):
 
 | Asset | |
 | --- | --- |

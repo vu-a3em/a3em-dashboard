@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CONFIG_FILE_NAME,
-  forecast,
   formatAllocationUnit,
-  judgeReadiness,
-  planPreparation,
-  recommendAllocationUnit,
-  serializeConfig,
-  validateFormatRequest,
   type CardReadinessReport,
   type DeploymentConfig,
   type FirmwareProfile,
@@ -15,18 +9,10 @@ import {
   type ReadinessStatus,
   type ReadinessVerdict,
 } from '@a3em/config-schema';
-import {
-  checkReadinessOfCards,
-  ejectDevice,
-  HelperError,
-  prepareCards,
-  requestChallenge,
-  writeCardConfig,
-  type HelperDevice,
-  type PreparedCard,
-  type PrepareTarget,
-} from '../lib/helper';
+import { ejectDevice, HelperError, requestChallenge, type HelperDevice, type PreparedCard } from '../lib/helper';
 import { cardCondition } from '../lib/cardCondition';
+import { eraseAndPrepare, judgeCard, planFor, readCards as readThroughHelper, summarize, writeUnitSettings } from '../lib/cardPreparation';
+import { ConfirmDialog, listed, type Confirmation } from './EraseConfirm';
 import { useKept } from '../lib/keptState';
 import { useDeviceWatch, type Helper } from '../lib/useHelper';
 import { Activity, useCardLogs, without } from './CardActivity';
@@ -67,15 +53,6 @@ export interface PreparedUnit {
   note: string;
 }
 
-interface Confirmation {
-  device: string;
-  label: string;
-  description: string;
-  /** What erasing it fixes, from the check. */
-  fixes: string[];
-  confirmed: boolean;
-}
-
 /** The card as last read, and what was last done to it here. */
 interface CardState {
   report: CardReadinessReport | null;
@@ -83,22 +60,6 @@ interface CardState {
 }
 
 const MARK: Record<ReadinessStatus, string> = { pass: '✓', warn: '!', fail: '✕', unknown: '?' };
-
-/** What this deployment asks of a card of this size. */
-function planFor(config: DeploymentConfig, firmware: FirmwareProfile, sizeBytes: number) {
-  const plan = forecast({ config, firmware, sdCardCapacityGb: sizeBytes / 1e9 });
-  const allocation = recommendAllocationUnit({ config, clipsPerPhase: plan.clipWeights, cardCapacityBytes: sizeBytes });
-  const required = plan.cardBytesPerDay * plan.deploymentDays;
-  return { allocationUnitBytes: allocation.recommendedBytes, requiredBytes: Number.isFinite(required) ? required : null };
-}
-
-/** The unit's label as the volume's name, where exFAT allows it; otherwise the formatter's default. */
-function volumeLabelFor(label: string): string {
-  const trimmed = label.trim();
-  return trimmed && validateFormatRequest({ device: 'x', allocationUnitBytes: 32768, label: trimmed }).length === 0
-    ? trimmed
-    : 'A3EM';
-}
 
 function size(bytes: number): string {
   return bytes >= 1e12 ? `${(bytes / 1e12).toFixed(1)} TB` : `${(bytes / 1e9).toFixed(1)} GB`;
@@ -178,18 +139,8 @@ export function ConnectedCards({
     [devices, config, firmware],
   );
 
-  const expectationFor = (device: HelperDevice, label: string | null) => ({
-    configText: label ? serializeConfig({ ...config, deviceLabel: label }) : null,
-    volumeLabel: label ? volumeLabelFor(label) : null,
-    allocationUnitBytes: plans[device.id]?.allocationUnitBytes ?? null,
-    requiredBytes: plans[device.id]?.requiredBytes ?? null,
-  });
-
   /** A reading judged afresh, so choosing another unit changes the answer at once. */
-  const judge = (device: HelperDevice, report: CardReadinessReport) => {
-    const verdict = judgeReadiness(report, expectationFor(device, unitOf(device)));
-    return { verdict, plan: planPreparation(verdict) };
-  };
+  const judge = (device: HelperDevice, report: CardReadinessReport) => judgeCard(config, plans[device.id], report, unitOf(device));
   const judged = (device: HelperDevice): { verdict: ReadinessVerdict; plan: PreparationPlan } | null => {
     const report = states[device.id]?.report;
     return report ? judge(device, report) : null;
@@ -211,15 +162,7 @@ export function ConnectedCards({
   };
 
   /** Reads the cards, changing nothing, with the helper's progress in each one's log. */
-  const readCards = (ids: string[]) => {
-    const track = follow(ids);
-    return helper.runTask('readiness', ids.length > 1 ? `Checking ${ids.length} cards` : 'Checking the card', (onProgress) =>
-      checkReadinessOfCards(ids, true, (progress) => {
-        onProgress(progress);
-        track(progress);
-      }),
-    );
-  };
+  const readCards = (ids: string[]) => readThroughHelper(helper, ids, follow(ids));
   const keep = (reports: CardReadinessReport[]) =>
     setStates((previous) => ({ ...previous, ...Object.fromEntries(reports.map((report) => [report.device.id, { report }])) }));
 
@@ -250,12 +193,8 @@ export function ConnectedCards({
     if (continuing) note([device.id], first);
     else begin([device.id], first);
     try {
-      await writeCardConfig(volume.id, serializeConfig({ ...config, deviceLabel: label }));
+      const report = await writeUnitSettings(device, config, label, earlier ?? null, follow([device.id]));
       setAssigned((current) => ({ ...current, [device.id]: label }));
-      note([device.id], 'Reading the card back.');
-      const [read] = await checkReadinessOfCards([device.id], false, follow([device.id]));
-      const before = earlier ?? null;
-      const report = read && !read.layout && before?.layout ? { ...read, layout: before.layout, layoutSkipped: undefined } : read;
       setStates((current) => ({
         ...current,
         [device.id]: { report: report ?? current[device.id]?.report ?? null, outcome: { kind: 'settings' } },
@@ -377,54 +316,15 @@ export function ConnectedCards({
     setConfirming(null);
     const ids = entries.map((entry) => entry.device);
     note(ids, 'Checking that nothing has changed since you confirmed.');
-    const track = follow(ids);
     try {
-      const targets: PrepareTarget[] = [];
-      for (const entry of entries) {
-        const challenge = await requestChallenge(entry.device, 'prepare');
-        if (challenge.description !== entry.description) {
-          finish(ids, `A card changed since you confirmed it, so nothing was erased. It now reads: ${challenge.description}`);
-          return;
-        }
-        targets.push({
-          device: entry.device,
-          grant: challenge.token,
-          allocationUnitBytes: plans[entry.device]!.allocationUnitBytes,
-          label: volumeLabelFor(entry.label),
-          config: serializeConfig({ ...config, deviceLabel: entry.label }),
-        });
-      }
-      const results = await helper.runTask(
-        'prepare',
-        entries.length > 1 ? `Preparing ${entries.length} cards` : 'Preparing the card',
-        (onProgress) =>
-          prepareCards(targets, {}, (progress) => {
-            onProgress(progress);
-            track(progress);
-          }),
-      );
+      // Each card is then read back, so what is shown is the card as it now is.
+      const { results, reports } = await eraseAndPrepare(helper, entries, config, plans, follow(ids));
       // Each card is now that unit, whatever order the batch is in.
       setAssigned((previous) => ({ ...previous, ...Object.fromEntries(entries.map((entry) => [entry.device, entry.label])) }));
-
-      // Read each prepared card back, so what is shown is the card as it now is.
-      const good = results.filter((result) => !result.error).map((result) => result.device);
-      note(good, 'Reading the prepared card back.');
-      await helper.rescan();
-      let reports: CardReadinessReport[] = [];
-      if (good.length) {
-        try {
-          reports = await checkReadinessOfCards(good, false, track);
-        } catch {
-          reports = [];
-        }
-      }
       setStates((previous) => {
         const next = { ...previous };
         for (const result of results) {
-          let report = reports.find((candidate) => candidate.device.id === result.device) ?? null;
-          // The layout was verified moments ago by the preparation itself; reading it again
-          // would only cost another password prompt.
-          if (report && !report.layout && result.layout) report = { ...report, layout: result.layout, layoutSkipped: undefined };
+          const report = reports.find((candidate) => candidate.device.id === result.device) ?? null;
           next[result.device] = { report: result.error ? (previous[result.device]?.report ?? null) : report, outcome: { kind: 'prepared', result } };
         }
         return next;
@@ -635,21 +535,6 @@ export function ConnectedCards({
   );
 }
 
-function summarize(result: PreparedCard): string {
-  const parts = [];
-  if (result.capacity) parts.push(result.capacity.genuine ? 'capacity genuine' : 'capacity FAKE');
-  if (result.latency) parts.push(`writes ${result.latency.verdict === 'ok' ? 'steady' : result.latency.verdict}`);
-  if (result.layout?.reference) parts.push('layout verified');
-  if (result.configWritten) parts.push('configuration written');
-  return parts.join(', ');
-}
-
-/** Check titles as they appear in the list above, so each can be found there. */
-function listed(titles: string[]): string {
-  const quoted = titles.map((title) => `“${title}”`);
-  return quoted.length > 1 ? `${quoted.slice(0, -1).join(', ')} and ${quoted.at(-1)}` : (quoted[0] ?? '');
-}
-
 /**
  * What "Prepare this card" will do, said before it is pressed: everything it fixes, by the
  * titles in the list above — not only the one that made erasing necessary — and what it cannot.
@@ -746,71 +631,4 @@ function Identity({ identity }: Readonly<{ identity: NonNullable<CardReadinessRe
     return <p className="card-help">Card: {parts.filter(Boolean).join(' · ')}</p>;
   }
   return identity.reader ? <p className="card-help">Read through: {identity.reader}. The card’s own identity is not visible through this reader.</p> : null;
-}
-
-/**
- * One confirmation per card, in the helper's words.
- *
- * The helper's description names the device node, size, bus and what is on it now — the
- * details that tell two identical cards apart, or a card from the drive plugged in beside it.
- */
-function ConfirmDialog({
-  entries,
-  onChange,
-  onCancel,
-  onConfirm,
-}: Readonly<{
-  entries: Confirmation[];
-  onChange: (entries: Confirmation[]) => void;
-  onCancel: () => void;
-  onConfirm: (entries: Confirmation[]) => void;
-}>) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const element = dialog.current;
-    if (!element) return undefined;
-    element.showModal();
-    element.addEventListener('close', onCancel);
-    return () => element.removeEventListener('close', onCancel);
-  }, [onCancel]);
-  const all = entries.every((entry) => entry.confirmed);
-  return (
-    <dialog className="modal" ref={dialog} aria-label="Confirm which cards to erase">
-      <h2>{entries.length > 1 ? `Erase and prepare ${entries.length} cards?` : 'Erase and prepare this card?'}</h2>
-      <p className="hint">
-        Everything on {entries.length > 1 ? 'these cards' : 'this card'} will be erased. Check each one to confirm it
-        is the card you mean.
-      </p>
-      <ul className="confirm-list">
-        {entries.map((entry, index) => (
-          <li key={entry.device}>
-            <label>
-              <input
-                type="checkbox"
-                checked={entry.confirmed}
-                onChange={(event) =>
-                  onChange(entries.map((e, i) => (i === index ? { ...e, confirmed: event.target.checked } : e)))
-                }
-              />
-              <span>
-                {entry.description}
-                <br />
-                <span className="muted">
-                  Becomes unit {entry.label}. Erasing fixes {listed(entry.fixes)}.
-                </span>
-              </span>
-            </label>
-          </li>
-        ))}
-      </ul>
-      <div className="modal-actions">
-        <button className="btn danger" disabled={!all} onClick={() => onConfirm(entries)}>
-          {entries.length > 1 ? `Erase and prepare ${entries.length} cards` : 'Erase and prepare'}
-        </button>
-        <button className="btn" onClick={() => dialog.current?.close()}>
-          Cancel
-        </button>
-      </div>
-    </dialog>
-  );
 }

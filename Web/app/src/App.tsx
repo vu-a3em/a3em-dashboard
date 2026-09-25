@@ -10,6 +10,7 @@ import { CardStatus } from './components/CardStatus';
 import { HelperRailStatus, HelperTaskChip } from './components/HelperStatus';
 import { AccountButton } from './components/Account';
 import { NavigationContext, VIEW_NAMES, type View } from './components/TabLink';
+import { ViewBoundary } from './components/ViewBoundary';
 
 /** Loaded the first time someone opens it: most visits never do. */
 const AccountDialog = lazy(() => import('./components/AccountDialog').then((module) => ({ default: module.AccountDialog })));
@@ -182,77 +183,81 @@ export default function App() {
             <AccountButton account={account} />
           </header>
           <main className="content">
-            {card.status === 'scanning' ? <CardLoading progress={card.progress} /> : null}
-            {/*
-              One picker for the whole app rather than one per tab.
+            {/* A tab that fails says so, in its own place, rather than blanking the dashboard. */}
+            <ViewBoundary key={view}>
+              {card.status === 'scanning' ? <CardLoading progress={card.progress} /> : null}
+              {/*
+                One picker for the whole app rather than one per tab.
 
-              Review and Listen both read a single activation, and a copy on each page would
-              look like two independent controls for what is really one choice. Sitting above
-              the content, in the same place on either tab, it reads as what it is: the run
-              everything below is describing.
-            */}
-            {(view === 'review' || view === 'clips') && card.contents ? (
-              <ActivationPicker
-                layout={card.contents.layout}
-                selected={activation}
-                onSelect={setActivation}
-                overlapping={card.existingConfig?.setRtcAtMagnetDetect ?? false}
-              />
-            ) : null}
-            {view === 'configure' ? (
-              <DeploymentEditor
-                card={card}
-                config={draft.config}
-                onChange={draft.setConfig}
-                selectedPhase={selectedPhase}
-                onSelectPhase={setSelectedPhase}
-                draft={draft}
-                library={library}
-                cardDevice={cardDevice}
-                onPrepareDevices={() => setView('batch')}
-              />
-            ) : null}
-            {view === 'batch' ? (
-              <BatchPrepare
-                card={card}
-                helper={helper}
-                config={draft.config}
-                basedOn={draft.basedOn}
-                units={batch}
-                onUnitsChange={setBatch}
-                onEditConfiguration={() => setView('configure')}
-                onRecover={recover}
-                cardDevice={cardDevice}
-              />
-            ) : null}
-            {view === 'review' ? (
-              <CardOverview
-                card={card}
-                correction={correction}
-                onCorrectionChange={setCorrection}
-                activation={activation}
-                helper={helper}
-                cardDevice={cardDevice}
-                onRecover={recover}
-              />
-            ) : null}
-            {view === 'clips' ? (
-              <ClipBrowser
-                card={card}
-                correction={correction}
-                activation={activation}
-                recoverable={helper.status === 'ready'}
-                onRecover={recover}
-              />
-            ) : null}
-            {view === 'offload' ? (
-              <OffloadCard card={card} task={offload} correction={correction} cardDevice={cardDevice} onRecover={recover} />
-            ) : null}
-            {view === 'recover' ? (
-              <Suspense fallback={null}>
-                <RecoverCard helper={helper} onConnect={() => void card.connect()} />
-              </Suspense>
-            ) : null}
+                Review and Listen both read a single activation, and a copy on each page would
+                look like two independent controls for what is really one choice. Sitting above
+                the content, in the same place on either tab, it reads as what it is: the run
+                everything below is describing.
+              */}
+              {(view === 'review' || view === 'clips') && card.contents ? (
+                <ActivationPicker
+                  layout={card.contents.layout}
+                  selected={activation}
+                  onSelect={setActivation}
+                  overlapping={card.existingConfig?.setRtcAtMagnetDetect ?? false}
+                />
+              ) : null}
+              {view === 'configure' ? (
+                <DeploymentEditor
+                  card={card}
+                  config={draft.config}
+                  onChange={draft.setConfig}
+                  selectedPhase={selectedPhase}
+                  onSelectPhase={setSelectedPhase}
+                  draft={draft}
+                  library={library}
+                  cardDevice={cardDevice}
+                  helper={helper}
+                  onPrepareDevices={() => setView('batch')}
+                />
+              ) : null}
+              {view === 'batch' ? (
+                <BatchPrepare
+                  card={card}
+                  helper={helper}
+                  config={draft.config}
+                  basedOn={draft.basedOn}
+                  units={batch}
+                  onUnitsChange={setBatch}
+                  onEditConfiguration={() => setView('configure')}
+                  onRecover={recover}
+                  cardDevice={cardDevice}
+                />
+              ) : null}
+              {view === 'review' ? (
+                <CardOverview
+                  card={card}
+                  correction={correction}
+                  onCorrectionChange={setCorrection}
+                  activation={activation}
+                  helper={helper}
+                  cardDevice={cardDevice}
+                  onRecover={recover}
+                />
+              ) : null}
+              {view === 'clips' ? (
+                <ClipBrowser
+                  card={card}
+                  correction={correction}
+                  activation={activation}
+                  recoverable={helper.status === 'ready'}
+                  onRecover={recover}
+                />
+              ) : null}
+              {view === 'offload' ? (
+                <OffloadCard card={card} task={offload} correction={correction} cardDevice={cardDevice} helper={helper} onRecover={recover} />
+              ) : null}
+              {view === 'recover' ? (
+                <Suspense fallback={null}>
+                  <RecoverCard helper={helper} onConnect={() => void card.connect()} />
+                </Suspense>
+              ) : null}
+            </ViewBoundary>
           </main>
         </div>
       </div>

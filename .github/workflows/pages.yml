@@ -5,8 +5,13 @@ name: Deploy dashboard to Pages
 on:
   push:
     branches: [main]
+    # What the dashboard is built from. The card helper, the account rules and the notes have
+    # workflows of their own, or none, and changing them changes nothing that is deployed.
     paths:
       - 'Web/**'
+      - '!Web/card-helper/**'
+      - '!Web/firebase/**'
+      - '!Web/**/*.md'
       - 'a3em-firmware'
       - '.github/workflows/pages.yml'
   workflow_run:
@@ -49,7 +54,12 @@ jobs:
           python-version: '3.12'
 
       - run: npm ci
-      - run: npm run ci
+      # After a helper release, the commit was checked when it was pushed, and only the build
+      # has anything new to learn: the release's version.
+      - if: github.event_name != 'workflow_run'
+        run: npm run ci
+      - if: github.event_name == 'workflow_run'
+        run: npm run build
 
       - uses: actions/upload-pages-artifact@v5
         with:
