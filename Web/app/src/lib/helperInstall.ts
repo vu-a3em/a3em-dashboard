@@ -74,6 +74,14 @@ const extensionStep: InstallStep = {
   link: EXTENSION_STORE_URL ? { label: 'Open the Chrome Web Store', href: EXTENSION_STORE_URL } : undefined,
 };
 
+/**
+ * The steps for replacing a helper already installed: the extension that let it answer is
+ * already there too, so only the helper is installed again.
+ */
+export function withoutExtension(steps: InstallStep[]): InstallStep[] {
+  return steps.filter((step) => step !== extensionStep);
+}
+
 const reloadStep: InstallStep = {
   title: 'Reload this page',
   detail: 'Card tools should show as ready at the bottom of the menu.',

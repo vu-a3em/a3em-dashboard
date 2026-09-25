@@ -120,7 +120,7 @@ export function RepairDialog({
         // The helper's own repair: narrow, and undoable, so no image is insisted on.
         <p className="hint">
           The repair rewrites only what the check found wrong, and changes no file. What it replaces is saved on this
-          computer first, so it can be put back.
+          computer first, and kept for 30 days in case it needs putting back.
         </p>
       ) : imaged ? (
         <p className="hint">

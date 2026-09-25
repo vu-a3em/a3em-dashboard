@@ -374,10 +374,11 @@ export function BatchPrepare({
 
             {written === units.length ? (
               <div className="banner ok" style={{ marginTop: 16, marginBottom: 0 }}>
-                <strong>All {units.length} units prepared</strong>
+                <strong>{units.length === 1 ? 'The unit is prepared' : `All ${units.length} units prepared`}</strong>
+                {units.length === 1 ? 'Its card carries its own label.' : 'Each card carries its own label.'}{' '}
                 {config.ledsEnabled
-                  ? 'Each card carries its own label. The device runs its self-test at activation, so check the LED before sealing each unit.'
-                  : 'Each card carries its own label. The LEDs are off in this configuration, so a unit gives no visible sign that it activated or passed its self-test.'}
+                  ? `The device runs its self-test at activation, so check the LED before sealing ${units.length === 1 ? 'the' : 'each'} unit.`
+                  : 'The LEDs are off in this configuration, so a unit gives no visible sign that it activated or passed its self-test.'}
               </div>
             ) : null}
           </div>

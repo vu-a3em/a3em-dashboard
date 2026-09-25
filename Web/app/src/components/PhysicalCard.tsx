@@ -287,15 +287,50 @@ function Findings({ findings }: Readonly<{ findings: FilesystemFinding[] }>) {
   );
 }
 
-/** The helper's own check, which says what is wrong in words and names the files it touches. */
-function OwnCheckResult({ report }: Readonly<{ report: FsckReport }>) {
-  const findings = report.findings ?? [];
-  const problems = findings.filter((finding) => finding.severity === 'problem');
+/**
+ * What to do about what the check found. A repair is urged only where it helps: minor findings
+ * harm nothing, and preparing a card for its next deployment rebuilds its records anyway, so a
+ * card already copied off needs no repair at all.
+ */
+function RepairAdvice({ findings, fixableHere }: Readonly<{ findings: FilesystemFinding[]; fixableHere: boolean }>) {
+  const one = findings.length === 1;
+  const it = one ? 'it' : 'them';
+  if (!findings.some((finding) => finding.severity === 'problem')) {
+    return (
+      <p style={{ margin: '6px 0 0' }}>
+        Nothing needs doing: no recording is affected, and preparing the card for its next deployment clears {it}.
+        {fixableHere ? ` “Repair…” can also clear ${it} now, rewriting only the card’s own records.` : ''}
+      </p>
+    );
+  }
+  if (fixableHere) {
+    return (
+      <p style={{ margin: '6px 0 0' }}>
+        “Repair…” fixes {one ? 'this' : 'these'} by rewriting only the card’s own records, and changes no file. What it
+        replaces is kept on this computer for 30 days. If everything on the card is already copied off, preparing the card
+        for its next deployment fixes {it} too.
+      </p>
+    );
+  }
   // Named where the system's repair may shorten or remove them.
   const atRisk = [...new Set(findings.filter((finding) => !finding.repair).flatMap((finding) => finding.paths ?? []))];
   const atRiskText = atRisk.length
     ? listed([...atRisk.slice(0, 5), ...(atRisk.length > 5 ? [`${atRisk.length - 5} more`] : [])])
     : 'files it cannot make sense of';
+  return (
+    <p style={{ margin: '6px 0 0' }}>
+      Only the system’s repair tool can fix {one ? 'this' : 'all of these'}, and it may shorten or remove {atRiskText}.
+      Copy the card first — with “Copy to an image file…”, or the recordings in “Check & copy”. Once everything is
+      copied off, preparing the card for its next deployment replaces the damaged records without a repair; to repair
+      it in place instead, use “Repair…”.
+    </p>
+  );
+}
+
+/** The helper's own check, which says what is wrong in words and names the files it touches. */
+function OwnCheckResult({ report }: Readonly<{ report: FsckReport }>) {
+  const findings = report.findings ?? [];
+  const problems = findings.filter((finding) => finding.severity === 'problem');
   const checked =
     report.files !== undefined
       ? `Checked ${counted(report.files, 'file', 'files')} in ${counted(report.directories ?? 0, 'folder', 'folders')}.`
@@ -333,24 +368,11 @@ function OwnCheckResult({ report }: Readonly<{ report: FsckReport }>) {
             <Findings findings={findings} />
           </>
         )}
-        {!report.clean && !report.modified ? (
-          report.fixableHere ? (
-            <p style={{ margin: '6px 0 0' }}>
-              “Repair…” fixes {findings.length === 1 ? 'this' : 'these'} by rewriting only the card’s own records, and
-              changes no file. What it replaces is saved on this computer first.
-            </p>
-          ) : (
-            <p style={{ margin: '6px 0 0' }}>
-              Only the system’s repair tool can fix {findings.length === 1 ? 'this' : 'all of these'}, and it may shorten or
-              remove {atRiskText}. Copy the card first — with “Copy to an image file…”, or the recordings in “Check &
-              copy” — then use “Repair…”.
-            </p>
-          )
-        ) : null}
+        {!report.clean && !report.modified ? <RepairAdvice findings={findings} fixableHere={report.fixableHere ?? false} /> : null}
         {report.modified && report.saved?.length ? (
           <p style={{ margin: '6px 0 0' }}>
-            What the repair replaced is saved in <span className="mono">{folderOf(report.saved[0])}</span>, in case it
-            ever needs undoing.
+            What the repair replaced is kept in <span className="mono">{folderOf(report.saved[0])}</span> for 30 days,
+            in case it ever needs undoing.
           </p>
         ) : null}
       </div>

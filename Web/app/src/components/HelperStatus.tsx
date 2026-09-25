@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Helper } from '../lib/useHelper';
-import { EXTENSION_STORE_URL, installGuide } from '../lib/helperInstall';
+import { helperUpdateAvailable, LATEST_HELPER_RELEASE } from '../lib/helper';
+import { EXTENSION_STORE_URL, installGuide, withoutExtension } from '../lib/helperInstall';
 
 /**
  * The card helper, in two places, because it is two different kinds of thing.
@@ -76,6 +77,8 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
   // What the helper found missing on this computer, such as a Linux package it relies on.
   const issues = helper.status === 'ready' ? (helper.identity?.issues ?? []) : [];
   const problems = issues.filter((issue) => issue.severity === 'problem').length;
+  // A newer release than the one installed, which this one still works with.
+  const update = helper.status === 'ready' && helperUpdateAvailable(helper.identity?.version);
 
   if (helper.status === 'unsupported') {
     // Browser capability is already stated by CardStatus. Saying it twice adds noise
@@ -106,16 +109,32 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
           >
             {helper.status === 'outdated' ? 'Update…' : 'Enable…'}
           </button>
-        ) : issues.length ? (
-          <button
-            className={`rail-foot-action ${problems ? 'warn' : ''}`}
-            title={`Card helper ${helper.identity?.version} on ${helper.identity?.platform}`}
-            onClick={() => setShowIssues(true)}
-          >
-            {problems
-              ? `ready · ${problems} ${problems === 1 ? 'problem' : 'problems'}`
-              : `ready · ${issues.length} ${issues.length === 1 ? 'note' : 'notes'}`}
-          </button>
+        ) : update || issues.length ? (
+          <span className="rail-foot-value ok" title={`Card helper ${helper.identity?.version} on ${helper.identity?.platform}`}>
+            ready
+            {update ? (
+              <>
+                {' · '}
+                <button
+                  className="rail-foot-action"
+                  title={`Card helper ${LATEST_HELPER_RELEASE} is available; this computer has ${helper.identity?.version}.`}
+                  onClick={() => setShowGuide(true)}
+                >
+                  update available
+                </button>
+              </>
+            ) : null}
+            {issues.length ? (
+              <>
+                {' · '}
+                <button className={`rail-foot-action ${problems ? 'warn' : ''}`} onClick={() => setShowIssues(true)}>
+                  {problems
+                    ? `${problems} ${problems === 1 ? 'problem' : 'problems'}`
+                    : `${issues.length} ${issues.length === 1 ? 'note' : 'notes'}`}
+                </button>
+              </>
+            ) : null}
+          </span>
         ) : (
           <span
             className={`rail-foot-value ${helper.status === 'incomplete' ? 'warn' : 'ok'}`}
@@ -129,7 +148,13 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
           </span>
         )}
       </div>
-      {showGuide ? <InstallGuideDialog outdated={helper.status === 'outdated'} onClose={() => setShowGuide(false)} /> : null}
+      {showGuide ? (
+        <InstallGuideDialog
+          outdated={helper.status === 'outdated'}
+          update={update ? { installed: helper.identity?.version ?? '', latest: LATEST_HELPER_RELEASE } : undefined}
+          onClose={() => setShowGuide(false)}
+        />
+      ) : null}
       {showIssues ? <SystemIssuesDialog issues={issues} onClose={() => setShowIssues(false)} /> : null}
     </>
   );
@@ -196,8 +221,19 @@ function SystemIssuesDialog({
  * installation steps to reach a tool that cannot do anything yet would rightly be annoyed,
  * and finding that out at the end is worse than being told at the start.
  */
-export function InstallGuideDialog({ outdated, onClose }: Readonly<{ outdated: boolean; onClose: () => void }>) {
+export function InstallGuideDialog({
+  outdated,
+  update,
+  onClose,
+}: Readonly<{
+  outdated: boolean;
+  /** A newer release than the one installed, which still works with this dashboard. */
+  update?: { installed: string; latest: string };
+  onClose: () => void;
+}>) {
   const guide = installGuide();
+  // A helper that answered came through the extension, so only the helper needs installing.
+  const replacing = outdated || Boolean(update);
   const dialog = useRef<HTMLDialogElement>(null);
 
   /**
@@ -217,8 +253,8 @@ export function InstallGuideDialog({ outdated, onClose }: Readonly<{ outdated: b
   }, [onClose]);
 
   return (
-    <dialog className="modal" ref={dialog} aria-label="Enable card tools">
-      <h2>Enable card tools</h2>
+    <dialog className="modal" ref={dialog} aria-label={outdated || update ? 'Update card tools' : 'Enable card tools'}>
+      <h2>{outdated || update ? 'Update card tools' : 'Enable card tools'}</h2>
       <p className="hint">
         These tools give the dashboard low-level access to SD cards: they test that a card really holds
         what it claims, format it with the exact layout the recorder expects, check that a card is ready to
@@ -235,6 +271,12 @@ export function InstallGuideDialog({ outdated, onClose }: Readonly<{ outdated: b
           The card helper on this computer is older than this dashboard. Install the current one below; it
           replaces the old one.
         </div>
+      ) : update ? (
+        <div className="banner ok" style={{ marginTop: 12 }}>
+          <strong>Card helper {update.latest} is available</strong>
+          This computer has {update.installed}, which still works. Install the new one below to get its fixes and
+          improvements; it replaces the old one, and the browser extension stays as it is.
+        </div>
       ) : null}
 
       {guide.caveat ? (
@@ -248,7 +290,7 @@ export function InstallGuideDialog({ outdated, onClose }: Readonly<{ outdated: b
       </p>
 
       <ol className="install-steps">
-        {guide.steps.map((step) => (
+        {(replacing ? withoutExtension(guide.steps) : guide.steps).map((step) => (
           <li key={step.title}>
             <strong>{step.title}</strong>
             <div className="hint">{step.detail}</div>
@@ -263,7 +305,7 @@ export function InstallGuideDialog({ outdated, onClose }: Readonly<{ outdated: b
       </ol>
 
       <div className="modal-actions">
-        {EXTENSION_STORE_URL ? (
+        {EXTENSION_STORE_URL && !replacing ? (
           <a className="btn primary" href={EXTENSION_STORE_URL} target="_blank" rel="noreferrer">
             Open the Chrome Web Store
           </a>

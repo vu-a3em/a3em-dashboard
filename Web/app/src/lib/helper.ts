@@ -417,6 +417,24 @@ export interface HelperIdentity {
 /** The protocol this page speaks. An older helper is reported as needing an update. */
 export const HELPER_PROTOCOL = 2;
 
+/** The newest card helper released when this dashboard was built (see vite.config.ts), or ''. */
+export const LATEST_HELPER_RELEASE: string = import.meta.env.VITE_HELPER_RELEASE ?? '';
+
+/**
+ * Whether a helper of this version is older than the newest released. A build of one's own,
+ * 0.0.0-dev, never is; one from `git describe`, 0.2.1-3-gab12cd3, counts as its release.
+ */
+export function helperUpdateAvailable(version: string | undefined, latest: string = LATEST_HELPER_RELEASE): boolean {
+  const parse = (text: string) => /^(\d+)\.(\d+)\.(\d+)/.exec(text)?.slice(1).map(Number);
+  const have = version ? parse(version) : undefined;
+  const want = parse(latest);
+  if (!have || !want || have.every((part) => part === 0)) return false;
+  for (let i = 0; i < 3; i++) {
+    if (have[i] !== want[i]) return have[i] < want[i];
+  }
+  return false;
+}
+
 export async function helperHello(): Promise<HelperIdentity> {
   // Short deadline: an absent extension must not hold the page's capability check open.
   return call<HelperIdentity>({ op: 'hello' }, { silenceMs: HANDSHAKE_TIMEOUT_MS });
