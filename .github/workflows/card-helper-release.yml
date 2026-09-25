@@ -221,4 +221,4 @@ jobs:
 
             Check an installation with `a3em-card-helper doctor`.
 
-            Code signing policy: https://github.com/vu-a3em/a3em-dashboard/blob/main/Web/card-helper/README.md#code-signing-policy
+            Code signing policy: https://github.com/vu-a3em/a3em-dashboard/blob/main/CODE_SIGNING_POLICY.md

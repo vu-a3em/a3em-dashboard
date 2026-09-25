@@ -23,7 +23,7 @@ const LEGACY_ENTRIES = [
   { path: 'SAM_elephant_10/Activation_0001/2026-02-06/08/2026-02-06 09-00-24.imu', sizeBytes: 36012 },
   { path: 'SAM_elephant_10/Activation_0001/2026-02-06/08/2026-02-06 09-01-24.wav', sizeBytes: 960044 },
   { path: 'a3em.log', sizeBytes: 5742142 },
-  { path: '_a3em.cfg', sizeBytes: 1107 },
+  { path: '_conf.a3m', sizeBytes: 1107 },
   { path: '.DS_Store', sizeBytes: 10244 },
 ];
 
@@ -77,7 +77,9 @@ describe('card layout', () => {
   it('classifies the card-root artifacts', () => {
     const layout = readCardLayout([...LEGACY_ENTRIES, ...EPOCH_ENTRIES]);
     const kinds = new Map(layout.files.map((f) => [f.name, f.kind]));
-    assert.equal(kinds.get('_a3em.cfg'), 'config');
+    assert.equal(kinds.get('_conf.a3m'), 'config');
+    // A card prepared before the configuration file was renamed.
+    assert.equal(classifyFile('_a3em.cfg'), 'config');
     assert.equal(kinds.get('_a3em.dev'), 'device-info');
     assert.equal(kinds.get('a3em.log'), 'log');
   });
@@ -325,7 +327,7 @@ describe('separating activations', () => {
   });
 
   it('returns nothing for a path outside any activation', () => {
-    assert.equal(activationFromPath('_a3em.cfg'), null);
+    assert.equal(activationFromPath('_conf.a3m'), null);
     assert.equal(activationFromPath('SAM_01/1770368400/x.wav'), null);
   });
 
@@ -363,8 +365,9 @@ describe('how far a card has got', () => {
     assert.equal(cardStage(readCardLayout([{ path: '_a3em.dev', sizeBytes: 256 }])), 'deployed');
   });
   it('is prepared with a configuration and nothing a recorder wrote', () => {
+    assert.equal(cardStage(readCardLayout([{ path: '_conf.a3m', sizeBytes: 766 }])), 'prepared');
+    assert.equal(cardStage(readCardLayout([{ path: '_conf.a3m', sizeBytes: 766 }, { path: 'notes.txt', sizeBytes: 10 }])), 'prepared');
     assert.equal(cardStage(readCardLayout([{ path: '_a3em.cfg', sizeBytes: 766 }])), 'prepared');
-    assert.equal(cardStage(readCardLayout([{ path: '_a3em.cfg', sizeBytes: 766 }, { path: 'notes.txt', sizeBytes: 10 }])), 'prepared');
   });
   it('is blank with neither', () => {
     assert.equal(cardStage(readCardLayout([])), 'blank');

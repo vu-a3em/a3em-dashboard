@@ -366,7 +366,7 @@ export function CardOverview({
             Everything else on the card was read normally.
           </div>
         ) : null}
-        <NotDeployed name={card.name} layout={layout} config={card.existingConfig} configText={card.contents.configText} nothing="no deployment to review" />
+        <NotDeployed name={card.name} layout={layout} config={card.existingConfig} configText={card.contents.configText} nothing="nothing to review" />
       </>
     );
   }

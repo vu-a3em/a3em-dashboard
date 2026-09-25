@@ -2,7 +2,7 @@
  * A minimal ZIP writer: stored entries only, no compression.
  *
  * For handing a batch of configurations to a browser that cannot write to a card. Each one
- * has to be named `_a3em.cfg` exactly, and a browser saving several downloads of the same
+ * has to be named `CONFIG_FILE_NAME` exactly, and a browser saving several downloads of the same
  * name renames all but the first, so they travel as one archive with a folder per unit.
  * Configuration files are a few kilobytes, so compressing them would buy nothing worth a
  * dependency.

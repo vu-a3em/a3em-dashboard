@@ -15,7 +15,14 @@ export const CONFIG_SCHEMA_VERSION = 2;
 /** Firmware release this file was transcribed from. Shown in the app's compat matrix. */
 export const TRANSCRIBED_FROM_FIRMWARE = 'a3em-firmware @ src/app/static_config.h (read 2026-08)';
 
-export const CONFIG_FILE_NAME = '_a3em.cfg'; // static_config.h: CONFIG_FILE_NAME
+/*
+  Not ".cfg": Chrome on Windows will not let a web page read or write any .cfg file — its Safe
+  Browsing list rates the type dangerous there — so the dashboard could not prepare cards on
+  Windows. Cards prepared before the rename carry the legacy name, which the firmware reads when
+  the current one is absent, and which the dashboard reads the same way.
+*/
+export const CONFIG_FILE_NAME = '_conf.a3m'; // static_config.h: CONFIG_FILE_NAME
+export const LEGACY_CONFIG_FILE_NAME = '_a3em.cfg'; // static_config.h: LEGACY_CONFIG_FILE_NAME
 export const LOG_FILE_NAME = 'a3em.log'; // static_config.h: LOG_FILE_NAME
 
 // ---------------------------------------------------------------------------

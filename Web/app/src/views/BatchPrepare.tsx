@@ -162,8 +162,8 @@ export function BatchPrepare({
   /*
     Downloads, for browsers that cannot write to a card.
 
-    Named exactly `_a3em.cfg`, because that is the only name the device reads — the old
-    `LABEL_a3em.cfg` had to be renamed by hand, and nothing said so. A browser saving the same
+    Named exactly `CONFIG_FILE_NAME`, because that is the only name the device reads — the old
+    desktop tool's `LABEL_a3em.cfg` had to be renamed by hand, and nothing said so. A browser saving the same
     name twice renames the second copy, so a whole batch goes as one archive instead, with a
     folder per unit.
   */

@@ -9,7 +9,7 @@ import { utcOffsetSecondsAt } from './timezone.js';
 import { dstAdjustmentApplies, dstSegments, firmwareTriggerTimes, shiftPeriods } from './schedule.js';
 
 /**
- * Renders a DeploymentConfig to the exact `_a3em.cfg` text the firmware parses.
+ * Renders a DeploymentConfig to the exact configuration file text the firmware parses.
  *
  * Three properties of runtime_config.c constrain this function, and breaking any
  * of them corrupts a deployment silently rather than loudly:

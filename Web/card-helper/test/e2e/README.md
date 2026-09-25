@@ -13,18 +13,18 @@ card.
 
 What is **not** covered: the extension itself and Chrome's own native messaging (the stand-in
 replaces both), and the folder picker (a stand-in "picks" the prepared card). Real card readers,
-administrator prompts and privacy permissions need a real card and a person.
+administrator prompts, and privacy permissions need a real card and a person.
 
 ## Scenarios
 
 | Scenario | Checks |
 | --- | --- |
 | `configure` | With the A3EM Card Helper, the forecast's "Recommended card format" sends formatting to "Prepare devices" instead of listing commands, and the link opens it. |
-| `recover` | Recover card lists only the cards that do not open. The damaged one: opening it fails and says so; a copy to an image is stopped partway, says so and leaves no file; it is copied (saying where, and how much room there is); the check finds the damaged boot region and that its backup can replace it; the repair is confirmed in the helper's words as the narrow one, restores the boot region, and the card opens and stays listed as "Opens now". |
+| `recover` | Recover card lists only the cards that do not open. The damaged one: opening it fails and says so; a copy to an image is stopped partway, says so, and leaves no file; it is copied (saying where, and how much room there is); the check finds the damaged boot region and that its backup can replace it; the repair is confirmed in the helper's words as the narrow one, restores the boot region, and the card opens and stays listed as "Opens now". |
 | `prepare` | Prepare devices, with the old card open in the dashboard: the cards pane follows the batch; without a batch "Prepare this card" cannot be pressed and says why; in a batch, a card beyond the devices has "No device left"; preparing all without a check checks first, in the same log; only the old card is confirmed for erasing; the prepared card only gets its settings and its device's name (and is named back through the harness afterward); both devices end "Card written"; the old card, erased, is let go of — the header says why, and Review card shows no card rather than what it held. |
-| `review` | Review card, for the dirty card, picked in the folder picker: "The card itself" comes first; no repair is offered until a check finds the problem, explains it, and names the recording it touches, and finds the log lines past the log's recorded end, for the copy — and so says to copy before repairing; a copy is stopped and leaves no file; the image copy is still showing after a visit to another tab; the repair is the helper's own, rebuilds the bitmap and says where it saved what it replaced, and the card is open again; no marker file is left. |
+| `review` | Review card, for the dirty card, picked in the folder picker: "The card itself" comes first; no repair is offered until a check finds the problem, explains it, and names the recording it touches, and finds the log lines past the log's recorded end, for the copy — and so says to copy before repairing; a copy is stopped and leaves no file; the image copy is still showing after a visit to another tab; the repair is the helper's own: it rebuilds the bitmap and says where it saved what it replaced, and the card is open again; no marker file is left. |
 | `prepare-open` | First, on Prepare devices, a batch of one, and "Prepare this card" pressed on the prepared card unchecked: it gets its settings, and its result shows the layout the check read on the way. Then Configure, with the card open: it warns that the batch has a card written with these settings, and once a setting changes, that the card now differs. "Configure SD Card" replaces writing the configuration alone; with only other settings on the card, it writes this device's and erases nothing; once a file from before is on the card (put there through the harness), it asks to confirm erasing in the helper's words, erases and sets the card up again, keeps what it did on screen, and lets go of the folder that was open on it. Back on Prepare devices, the device written before the change is "No card yet" again, saying why, until its card, now with the current settings, is checked and counts as its card. Last, Configure for another device: the card gets its settings and that device's name, erasing nothing, and the folder open on it, which the new name moves, is let go of; then it is named back. |
-| `match` | Connect SD card is matched to its card: the header offers Eject, no marker file is left behind, Review card shows the card itself and what this computer found preparing it, its filesystem check is clean, Review card, Listen and Check & copy each say the card is not deployed yet, and Eject leaves "Reopen". Needs the harness to be able to write to the prepared card's mount point. |
+| `match` | Connect SD card is matched to its card: the header offers Eject, no marker file is left behind, Review card shows the card itself and what this computer found preparing it, its filesystem check is clean, Review card, Listen, and Check & copy each say the card is not deployed yet, and Eject leaves "Reopen". Needs the harness to be able to write to the prepared card's mount point. |
 
 Run in the order `configure,recover,prepare,review,prepare-open,match` (the default): `prepare-open` erases the prepared card and sets it up again, and `match` ejects it.
 
@@ -92,5 +92,5 @@ harness sees it. `review` and `match` then cannot write their marker file, so ru
 
 - **macOS** (26, Apple silicon): all six scenarios.
 - **Linux** (an Ubuntu 24.04 container on Docker Desktop, exfatprogs 1.2.2, with the helper in the
-  container): `configure`, `recover` and `prepare`, which are the scenarios that do not write to a
+  container): `configure`, `recover`, and `prepare`, which are the scenarios that do not write to a
   card's mount point from the harness.

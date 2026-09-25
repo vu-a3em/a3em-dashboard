@@ -40,7 +40,7 @@ import (
 )
 
 // ProtocolVersion changes when a reply changes shape.
-const ProtocolVersion = 2
+const ProtocolVersion = 3
 
 // Operations are every op this helper answers.
 var Operations = []string{

@@ -134,19 +134,14 @@ export function RecoverCard({ helper, onConnect }: Readonly<{ helper: Helper; on
       <p className="hint">
         A card whose filesystem is damaged may not appear in the card picker dialog box, so “Connect SD card” cannot open
         it. However, the card may still be recoverable using the tools on this page. Only cards that are corrupted,
-        unmountable, or unreadable will be shown; a card that opens normally is checked and repaired under{' '}
+        unmountable, or unreadable will be shown; a card that opens normally can be checked and repaired under{' '}
         <TabLink to="review" />.
       </p>
       {listed.length === 0 ? (
-        <p className="muted">
-          {devices.length === 0 ? (
-            'No cards are connected. Insert the card; it appears here within a few seconds if it will not open.'
-          ) : (
-            <>
-              {devices.length === 1 ? 'The connected card opens' : `All ${devices.length} connected cards open`} normally,
-              so there is nothing to recover here. Use “Connect SD card”, then <TabLink to="review" />.
-            </>
-          )}
+        <p className="hint">
+          {devices.length === 0
+            ? 'No cards are connected. Insert the card; it appears here within a few seconds if it will not open.'
+            : 'All connected cards open normally, so there is nothing to recover here.'}
         </p>
       ) : (
         <div className="connected-cards">
@@ -168,10 +163,13 @@ export function RecoverCard({ helper, onConnect }: Readonly<{ helper: Helper; on
           ))}
         </div>
       )}
-      <p className="card-help">
-        These functions read the card directly, so your computer may ask for an administrator password. “Copy to an
-        image file…” asks where to save the image, and says before it starts if the image will not fit there.
-      </p>
+      {/* About the buttons on the cards above, so only where there are some. */}
+      {listed.length ? (
+        <p className="hint">
+          These functions read the card directly, so your computer may ask for an administrator password. “Copy to an
+          image file…” asks where to save the image, and says before it starts if the image will not fit there.
+        </p>
+      ) : null}
       {repair.pending ? (
         <RepairDialog
           description={repair.pending.description}

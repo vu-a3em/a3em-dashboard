@@ -61,8 +61,8 @@ export function InstallGuideDialog({
       ) : update ? (
         <div className="banner ok" style={{ marginTop: 12 }}>
           <strong>A3EM Card Helper {update.latest} is available</strong>
-          This computer has {update.installed}, which still works. Install the new one below to get its fixes and
-          improvements; it replaces the old one, and the browser extension stays as it is.
+          This computer uses {update.installed}, which will still work; however, you should install the new version
+          below to get the latest fixes and improvements.
         </div>
       ) : null}
 

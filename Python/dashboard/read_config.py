@@ -5,7 +5,9 @@
 
 from datetime import datetime
 import tkinter as tk
-import os, pytz
+import pytz
+try: from .config_file import CONFIG_FILE_NAME, find_config, parse
+except ImportError: from config_file import CONFIG_FILE_NAME, find_config, parse
 
 
 # CONSTANTS AND DEFINITIONS -------------------------------------------------------------------------------------------
@@ -18,135 +20,109 @@ VALID_IMU_MODES = {'Motion-Based': 'ACTIVITY', 'Audio-Synced': 'AUDIO', 'None': 
 VALID_TIME_SCALES = {'Second': 'SECONDS', 'Minute': 'MINUTES', 'Hour': 'HOURS', 'Day': 'DAYS'}
 VALID_VHF_MODES = {'Never': 'NEVER', 'End of Deployment': 'END', 'Scheduled': 'SCHEDULED'}
 VALID_MIC_TYPES = {'Analog': 'ANALOG', 'Digital': 'DIGITAL'}
+VALID_FILTER_TYPES = {'No filtering': 'NONE', 'High-pass': 'HIGH', 'Low-pass': 'LOW', 'Band-pass': 'BAND'}
+
+
+# HELPERS -------------------------------------------------------------------------------------------------------------
+
+def _label(choices, value):
+   return list(choices.keys())[list(choices.values()).index(value)]
+
+def _local(epoch, time_zone):
+   return datetime.fromtimestamp(epoch, pytz.utc).astimezone(pytz.timezone(time_zone))
+
+def _clock(seconds):
+   return '{:02d}:{:02d}'.format(seconds // 3600, (seconds % 3600) // 60)
+
+def _set(variable, value, convert=lambda value: value):
+   if value is not None:
+      variable.set(convert(value))
 
 
 # PARSER FUNCTION -----------------------------------------------------------------------------------------------------
 
-def read_config(self, filename, SchedulePhase):
-   with open(os.path.join(self.save_directory.get(), filename), 'r') as file:
+def read_config(self, SchedulePhase):
+   """The card's configuration into the window: the current file name, or the legacy one on an older card."""
+   path = find_config(self.save_directory.get())
+   if path is None:
+      raise FileNotFoundError('No {} on the card'.format(CONFIG_FILE_NAME))
+   with open(path, 'r', encoding='utf-8') as file:
+      config = parse(file.read())
 
-      # Reset all GUI fields to their default values
-      self.deployment_phase_default = [SchedulePhase(self.master, tk.StringVar(self.master, 'Default'))]
-      self.deployment_phases_custom.clear()
-      self.deployment_phases = self.deployment_phase_default
-      self.selected_phase.set('Default')
-      self.deployment_phase_times.clear()
-      self.audio_detail_fields.clear()
-      self.active_data_entry = None
-      time_zone = pytz.utc
+   # Reset all GUI fields to their default values
+   self.deployment_phase_default = [SchedulePhase(self.master, tk.StringVar(self.master, 'Default'))]
+   self.deployment_phases_custom.clear()
+   self.deployment_phases = self.deployment_phase_default
+   self.selected_phase.set('Default')
+   self.deployment_phase_times.clear()
+   self.audio_detail_fields.clear()
+   self.active_data_entry = None
 
-      # Parse the config file line by line
-      for line in file:
-         if '=' in line:
-            key, value = line.split('=')
-            key, value = (key.strip(), value.strip('\t\n "'))
-            if key == 'DEVICE_LABEL':
-               self.device_label.set(value)
-            elif key == 'DEVICE_TIMEZONE':
-               time_zone = value
-               self.device_timezone.set(value)
-            elif key == 'SET_RTC_AT_MAGNET_DETECT':
-               self.set_rtc_at_magnet_detect.set(value == 'True')
-            elif key == 'DEPLOYMENT_START_TIME':
-               local_datetime = datetime.fromtimestamp(int(value), pytz.utc).astimezone(pytz.timezone(time_zone))
-               self.deployment_start_date.set(local_datetime.strftime('%Y-%m-%d'))
-               self.deployment_start_time.set(local_datetime.strftime('%H:%M'))
-            elif key == 'DEPLOYMENT_END_TIME':
-               local_datetime = datetime.fromtimestamp(int(value), pytz.utc).astimezone(pytz.timezone(time_zone))
-               self.deployment_end_date.set(local_datetime.strftime('%Y-%m-%d'))
-               self.deployment_end_time.set(local_datetime.strftime('%H:%M'))
-            elif key == 'GPS_AVAILABLE':
-               self.gps_available.set(value == 'True')
-            elif key == 'AWAKE_ON_MAGNET':
-               self.awake_on_magnet.set(value == 'True')
-            elif key == 'LEDS_ENABLED':
-               self.leds_enabled.set(value == 'True')
-            elif key == 'LEDS_ACTIVE_SECONDS':
-               self.leds_active_seconds.set(int(value))
-            elif key == 'MIC_TYPE':
-               self.microphone_type.set(list(VALID_MIC_TYPES.keys())[list(VALID_MIC_TYPES.values()).index(value)])
-            elif key == 'MIC_AMPLIFICATION':
-               self.mic_amplification_level_db.set(float(value))
-            elif key == 'BATTERY_LOW_MV':
-               self.battery_low_mv.set(int(value))
-            elif key == 'MAGNET_FIELD_VALIDATION_MS':
-               self.magnetic_field_validation_length_ms.set(int(value))
-            elif key == 'FORBID_DEACTIVATION_SECONDS':
-               self.forbid_deactivation_seconds.set(int(value))
-            elif key == 'VHF_MODE':
-               self.vhf_mode.set(list(VALID_VHF_MODES.keys())[list(VALID_VHF_MODES.values()).index(value)])
-            elif key == 'VHF_RADIO_START_TIME':
-               local_datetime = datetime.fromtimestamp(int(value), pytz.utc).astimezone(pytz.timezone(time_zone))
-               self.vhf_start_date.set(local_datetime.strftime('%Y-%m-%d'))
-               self.vhf_start_time.set(local_datetime.strftime('%H:%M'))
-            elif key == 'PHASED_DEPLOYMENT':
-               self.deployment_is_split.set(value == 'True')
-               if value == 'True':
-                  self.deployment_phases = self.deployment_phases_custom
-               else:
-                  self.deployment_phase_default.clear()
-            elif key == 'PHASE_NAME':
-               self.deployment_phases[-1].name.set(value)
-               if self.deployment_is_split.get():
-                  self.deployment_phase_times.append((self.deployment_phases[-1].name, tk.StringVar(self.master, datetime.today().strftime('%Y-%m-%d')), tk.StringVar(self.master, datetime.today().strftime('%Y-%m-%d')), tk.StringVar(self.master, '00:00'), tk.StringVar(self.master, '00:00')))
-            elif key == 'PHASE_START_TIME':
-               if self.deployment_is_split.get():
-                  local_datetime = datetime.fromtimestamp(int(value), pytz.utc).astimezone(pytz.timezone(time_zone))
-                  self.deployment_phase_times[-1][1].set(local_datetime.strftime('%Y-%m-%d'))
-                  self.deployment_phase_times[-1][3].set(local_datetime.strftime('%H:%M'))
-            elif key == 'PHASE_END_TIME':
-               if self.deployment_is_split.get():
-                  local_datetime = datetime.fromtimestamp(int(value), pytz.utc).astimezone(pytz.timezone(time_zone))
-                  self.deployment_phase_times[-1][2].set(local_datetime.strftime('%Y-%m-%d'))
-                  self.deployment_phase_times[-1][4].set(local_datetime.strftime('%H:%M'))
-            elif key == 'AUDIO_RECORDING_MODE':
-               self.deployment_phases[-1].audio_recording_mode.set(list(VALID_AUDIO_MODES.keys())[list(VALID_AUDIO_MODES.values()).index(value)])
-            elif key == 'AUDIO_EXTEND_CLIP':
-               self.deployment_phases[-1].extend_clip_if_continuous_audio.set(value == 'True')
-            elif key == 'AUDIO_MAX_CLIPS_NUMBER':
-               self.deployment_phases[-1].max_audio_clips.set(int(value))
-            elif key == 'AUDIO_MAX_CLIPS_TIME_SCALE':
-               self.deployment_phases[-1].max_clips_time_scale.set(list(VALID_TIME_SCALES.keys())[list(VALID_TIME_SCALES.values()).index(value)])
-            elif key == 'AUDIO_TRIGGER_THRESHOLD':
-               self.deployment_phases[-1].audio_trigger_threshold.set(float(value))
-            elif key == 'AUDIO_TRIGGER_INTERVAL':
-               self.deployment_phases[-1].audio_trigger_interval.set(int(value))
-            elif key == 'AUDIO_TRIGGER_INTERVAL_TIME_SCALE':
-               self.deployment_phases[-1].audio_trigger_interval_time_scale.set(list(VALID_TIME_SCALES.keys())[list(VALID_TIME_SCALES.values()).index(value)])
-            elif key == 'AUDIO_TRIGGER_SCHEDULE':
-               start, end = value.split('-')
-               start = '{:02d}:{:02d}'.format(int(start) // 3600, (int(start) % 3600) // 60)
-               end = '{:02d}:{:02d}'.format(int(end) // 3600, (int(end) % 3600) // 60)
-               self.deployment_phases[-1].audio_trigger_times.append((tk.StringVar(self.master, start), tk.StringVar(self.master, end)))
-            elif key == 'AUDIO_SAMPLING_RATE_HZ':
-               self.deployment_phases[-1].audio_sampling_rate.set(int(value))
-            elif key == 'AUDIO_CLIP_LENGTH_SECONDS':
-               self.deployment_phases[-1].audio_clip_length.set(int(value))
-            elif key == 'IMU_RECORDING_MODE':
-               self.deployment_phases[-1].imu_recording_mode.set(list(VALID_IMU_MODES.keys())[list(VALID_IMU_MODES.values()).index(value)])
-            elif key == 'IMU_DEGREES_OF_FREEDOM':
-               self.deployment_phases[-1].imu_degrees_of_freedom.set(int(value))
-            elif key == 'IMU_TRIGGER_THRESHOLD':
-               self.deployment_phases[-1].imu_trigger_threshold.set(float(value))
-            elif key == 'IMU_SAMPLING_RATE_HZ':
-               self.deployment_phases[-1].imu_sampling_rate.set(int(value))
-            elif key == 'FILTER_TYPE':
-               self.deployment_phases[-1].audio_filter_type.set(
-                  {'NONE': 'No filtering', 'HIGH': 'High-pass', 'LOW': 'Low-pass', 'BAND': 'Band-pass'}.get(value, 'No filtering'))
-            elif key == 'FILTER_LOW_FREQUENCY':
-               self.deployment_phases[-1].audio_filter_low.set(int(value))
-            elif key == 'FILTER_HIGH_FREQUENCY':
-               self.deployment_phases[-1].audio_filter_high.set(int(value))
-            elif key == 'SILENCE_THRESHOLD':
-               self.deployment_phases[-1].silence_threshold.set(int(100.0 * float(value)))
-            elif key == 'MIN_FREQUENCY':
-               self.deployment_phases[-1].min_frequency.set(int(value))
-            elif key == 'MAX_FREQUENCY':
-               self.deployment_phases[-1].max_frequency.set(int(value))
-            elif key == 'USE_OPUS':
-               self.deployment_phases[-1].use_opus_encoding.set(value == 'True')
-            elif key == 'OPUS_BITRATE':
-               self.deployment_phases[-1].opus_bitrate.set(int(value))
-         elif '[PHASE]' in line:
-            self.deployment_phases.append(SchedulePhase(self.master, tk.StringVar(self.master, 'Default')))
-      self._change_deployment_split()
+   time_zone = config['timezone']
+   _set(self.device_label, config['label'])
+   self.device_timezone.set(time_zone)
+   _set(self.set_rtc_at_magnet_detect, config['set_rtc'])
+   for epoch, date, clock in ((config['start'], self.deployment_start_date, self.deployment_start_time),
+                              (config['end'], self.deployment_end_date, self.deployment_end_time),
+                              (config['vhf_start'], self.vhf_start_date, self.vhf_start_time)):
+      if epoch is not None:
+         local = _local(epoch, time_zone)
+         date.set(local.strftime('%Y-%m-%d'))
+         clock.set(local.strftime('%H:%M'))
+   # Kept as they are for writing back: this tool has no fields for them.
+   self.deployment_latitude.set('' if config['latitude'] is None else repr(config['latitude']))
+   self.deployment_longitude.set('' if config['longitude'] is None else repr(config['longitude']))
+   self.adjust_for_dst.set(config['adjust_for_dst'])
+   _set(self.gps_available, config['gps'])
+   _set(self.awake_on_magnet, config['awake_on_magnet'])
+   _set(self.leds_enabled, config['leds_enabled'])
+   _set(self.leds_active_seconds, config['leds_active_seconds'])
+   _set(self.microphone_type, config['mic_type'], lambda value: _label(VALID_MIC_TYPES, value))
+   _set(self.mic_amplification_level_db, config['mic_amplification'])
+   _set(self.battery_low_mv, config['battery_low_mv'])
+   _set(self.magnetic_field_validation_length_ms, config['magnet_ms'])
+   _set(self.forbid_deactivation_seconds, config['forbid_deactivation_s'])
+   _set(self.vhf_mode, config['vhf_mode'], lambda value: _label(VALID_VHF_MODES, value))
+
+   self.deployment_is_split.set(config['phased'])
+   if config['phases']:
+      self.deployment_phases = self.deployment_phases_custom if config['phased'] else self.deployment_phase_default
+      self.deployment_phases.clear()
+   for parsed in config['phases']:
+      phase = SchedulePhase(self.master, tk.StringVar(self.master, parsed['name']))
+      self.deployment_phases.append(phase)
+      if config['phased']:
+         start, end = _local(parsed['start'], time_zone), _local(parsed['end'], time_zone)
+         self.deployment_phase_times.append((phase.name, tk.StringVar(self.master, start.strftime('%Y-%m-%d')),
+                                             tk.StringVar(self.master, end.strftime('%Y-%m-%d')),
+                                             tk.StringVar(self.master, start.strftime('%H:%M')),
+                                             tk.StringVar(self.master, end.strftime('%H:%M'))))
+      _set(phase.audio_recording_mode, parsed['audio_mode'], lambda value: _label(VALID_AUDIO_MODES, value))
+      _set(phase.extend_clip_if_continuous_audio, parsed['extend_clip'])
+      _set(phase.max_audio_clips, parsed['max_clips'])
+      _set(phase.max_clips_time_scale, parsed['max_clips_scale'], lambda value: _label(VALID_TIME_SCALES, value))
+      _set(phase.audio_trigger_threshold, parsed['trigger_threshold'])
+      _set(phase.audio_trigger_interval, parsed['interval'])
+      _set(phase.audio_trigger_interval_time_scale, parsed['interval_scale'], lambda value: _label(VALID_TIME_SCALES, value))
+      phase.audio_schedule_type.set(parsed['schedule_type'])
+      phase.audio_solar_windows = list(parsed['solar'])
+      # As the web dashboard holds them, for writing back while those on screen are unchanged.
+      phase.audio_periods_entered = list(parsed['entered'])
+      for start, end in parsed['periods']:
+         phase.audio_trigger_times.append((tk.StringVar(self.master, _clock(start)), tk.StringVar(self.master, _clock(end))))
+      _set(phase.audio_sampling_rate, parsed['sample_rate'])
+      _set(phase.audio_clip_length, parsed['clip_length'])
+      _set(phase.imu_recording_mode, parsed['imu_mode'], lambda value: _label(VALID_IMU_MODES, value))
+      _set(phase.imu_degrees_of_freedom, parsed['imu_dof'])
+      _set(phase.imu_trigger_threshold, parsed['imu_threshold_mg'])
+      _set(phase.imu_sampling_rate, parsed['imu_rate'])
+      _set(phase.audio_filter_type, parsed['filter_type'], lambda value: _label(VALID_FILTER_TYPES, value))
+      _set(phase.audio_filter_low, parsed['filter_low'])
+      _set(phase.audio_filter_high, parsed['filter_high'])
+      # The file holds a fraction of full scale; this tool shows a percentage.
+      _set(phase.silence_threshold, parsed['silence_threshold'], lambda value: round(float(value) * 100.0, 6))
+      _set(phase.min_frequency, parsed['min_freq'])
+      _set(phase.max_frequency, parsed['max_freq'])
+      _set(phase.use_opus_encoding, parsed['use_opus'])
+      _set(phase.opus_bitrate, parsed['opus_bitrate'])
+   self._change_deployment_split()

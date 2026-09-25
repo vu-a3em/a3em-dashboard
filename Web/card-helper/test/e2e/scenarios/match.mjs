@@ -22,9 +22,9 @@ export default async ({ evaluate, shot, sleep, out, expect }) => {
   out.check = await until(evaluate, sleep, `$text(document.querySelector('details.physical-card .card-result'))`, 3000);
   expect('the filesystem check finds no problems', /No problems found/.test(out.check ?? ''), out.check);
   out.reviewNote = await evaluate(`$text([...document.querySelectorAll('.content > .card')].find((c) => c.querySelector('h2')?.textContent === 'Not deployed yet'))`);
-  expect('Review card says the card is not deployed yet, in place of an empty deployment', /prepared for OWL_01/.test(out.reviewNote ?? '') && /no deployment to review yet/.test(out.reviewNote ?? '') && !/set to run from/.test(out.reviewNote ?? ''), out.reviewNote);
+  expect('Review card says the card is not deployed yet, in place of an empty deployment', /prepared for OWL_01/.test(out.reviewNote ?? '') && /so there is nothing to review\./.test(out.reviewNote ?? '') && !/set to run from/.test(out.reviewNote ?? ''), out.reviewNote);
   await shot('1-review');
-  for (const [tab, words] of [['Listen', 'nothing to listen to yet'], ['Check & copy', 'nothing to check or copy yet']]) {
+  for (const [tab, words] of [['Listen', 'so there is nothing to listen to.'], ['Check & copy', 'so there is nothing to check or copy.']]) {
     await evaluate(rail(tab));
     const note = await until(evaluate, sleep, `(() => { const c = [...document.querySelectorAll('.content .card')].find((e) => e.querySelector('h2')?.textContent === 'Not deployed yet'); return c ? $text(c) : null; })()`, 100);
     expect(`${tab} says the card is not deployed yet`, (note ?? '').includes(words), note ?? (await evaluate(`$text(document.querySelector('.content'))`))?.slice(0, 300));

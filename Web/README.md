@@ -26,12 +26,12 @@ npm run build      # the static site, in app/dist
 | Path | Holds |
 | --- | --- |
 | [`app`](app) | The dashboard: React and TypeScript, built with Vite. |
-| [`packages/config-schema`](packages/config-schema) | Everything that understands an A3EM card: the `_a3em.cfg` format and its validation, the storage and battery forecast, and readers for recordings, IMU files, logs, the device file and self-test results. No interface. |
-| [`card-helper`](card-helper) | The A3EM Card Helper's native program, in Go, for macOS, Windows and Linux, with its installers. |
+| [`packages/config-schema`](packages/config-schema) | Everything that understands an A3EM card: the configuration file's format (`_conf.a3m`) and its validation, the storage and battery forecast, and readers for recordings, IMU files, logs, the device file, and self-test results. No interface. |
+| [`card-helper`](card-helper) | The A3EM Card Helper's native program, in Go, for macOS, Windows, and Linux, with its installers. |
 | [`extension`](extension) | The A3EM Card Helper's browser extension, which relays messages between the dashboard and the program. |
 | [`firebase`](firebase) | Optional accounts: the database rules, their tests, and how to set up the Firebase project. |
-| [`tools`](tools) | Scripts for the checks, the snapshots, the helper and the extension. |
-| [`reference`](reference) | The deployment planner spreadsheet, and snapshots generated from it, the firmware and the earlier desktop tool. |
+| [`tools`](tools) | Scripts for the checks, the snapshots, the helper, and the extension. |
+| [`reference`](reference) | The deployment planner spreadsheet, and snapshots generated from it, the firmware, and the earlier desktop tool. |
 | [`deployment.json`](deployment.json) | The one hand-edited copy of the extension's identity and the account settings. `npm run sync:extension` writes them wherever they are needed. |
 
 ## The dashboard
@@ -45,7 +45,7 @@ filtering, and the motion sensor. Settings are checked as they are entered, agai
 current firmware accepts and does, and the forecast shows how much of the card and the battery the
 deployment will use, when each runs out, and the cluster size to format the card with. Settings
 used again and again are saved as **protocols**; six starters ship with the dashboard. The
-configuration is written to the card as `_a3em.cfg`, or downloaded. With the helper, "Configure
+configuration is written to the card as `_conf.a3m`, or downloaded. With the helper, "Configure
 SD Card" prepares the open card instead: checked, then given only what it needs, which may be
 only its settings and its name, or, confirmed first, erasing it and setting it up again.
 
@@ -65,7 +65,7 @@ time shown. With the helper, the card itself is checked too: its layout, what th
 recorded when it prepared it, its filesystem, which the helper can repair, and a copy of the whole
 card to an image file.
 
-**Listen.** Recordings by day, at corrected times, each with its sample rate, waveform, spectrogram
+**Listen.** Recordings by day, at corrected times, each with its sample rate, waveform, spectrogram,
 and levels. The levels are explained: a dead microphone and a quiet site look alike on a waveform
 and mean very different things. Playback corrects a clip's header in memory, so an interrupted
 clip plays at its true length without the card being touched.
@@ -81,7 +81,7 @@ and repaired.
 
 ### Browsers
 
-Reading and writing cards needs the File System Access API, which Chrome, Edge and the other
+Reading and writing cards needs the File System Access API, which Chrome, Edge, and the other
 Chromium browsers have (Brave behind a flag, which the dashboard points out). Firefox and Safari
 can build a configuration and download it. The A3EM Card Helper's extension installs from the
 Chrome Web Store.
@@ -92,6 +92,11 @@ Two are read: **v1**, the prose logs and date-based file names of firmware from 
 repository, and **v2**, what the current firmware writes. They are told apart by what is on the
 card rather than by a version number: current firmware writes a device file at the card's root,
 so recordings without one date the card.
+
+The configuration file is `_conf.a3m`. Cards prepared before it was renamed carry `_a3em.cfg`,
+which the firmware still reads when there is no `_conf.a3m`, and so does the dashboard, except in
+Chrome on Windows, which will not let a web page open any `.cfg` file. That refusal is why the
+file was renamed.
 
 ## Keeping in step with the firmware
 
@@ -131,7 +136,7 @@ the database rules.
 
 | Command | |
 | --- | --- |
-| `npm run check-card -- <folder>` | The dashboard's recording checks, outside the browser, on a mounted card, an image or a copied folder. |
+| `npm run check-card -- <folder>` | The dashboard's recording checks, outside the browser, on a mounted card, an image, or a copied folder. |
 | `npm run install-helper` | Builds the A3EM Card Helper's program and registers it with every Chromium browser found. |
 | `npm run helper-doctor` | Checks the helper's registrations, and that it starts and answers. |
 | `npm run test:helper` | The helper program's tests. |

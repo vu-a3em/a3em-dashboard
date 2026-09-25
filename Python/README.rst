@@ -10,6 +10,10 @@ at `config.a3em.com <https://config.a3em.com>`_ replaces it. The website runs in
 nothing to install, prepares SD cards, and reviews what a recorder brought back. Use it for new
 deployments.
 
+The two read and write the same configuration file, ``_conf.a3m``, so a card prepared with either
+can be opened in the other, and cards prepared before the file was renamed (``_a3em.cfg``) still
+open.
+
 Once this package is installed, the desktop dashboard opens from a terminal with:
 
 ``a3em``

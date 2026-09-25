@@ -11,6 +11,7 @@ import {
   AUDIO_RECORDING_MODES,
   BATTERY_DEFAULT_LOW_MV,
   CONFIG_FILE_NAME,
+  LEGACY_CONFIG_FILE_NAME,
   DEVICE_LABEL_FIRMWARE_MAX_LEN,
   AUDIO_MAX_CLIP_LENGTH_SECONDS,
   AUDIO_MAX_SAMPLING_RATE_HZ,
@@ -156,6 +157,7 @@ describe('firmware-constants.ts agrees with the firmware source', () => {
 
   it('tracks the file names', () => {
     assert.equal(CONFIG_FILE_NAME, snapshot.stringDefines.CONFIG_FILE_NAME);
+    assert.equal(LEGACY_CONFIG_FILE_NAME, snapshot.stringDefines.LEGACY_CONFIG_FILE_NAME);
     assert.equal(LOG_FILE_NAME, snapshot.stringDefines.LOG_FILE_NAME);
   });
 

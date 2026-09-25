@@ -9,7 +9,7 @@ import type { DeploymentConfig } from './types.js';
 /**
  * What this package writes, against what the tool it replaces writes.
  *
- * `Python/dashboard` and this package produce the same `_a3em.cfg`, and where they
+ * `Python/dashboard` and this package produce the same configuration, and where they
  * disagree one of them is wrong about what reaches the device. Those disagreements used
  * to live only in a findings document, which cannot tell you when it has gone stale —
  * the Python tool could be fixed tomorrow and the document would carry on describing a

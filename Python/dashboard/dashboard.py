@@ -5,8 +5,10 @@
 
 try: from .read_config import read_config
 except: from read_config import read_config
-try: from .write_config import write_config
-except: from write_config import write_config
+try: from .write_config import config_from_window, write_config
+except: from write_config import config_from_window, write_config
+try: from .config_file import CONFIG_FILE_NAME, MAX_DEVICE_LABEL_LEN, validate as validate_file
+except: from config_file import CONFIG_FILE_NAME, MAX_DEVICE_LABEL_LEN, validate as validate_file
 try: from .tkcal import DateEntry
 except: from tkcal import DateEntry
 try: from .relabel_logs import relabel_audio_files
@@ -23,8 +25,6 @@ import asyncio
 
 # CONSTANTS AND DEFINITIONS -------------------------------------------------------------------------------------------
 
-CONFIG_FILE_NAME = '_a3em.cfg'
-MAX_DEVICE_LABEL_LEN = 15
 MAX_AUDIO_TRIGGER_TIMES = 12
 
 DEFAULT_MAGNETIC_FIELD_VALIDATION_LENGTH_MS = 5000
@@ -205,7 +205,8 @@ def validate_details(self):
             if start_time < last_end_time:
                return 'Schedule-based audio start/end times cannot overlap'
             last_end_time = end_time
-   return None
+   # And everything the web dashboard checks before writing, so the file is one it would write too.
+   return validate_file(config_from_window(self))
 
 
 # INTERMEDIATE STORAGE CLASSES ----------------------------------------------------------------------------------------
@@ -220,15 +221,15 @@ class SchedulePhase:
       self.audio_recording_mode = tk.StringVar(master, 'Threshold-Based')
       self.max_clips_time_scale = tk.StringVar(master, 'Hour')
       self.audio_trigger_interval_time_scale = tk.StringVar(master, 'Minute')
-      self.max_audio_clips = tk.IntVar(master, 0)
+      self.max_audio_clips = tk.IntVar(master, 60)  # per hour, as the web dashboard starts it
       self.audio_trigger_interval = tk.IntVar(master, 10)
       self.audio_clip_length = tk.IntVar(master, DEFAULT_AUDIO_CLIP_LENGTH_S)
       self.audio_sampling_rate = tk.IntVar(master, DEFAULT_AUDIO_SAMPLE_RATE_HZ)
       self.imu_sampling_rate = tk.IntVar(master, DEFAULT_IMU_SAMPLE_RATE_HZ)
       self.imu_degrees_of_freedom = tk.IntVar(master, 3)
       self.audio_trigger_threshold = tk.DoubleVar(master, 0.25)
-      self.imu_trigger_threshold = tk.DoubleVar(master, 0.25)
-      self.silence_threshold = tk.IntVar(master, 0)
+      self.imu_trigger_threshold = tk.DoubleVar(master, 100)
+      self.silence_threshold = tk.DoubleVar(master, 0)
       self.opus_bitrate = tk.IntVar(master, 32000)
       self.audio_filter_type = tk.StringVar(master, 'No filtering')
       self.audio_filter_low = tk.IntVar(master, DEFAULT_MIN_FREQUENCY_OF_INTEREST)
@@ -236,6 +237,10 @@ class SchedulePhase:
       self.min_frequency = tk.IntVar(master, DEFAULT_MIN_FREQUENCY_OF_INTEREST)
       self.max_frequency = tk.IntVar(master, DEFAULT_AUDIO_SAMPLE_RATE_HZ // 2)
       self.audio_trigger_times = []
+      # A solar schedule, set in the web dashboard: kept as it is, since this tool cannot edit it.
+      self.audio_schedule_type = tk.StringVar(master, 'CLOCK')
+      self.audio_solar_windows = []
+      self.audio_periods_entered = None
 
 
 # GUI DESIGN ----------------------------------------------------------------------------------------------------------
@@ -267,7 +272,11 @@ class A3EMGui(ttk.Frame):
       self.leds_enabled = tk.BooleanVar(self.master, True)
       self.leds_active_seconds = tk.IntVar(self.master, 3600)
       self.mic_amplification_level_db = tk.DoubleVar(self.master, 35.0)
-      self.battery_low_mv = tk.IntVar(self.master, 0)  # TODO: Set this to something reasonable
+      self.battery_low_mv = tk.IntVar(self.master, 0)  # disabled, as the web dashboard defaults it
+      # Set in the web dashboard, and kept as they are: this tool has no fields for them.
+      self.deployment_latitude = tk.StringVar(self.master, '')
+      self.deployment_longitude = tk.StringVar(self.master, '')
+      self.adjust_for_dst = tk.BooleanVar(self.master, True)
       self.magnetic_field_validation_length_ms = tk.IntVar(self.master, DEFAULT_MAGNETIC_FIELD_VALIDATION_LENGTH_MS)
       self.forbid_deactivation_seconds = tk.IntVar(self.master, 0)
       self.target_selection = tk.StringVar(self.master, 'Select a target device...')
@@ -400,7 +409,7 @@ class A3EMGui(ttk.Frame):
    def _get_configuration(self):
       self._clear_canvas()
       try:
-         read_config(self, CONFIG_FILE_NAME, SchedulePhase)
+         read_config(self, SchedulePhase)
          tk.Label(self.canvas, text='Successfully loaded configuration from the device!').pack(fill=tk.BOTH, expand=True)
       except:
          tk.Label(self.canvas, text='Unable to load the configuration file').pack(fill=tk.BOTH, expand=True)
@@ -661,7 +670,7 @@ class A3EMGui(ttk.Frame):
       ttk.Label(prompt_area, text='Audio Clip Length (s):   ').grid(column=0, row=5, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
       ttk.Entry(prompt_area, textvariable=phase.audio_clip_length, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.audio_clip_length, 1, 3600)), '%d', '%P')).grid(column=2, row=5, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
       ttk.Label(prompt_area, text='Silence Threshold (% of max):   ').grid(column=0, row=6, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
-      ttk.Entry(prompt_area, textvariable=phase.silence_threshold, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.silence_threshold, 0, 100)), '%d', '%P')).grid(column=2, row=6, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
+      ttk.Entry(prompt_area, textvariable=phase.silence_threshold, validate='all', validatecommand=(prompt_area.register(partial(validate_float, phase.silence_threshold, 0, 100)), '%d', '%P')).grid(column=2, row=6, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
       ttk.Label(prompt_area, text='Frequencies of Interest (Hz):   ').grid(column=0, row=7, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
       min_freq_entry = ttk.Entry(prompt_area, textvariable=phase.min_frequency, width=8, validate='all', validatecommand=(prompt_area.register(partial(validate_number, phase.min_frequency, 0, int(phase.audio_sampling_rate.get()) // 4)), '%d', '%P'))
       min_freq_entry.grid(column=2, row=7, columnspan=1, sticky=tk.W+tk.E+tk.N+tk.S)
@@ -696,7 +705,7 @@ class A3EMGui(ttk.Frame):
       def show_threshold_options(self):
          for field in self.audio_detail_fields:
             field.destroy()
-         field1 = ttk.Label(prompt_area, text='Threshold Trigger Level (dB):   ')
+         field1 = ttk.Label(prompt_area, text='Threshold Trigger Level (0-1 of full scale):   ')
          field1.grid(column=0, row=15, columnspan=2, sticky=tk.W+tk.E+tk.N+tk.S)
          field2 = ttk.Entry(prompt_area, textvariable=phase.audio_trigger_threshold)
          field2.grid(column=2, row=15, columnspan=3, sticky=tk.W+tk.E+tk.N+tk.S)
@@ -751,6 +760,11 @@ class A3EMGui(ttk.Frame):
          field2 = ttk.Button(prompt_area, text='Add', command=partial(add_period, self))
          field2.grid(column=4, row=18, sticky=tk.E)
          self.audio_detail_fields = [field1, field2]
+         if phase.audio_schedule_type.get() == 'SOLAR':
+            # Set in the web dashboard; written back as it is.
+            note = ttk.Label(prompt_area, wraplength=560, text='This phase follows the sun, with {} listening {} set in the web dashboard, which are kept as they are. The periods below are only used on a day the sun gives no window.'.format(len(phase.audio_solar_windows), 'period' if len(phase.audio_solar_windows) == 1 else 'periods'))
+            note.grid(column=0, row=17, columnspan=5, pady=(0, 5), sticky=tk.W+tk.E+tk.N+tk.S)
+            self.audio_detail_fields.append(note)
          for trigger_times in phase.audio_trigger_times:
             add_period(self, trigger_times)
       def audio_mode_changed(self, event):
@@ -901,7 +915,7 @@ class A3EMGui(ttk.Frame):
             tk.Label(self.canvas, text='Fix configuration errors and try again').pack(fill=tk.BOTH, expand=True)
             tk.messagebox.showerror('A3EM Error', error)
          else:
-            write_config(self, CONFIG_FILE_NAME)
+            write_config(self)
             tk.Label(self.canvas, text='Successfully stored configuration to device!').pack(fill=tk.BOTH, expand=True)
       except:
          tk.Label(self.canvas, text='Unable to store the configuration file').pack(fill=tk.BOTH, expand=True)

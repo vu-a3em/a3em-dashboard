@@ -6,7 +6,7 @@
 
 Why this exists
 ---------------
-`Web/` replaces `Python/dashboard`, and the two write the same `_a3em.cfg`. Where they
+`Web/` replaces `Python/dashboard`, and the two write the same configuration file. Where they
 disagree, one of them is wrong about what reaches the device — and until now those
 disagreements lived in a prose findings document that nothing could check. A document
 cannot tell you when it has gone stale.
@@ -159,6 +159,8 @@ def load_writer():
             "ERROR: the Python dashboard needs pytz and no substitute could be built.\n"
             "Install it with: python3 -m pip install pytz"
         )
+    # The writer imports the configuration file's module beside it.
+    sys.path.insert(0, str(WRITE_CONFIG.parent))
     spec = importlib.util.spec_from_file_location("a3em_write_config", WRITE_CONFIG)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -168,11 +170,10 @@ def load_writer():
 def run_desktop_writer(frozen_now: str) -> list[str]:
     """Run the real writer with `datetime.now()` pinned to a fixed instant.
 
-    The writer derives DEVICE_UTC_OFFSET from the offset *at the moment of writing*, so
-    its output genuinely changes with the calendar. Left unpinned this snapshot would go
-    stale twice a year on its own and say nothing useful when it did. Freezing `now` makes
-    the output reproducible — and running it at two instants either side of a DST change
-    turns the time-dependence itself into something a test can assert.
+    The writer once derived DEVICE_UTC_OFFSET from the offset *at the moment of writing*, so
+    its output changed with the calendar. It now takes the offset at the deployment's start,
+    as the dashboard does. Running it at two instants either side of a DST change, with `now`
+    pinned to each, keeps that true: a regression to write-time behavior changes the output.
     """
     module = load_writer()
 
@@ -198,8 +199,8 @@ def run_desktop_writer(frozen_now: str) -> list[str]:
         # The writer prints to a file handle; capture anything it sends to stdout too, so
         # a future version that reports through print() does not vanish.
         with redirect_stdout(io.StringIO()):
-            module.write_config(app, "_a3em.cfg")
-        return (Path(directory) / "_a3em.cfg").read_text(encoding="utf-8").splitlines()
+            module.write_config(app, "_conf.a3m")
+        return (Path(directory) / "_conf.a3m").read_text(encoding="utf-8").splitlines()
 
 
 # Two instants either side of a Sydney DST change, with the deployment in January (AEDT,

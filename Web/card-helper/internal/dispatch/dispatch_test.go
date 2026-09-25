@@ -197,7 +197,7 @@ func TestPrepareTestsFormatsVerifiesAndWritesTheConfig(t *testing.T) {
 	if card["capacity"].(map[string]any)["verdict"] != "genuine" || card["layout"].(map[string]any)["reference"] != true {
 		t.Fatalf("card %v", card)
 	}
-	if written, _ := os.ReadFile(filepath.Join(plat.mount, "_a3em.cfg")); string(written) != config {
+	if written, _ := os.ReadFile(filepath.Join(plat.mount, "_conf.a3m")); string(written) != config {
 		t.Fatalf("config on card: %q", written)
 	}
 	if len(*sent) < 3 {

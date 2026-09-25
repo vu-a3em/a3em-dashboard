@@ -1,7 +1,7 @@
 {
   "name": "@a3em/config-schema",
   "version": "0.1.0",
-  "description": "Authoritative _a3em.cfg schema, serializer, validators, and deployment forecast model for A3EM. Shared by the web dashboard and any server-side tooling.",
+  "description": "Authoritative A3EM configuration schema, serializer, validators, and deployment forecast model for A3EM. Shared by the web dashboard and any server-side tooling.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

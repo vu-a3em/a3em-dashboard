@@ -2,7 +2,7 @@
 
 The native program the dashboard uses, through the [browser extension](../extension), to work
 on SD cards directly: list the cards plugged into this computer, check whether one is ready to
-deploy, and prepare cards — test, erase, format, verify and configure them — in one step.
+deploy, and prepare cards — test, erase, format, verify, and configure them — in one step.
 
 It is written in Go so that it ships as one self-contained executable per platform, with no
 runtime to install.
@@ -12,16 +12,16 @@ runtime to install.
 | Operation | What happens |
 | --- | --- |
 | `listDevices` | Removable cards only. The startup disk, internal disks, external drives, and anything outside 1 GiB–2 TiB never appear, so the page can never offer them. |
-| `readiness` | Everything about a card that can be learned without writing to it: its layout compared byte for byte with the reference, lock switch, contents, `_a3em.cfg`, free space, the card's identity (its CID register, where the reader exposes it), and what this computer recorded when it prepared it. The dashboard judges the facts with `judgeReadiness` in the schema package. |
-| `prepare` | For each card: the capacity probe, the write-latency test, the reference exFAT layout written and read back, the layout verified, the card mounted, and its device's `_a3em.cfg` written. A batch is one operation, so it costs one administrator prompt; every card still needs its own confirmation. |
+| `readiness` | Everything about a card that can be learned without writing to it: its layout compared byte for byte with the reference, lock switch, contents, the configuration file (`_conf.a3m`, or on a card prepared before it was renamed, `_a3em.cfg`), free space, the card's identity (its CID register, where the reader exposes it), and what this computer recorded when it prepared it. The dashboard judges the facts with `judgeReadiness` in the schema package. |
+| `prepare` | For each card: the capacity probe, the write-latency test, the reference exFAT layout written and read back, the layout verified, the card mounted, and its device's `_conf.a3m` written. A batch is one operation, so it costs one administrator prompt; every card still needs its own confirmation. |
 | `verify` | The layout comparison on its own. |
 | `format` | `prepare` without the two tests, for a card that is known to be good. |
 | `diagnose` | [This helper's own check](#the-filesystem-check) of an exFAT card, read-only, the same on every platform; what is wrong in words, with the files it touches. A card that is not exFAT goes to the system's checker. Also hands over what logs and IMU files hold past their recorded end — the recorder records a file's length only when it syncs or closes it — for the dashboard to judge and add to their copies ([`internal/exfat/tails.go`](internal/exfat/tails.go)). |
 | `repair` | This helper's own repair where the check shows it fixes everything — the allocation bitmap rebuilt from the files, or a boot region restored from its intact copy — saving what it replaces first, in the state folder's `repairs`, kept 30 days and at most 256 MB; otherwise the system's tool, `fsck_exfat` / `fsck.exfat` / `chkdsk`. |
 | `image` | A sector-by-sector copy to a file, continuing past unreadable sectors. |
-| `chooseImage` | The system's own save dialog for a card's image (AppleScript on macOS, the desktop portal's — GNOME's, KDE's — on Linux, else zenity or kdialog, Windows Forms on Windows), then whether the image fits there: free space, and the 4 GB file limit of a FAT32 drive. `image` makes the same check itself before reading a byte, writes to `<name>.partial`, and moves it into place only once it is whole. Without a dialog — a Linux session with no portal, zenity or kdialog — the image goes in `Documents/A3EM card images`. |
-| `stop` | Stops a running `image` or `diagnose`, named by its request id; a stopped image's unfinished file is deleted. The page sends it for its Stop button, and the page closing stops them too. A `prepare`, `format` or `repair` is never stopped partway: a half-written card is worse than a slow one. |
-| `hello` | The version, platform and operations, and anything this computer lacks that the tools rely on — on Linux, `pkexec`, a polkit agent, `udisks2`, the exFAT driver, a save dialog — which `doctor` prints too, and the dashboard shows under "A3EM Card Helper" in its menu. |
+| `chooseImage` | The system's own save dialog for a card's image (AppleScript on macOS, the desktop portal's — GNOME's, KDE's — on Linux, else zenity or kdialog, Windows Forms on Windows), then whether the image fits there: free space, and the 4 GB file limit of a FAT32 drive. `image` makes the same check itself before reading a byte, writes to `<name>.partial`, and moves it into place only once it is whole. Without a dialog — a Linux session with no portal, zenity, or kdialog — the image goes in `Documents/A3EM card images`. |
+| `stop` | Stops a running `image` or `diagnose`, named by its request id; a stopped image's unfinished file is deleted. The page sends it for its Stop button, and the page closing stops them too. A `prepare`, `format`, or `repair` is never stopped partway: a half-written card is worse than a slow one. |
+| `hello` | The version, platform, and operations, and anything this computer lacks that the tools rely on — on Linux, `pkexec`, a polkit agent, `udisks2`, the exFAT driver, a save dialog — which `doctor` prints too, and the dashboard shows under "A3EM Card Helper" in its menu. |
 | `rename` | A card's new name, where it has another and nothing else needs changing: the dashboard renames it when it writes a device's settings without erasing the card. Nothing but the name changes, so it needs no confirmation. The system renames it as the person using the computer, except on Windows, which renames a drive only for an administrator; there it runs in the elevated worker. A dashboard that finds no `rename` in `hello` leaves the name as it is. |
 | `mount`, `unmount`, `eject`, `inspect`, `identify`, `writeConfig` | The small ones. |
 
@@ -73,7 +73,7 @@ runs on every platform — and finds what each platform's own checker misses: ex
 report space marked in use that no file uses, and `fsck_exfat` reports two files sharing space
 only as a wrong bitmap. It checks both boot regions and their checksums, the FAT, the up-case
 table, every folder and file — entry checksums, name hashes, and each chain of clusters for
-ending early, running on, looping or being shared — and then the allocation bitmap against what
+ending early, running on, looping, or being shared — and then the allocation bitmap against what
 the files actually use, both ways. Each finding is a problem (recordings may be lost, or the card
 may not open) or minor, in words, naming up to twenty of the files it touches.
 
@@ -193,7 +193,7 @@ be asked):
 | --- | --- |
 | `A3EM-Card-Helper-macOS.pkg` | Universal. Signed with Developer ID, notarized, stapled. Installs to `/Library/Application Support/A3EM`. |
 | `A3EM-Card-Helper-Windows.exe` | x64 and ARM64. Per-user, so no administrator rights to install. Signed through SignPath. |
-| `a3em-card-helper_{amd64,arm64}.deb` | Registers system-wide for Chrome, Chromium and Edge; installs a polkit policy. |
+| `a3em-card-helper_{amd64,arm64}.deb` | Registers system-wide for Chrome, Chromium, and Edge; installs a polkit policy. |
 | `a3em-card-helper_linux_{amd64,arm64}.tar.gz` | With `install.sh`, for other distributions. |
 
 and publishes them as a GitHub release. Asset names carry no version, so the dashboard's install
@@ -204,7 +204,7 @@ release waits for its two signing requests to be approved in SignPath.
 ### Version numbers
 
 The version exists only in the tag: the workflow builds it into the executable, the installers'
-metadata and the release's name, so there is no file to edit. A local build
+metadata, and the release's name, so there is no file to edit. A local build
 (`npm run helper:build`) names itself from `git describe`, such as `0.2.0-3-gab12cd3-dirty` for
 three commits after 0.2.0 with uncommitted changes, and `a3em-card-helper version` or `doctor`
 says which build is installed.
@@ -252,20 +252,4 @@ NOTARY_KEYCHAIN_PROFILE=a3em-notary packaging/macos/build-pkg.sh 0.2.0
 
 ## Code signing policy
 
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
-[SignPath Foundation](https://signpath.org). This covers the Windows installer and the
-executables in it; the macOS installer is signed with the project's Apple Developer ID.
-
-Team roles:
-
-- Committers and reviewers: [Will Hedgecock](https://github.com/hedgecrw)
-- Approvers: [Will Hedgecock](https://github.com/hedgecrw)
-
-Every release is built from this repository by the
-[release workflow](../../.github/workflows/card-helper-release.yml) on GitHub-hosted runners, and
-every signing request is approved by hand in SignPath.
-
-Privacy: this program will not transfer any information to other networked systems unless
-specifically requested by the user or the person installing or operating it. It has no network
-code at all: it talks only to the browser that starts it and to the cards and disks on this
-computer. The full privacy policy is at https://config.a3em.com/privacy.html.
+The project's code signing policy is in [`CODE_SIGNING_POLICY.md`](../../CODE_SIGNING_POLICY.md).

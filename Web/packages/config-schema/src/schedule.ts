@@ -355,7 +355,9 @@ export function shiftPeriods(periods: readonly TriggerWindow[], shiftSeconds: nu
  *
  * Pieces are recognized by what the serializer guarantees about them — the same name, end to
  * end in time, and identical settings once unshifted — so a deliberate pair of phases that
- * happen to share a name but differ in anything is left alone.
+ * happen to share a name but differ in anything is left alone. Periods are compared as the
+ * entries the device is given: two periods that meet at midnight read back as one overnight
+ * period, and moved by the change they may come back as two, the same recording either way.
  */
 export function joinDstSegments(config: DeploymentConfig): { phases: PhaseConfig[]; isPhased: boolean } {
   const deviceOffset = deviceUtcOffsetSeconds(config);
@@ -380,7 +382,7 @@ export function joinDstSegments(config: DeploymentConfig): { phases: PhaseConfig
       previous.endTime !== undefined &&
       phase.startTime !== undefined &&
       Date.parse(previous.endTime) === Date.parse(phase.startTime) &&
-      settingsKey(previous) === settingsKey(phase)
+      settingsKey(asEntries(previous)) === settingsKey(asEntries(phase))
     ) {
       previous.endTime = phase.endTime;
       continue;
@@ -398,6 +400,11 @@ export function joinDstSegments(config: DeploymentConfig): { phases: PhaseConfig
     return { phases: [{ ...only, startTime: undefined, endTime: undefined }], isPhased: false };
   }
   return { phases: joined, isPhased: true };
+}
+
+/** A phase with its periods as the device's entries, which two ways of entering one recording share. */
+function asEntries(phase: PhaseConfig): PhaseConfig {
+  return { ...phase, audioTriggerTimes: firmwareTriggerTimes(phase.audioTriggerTimes) };
 }
 
 /** A phase's settings without its times, in a fixed key order, for comparing two of them. */

@@ -415,7 +415,7 @@ export interface HelperIdentity {
 }
 
 /** The protocol this page speaks. An older helper is reported as needing an update. */
-export const HELPER_PROTOCOL = 2;
+export const HELPER_PROTOCOL = 3;
 
 /** The newest card helper released when this dashboard was built (see vite.config.ts), or ''. */
 export const LATEST_HELPER_RELEASE: string = import.meta.env.VITE_HELPER_RELEASE ?? '';
@@ -508,7 +508,7 @@ export interface PrepareTarget {
   allocationUnitBytes: number;
   /** The volume label. */
   label: string;
-  /** The `_a3em.cfg` to write once the card is formatted. */
+  /** The configuration file to write once the card is formatted. */
   config: string;
 }
 

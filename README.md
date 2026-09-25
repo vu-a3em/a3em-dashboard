@@ -5,13 +5,13 @@ looking at what they recorded afterward. It is a website: open
 **[config.a3em.com](https://config.a3em.com)** in your browser, and there is nothing to install
 for most of what it does.
 
-Everything happens on your own computer. Recordings, logs and positions on an SD card are read by
+Everything happens on your own computer. Recordings, logs, and positions on an SD card are read by
 your browser and are never uploaded anywhere.
 
 ## What you can do with it
 
 - **Configure** a deployment: when the recorder listens, how it records audio and motion, its
-  label, dates and time zone. The dashboard checks the settings as you go, estimates how long the
+  label, dates, and time zone. The dashboard checks the settings as you go, estimates how long the
   SD card and the battery will last, and writes the settings file onto the card. Settings you use
   again and again can be saved as a *protocol*.
 - **Prepare devices** in a batch: one set of settings, with each device's own label, written card
@@ -25,7 +25,7 @@ your browser and are never uploaded anywhere.
 - **Check and copy** a card to your computer. Every recording is checked, and recordings cut
   short because the recorder lost power are repaired in the copy. The card itself is never changed.
 
-It works best in **Google Chrome** or **Microsoft Edge**; Brave, Vivaldi, Arc and Opera also work.
+It works best in **Google Chrome** or **Microsoft Edge**; Brave, Vivaldi, Arc, and Opera also work.
 Firefox and Safari cannot open SD cards from a web page, so there you can create settings and
 download the file, then copy it onto the card yourself.
 
@@ -64,13 +64,13 @@ published build script, so anyone can see what went into it.
 - **Windows:** the installer and the program are signed through
   [SignPath Foundation](https://signpath.org), which provides free code signing to open-source
   projects. Every release is approved by hand before it is signed. The details are in the
-  [code signing policy](Web/card-helper/README.md#code-signing-policy).
+  [code signing policy](CODE_SIGNING_POLICY.md).
 - **Linux:** the packages are not signed.
 - **The browser extension** is reviewed by Google and distributed, signed, by the Chrome Web Store.
 
 ## Privacy
 
-The dashboard has no advertising, analytics or tracking. What an account stores, and what the A3EM
+The dashboard has no advertising, analytics, or tracking. What an account stores, and what the A3EM
 Card Helper keeps on your computer, is set out in the
 [privacy policy](https://config.a3em.com/privacy.html).
 
@@ -90,5 +90,5 @@ anything else, email [support@a3em.com](mailto:support@a3em.com).
 
 ## License
 
-Released under the [MIT License](LICENSE): free to use, copy, change and share, including for
+Released under the [MIT License](LICENSE): free to use, copy, change, and share, including for
 commercial purposes, as long as the copyright notice stays with it. It comes with no warranty.

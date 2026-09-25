@@ -1,3 +1,4 @@
+import { CONFIG_FILE_NAME, LEGACY_CONFIG_FILE_NAME } from '@a3em/config-schema';
 import type { CardContents } from './card';
 
 /**
@@ -6,7 +7,7 @@ import type { CardContents } from './card';
  * The browser's folder picker will hand over any folder at all, so the page cannot know it
  * was given an SD card. These are the two mistakes that actually happen: choosing the
  * device's own folder on the card instead of the card itself — where the device never looks
- * for `_a3em.cfg` — and choosing some other folder entirely. And one thing that is not a
+ * for the configuration file — and choosing some other folder entirely. And one thing that is not a
  * mistake but costs the next deployment: a card that still holds the last one's recordings.
  */
 export interface CardCheck {
@@ -15,7 +16,7 @@ export interface CardCheck {
 }
 
 const ACTIVATION_DIRECTORY = /^Activation_\d+$/;
-const A3EM_ROOT_FILES = new Set(['_a3em.cfg', '_a3em.dev', '_a3em.test.results', 'boot.log', '_a3em.boot.txt']);
+const A3EM_ROOT_FILES = new Set([CONFIG_FILE_NAME, LEGACY_CONFIG_FILE_NAME, '_a3em.dev', '_a3em.test.results', 'boot.log', '_a3em.boot.txt']);
 /** Fewer files than this at the top of a folder is an empty card, not a stranger's folder. */
 const FOREIGN_FILE_THRESHOLD = 20;
 

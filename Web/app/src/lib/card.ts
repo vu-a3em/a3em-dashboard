@@ -1,5 +1,6 @@
 import {
   CONFIG_FILE_NAME,
+  LEGACY_CONFIG_FILE_NAME,
   DEVICE_INFO_FILE_NAME,
   SELF_TEST_RESULTS_FILE_NAME,
   readCardLayout,
@@ -292,7 +293,9 @@ export async function readCard(
     layout,
     entries,
     unreadable,
-    configText: await readTextAt(root, CONFIG_FILE_NAME),
+    // A card prepared before the configuration file was renamed holds the legacy name, which the
+    // recorder reads when the current one is absent. (Chrome on Windows cannot read that one.)
+    configText: (await readTextAt(root, CONFIG_FILE_NAME)) ?? (await readTextAt(root, LEGACY_CONFIG_FILE_NAME)),
     deviceInfoText: await readTextAt(root, DEVICE_INFO_FILE_NAME),
     selfTestText: await readTextAt(root, SELF_TEST_RESULTS_FILE_NAME),
     logs,
@@ -333,6 +336,9 @@ export async function writeConfig(root: FileSystemDirectoryHandle, text: string)
       'The configuration read back from the card does not match what was written. Reinsert the card and try again.',
     );
   }
+  // One under the legacy name would sit beside it holding other settings. Best effort: the
+  // recorder reads the current name first, and Chrome on Windows cannot remove a .cfg file.
+  await root.removeEntry(LEGACY_CONFIG_FILE_NAME).catch(() => undefined);
 }
 
 /** Fallback for browsers without the File System Access API. */

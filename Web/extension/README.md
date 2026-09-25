@@ -33,7 +33,7 @@ hostname later means a new extension version and another store review.
 
 ## Publishing
 
-`npm run package:extension` builds the zip to upload: the manifest, the service worker and the
+`npm run package:extension` builds the zip to upload: the manifest, the service worker, and the
 icons, without the manifest's `key` (the store keeps its own). [`PRIVACY.md`](PRIVACY.md) is the
 extension's privacy statement, the extension's part of the dashboard's full policy.
 

@@ -185,6 +185,21 @@ describe('daylight saving', () => {
     assert.equal(parseConfig(text).config.adjustForDst, false);
   });
 
+  it('reads back as one phase periods that meet at midnight, across a change that moves them', () => {
+    // Berlin springs forward on 28 March 2027. 20:00–24:00 and 00:00–04:00 are one recording to the device.
+    const nights: DeploymentConfig = {
+      ...defaultConfig('Europe/Berlin', new Date('2027-01-01T00:00:00.000Z')),
+      deviceLabel: 'OWL-05',
+      startTime: '2027-03-14T23:00:00.000Z',
+      endTime: '2027-04-14T22:00:00.000Z',
+      phases: [{ ...defaultPhase(), audioRecordingMode: 'SCHEDULED', audioTriggerTimes: [{ startSecond: 0, endSecond: h(4) }, { startSecond: h(20), endSecond: h(24) }] }],
+    };
+    const parsed = parseConfig(serializeConfig(nights)).config;
+    assert.equal(parsed.isPhased, false);
+    assert.equal(parsed.phases.length, 1);
+    assert.deepEqual(parsed.phases[0].audioTriggerTimes, [{ startSecond: h(20), endSecond: h(28) }]);
+  });
+
   it('shifts a period across midnight when the change pushes it there', () => {
     const text = serializeConfig(autumn({ phases: [{ ...defaultPhase(), audioRecordingMode: 'SCHEDULED', audioTriggerTimes: [{ startSecond: h(22, 30), endSecond: h(23, 30) }] }] }));
     // The CDT phase first, then the CST phase, whose period now straddles midnight.

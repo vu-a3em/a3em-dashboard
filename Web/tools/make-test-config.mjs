@@ -230,7 +230,7 @@ const text = serializeConfig(config);
 // Kept out of the repository with the rest of the hardware-test material.
 const outDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ignore', 'test-configs');
 fs.mkdirSync(outDir, { recursive: true });
-const outFile = path.join(outDir, `${kind}_a3em.cfg`);
+const outFile = path.join(outDir, `${kind}_conf.a3m`);
 fs.writeFileSync(outFile, text);
 
 const f = forecast({ config, sdCardCapacityGb: cardGb, batteryCapacityMah: batteryMah,

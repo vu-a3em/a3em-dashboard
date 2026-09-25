@@ -35,7 +35,7 @@ import { Activity, useCardLogs, without } from './CardActivity';
  * the deployment. **Prepare this card** then does the least that makes it ready, and only once
  * it has been checked, since that is what decides it (`planPreparation`):
  *
- *  - writing the unit's `_a3em.cfg`, when that is all that is missing — nothing erased, and no
+ *  - writing the device's configuration file, when that is all that is missing — nothing erased, and no
  *    folder picker to choose the card in again;
  *  - or erasing the card and setting it up again — capacity test, write timing, the reference
  *    layout at this deployment's cluster size, verified, then the configuration — when its

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
+  CONFIG_FILE_NAME,
   applyProtocol,
   defaultConfig,
   AUDIO_MAX_CLIP_LENGTH_SECONDS,
@@ -1459,7 +1460,7 @@ function Forecast({
         ) : null}
         {writeState === 'written' && !preparer ? (
           <p className="stat-note" style={{ textAlign: 'center', marginTop: 7, color: 'var(--ok)' }}>
-            {writtenSummary ?? 'Downloaded — copy _a3em.cfg to the top level of the card.'}
+            {writtenSummary ?? `Downloaded — copy ${CONFIG_FILE_NAME} to the top level of the card.`}
           </p>
         ) : null}
         {prepared ? (

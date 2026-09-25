@@ -141,7 +141,7 @@ func withFiles(t *testing.T) (*card, uint32) {
 	folder := c.add(c.root(), "OWL_01", 4096, false, true)
 	clip := c.add(folder, "Activation_0001_clip.wav", 60_000, false, false)
 	c.add(folder, "Activation_0002_clip.wav", 90_000, true, false)
-	c.add(c.root(), "_a3em.cfg", 300, false, false)
+	c.add(c.root(), "_conf.a3m", 300, false, false)
 	return c, clip
 }
 

@@ -5,7 +5,7 @@
 
 import os, psutil, re, sys
 
-CONFIG_FILE_NAME = '_a3em.cfg'
+CONFIG_FILE_NAME = '_conf.a3m'
 
 format_complete = False
 def format_callback(command, modifier, arg):

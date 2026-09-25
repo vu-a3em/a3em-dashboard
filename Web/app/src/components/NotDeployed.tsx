@@ -28,7 +28,7 @@ export function NotDeployed({
   config: DeploymentConfig | null;
   /** The configuration as written, to tell a schedule it sets from one parsing filled in. */
   configText: string | null;
-  /** What the page would show, as in "there is nothing to listen to yet". */
+  /** What the page would show, as in "there is nothing to listen to". */
   nothing: string;
 }>) {
   const card = name ?? 'This card';
@@ -37,13 +37,13 @@ export function NotDeployed({
       <div className="card">
         <h2>Not deployed yet</h2>
         <p className="hint">
-          {config?.deviceLabel ? `This card is prepared for ${config.deviceLabel}` : `${card} is prepared`}, and
-          nothing a recorder writes is on it yet, so there is {nothing} yet.
+          {config?.deviceLabel ? `This card is prepared for ${config.deviceLabel}` : `${card} is prepared`} and does
+          not appear to have been used in a deployment yet, so there is {nothing}.
           {config && setsSchedule(configText)
             ? ` Its deployment is set to run from ${formatZonedDisplay(config.startTime, config.timezone)} to ${formatZonedDisplay(config.endTime, config.timezone)}.`
             : ''}
         </p>
-        <p className="hint">Once it has been in a unit, connect it again to see what it recorded.</p>
+        <p className="hint">After deployment, reconnect to this card to see what it recorded.</p>
       </div>
     );
   }

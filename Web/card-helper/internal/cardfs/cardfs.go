@@ -56,7 +56,7 @@ func Walk(mount string) (Contents, error) {
 			return nil
 		}
 		relative, _ := filepath.Rel(mount, path)
-		if relative == rules.ConfigFileName {
+		if isConfig(relative) {
 			return nil
 		}
 		if contents.Files+contents.Directories >= walkLimit {
@@ -82,26 +82,41 @@ func Walk(mount string) (Contents, error) {
 	return contents, nil
 }
 
+// isConfig is whether a path is the card's configuration file, under its name or the legacy one.
+// The card's filesystem ignores case, and so does the recorder.
+func isConfig(relative string) bool {
+	return strings.EqualFold(relative, rules.ConfigFileName) || strings.EqualFold(relative, rules.LegacyConfigFileName)
+}
+
 // Config is the card's configuration file as found.
 type Config struct {
 	Present bool   `json:"present"`
 	Text    string `json:"text,omitempty"`
 	Bytes   int64  `json:"bytes"`
+	// Name is the file it was read from: the legacy name on a card prepared before the rename.
+	Name string `json:"name,omitempty"`
 	// TooLarge is set, and Text left empty, for a file beyond anything the firmware reads.
 	TooLarge bool `json:"tooLarge,omitempty"`
 }
 
-// ReadConfig reads _a3em.cfg from the card's root.
+// ReadConfig reads the configuration file from the card's root, under the legacy name where the
+// current one is absent, as the recorder does.
 func ReadConfig(mount string) (Config, error) {
-	path := filepath.Join(mount, rules.ConfigFileName)
+	name := rules.ConfigFileName
+	path := filepath.Join(mount, name)
 	info, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		name = rules.LegacyConfigFileName
+		path = filepath.Join(mount, name)
+		info, err = os.Stat(path)
+	}
 	if errors.Is(err, fs.ErrNotExist) {
 		return Config{}, nil
 	}
 	if err != nil {
 		return Config{}, err
 	}
-	config := Config{Present: true, Bytes: info.Size()}
+	config := Config{Present: true, Bytes: info.Size(), Name: name}
 	if info.Size() > rules.ConfigMaxBytes {
 		config.TooLarge = true
 		return config, nil
@@ -114,7 +129,8 @@ func ReadConfig(mount string) (Config, error) {
 	return config, nil
 }
 
-// WriteConfig writes _a3em.cfg to the card's root and reads it back.
+// WriteConfig writes the configuration file to the card's root and reads it back, then removes
+// one under the legacy name, which would otherwise sit beside it holding other settings.
 func WriteConfig(mount, text string) error {
 	if len(text) == 0 {
 		return errors.New("the configuration is empty")
@@ -145,5 +161,7 @@ func WriteConfig(mount, text string) error {
 	if !bytes.Equal(back, []byte(text)) {
 		return errors.New("the configuration did not read back as written")
 	}
+	// Best effort: the recorder reads the current name first, so one left behind is never read.
+	os.Remove(filepath.Join(mount, rules.LegacyConfigFileName))
 	return nil
 }

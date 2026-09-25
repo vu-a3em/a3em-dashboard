@@ -48,7 +48,8 @@ export interface CardReadinessReport {
   } | null;
   geometry: CardGeometry | null;
   contents: { files: number; directories: number; bytes: number; examples?: string[]; truncated?: boolean } | null;
-  config: { present: boolean; text?: string; bytes: number; tooLarge?: boolean } | null;
+  /** `name` is the file it was read from: the legacy name on a card prepared before the rename. */
+  config: { present: boolean; text?: string; bytes: number; tooLarge?: boolean; name?: string } | null;
   freeBytes: number | null;
   layout: {
     reference: boolean;
@@ -74,7 +75,7 @@ export interface CardReadinessReport {
 
 /** What the card is meant to carry, where that is known. */
 export interface ReadinessExpectation {
-  /** The exact `_a3em.cfg` this card should hold. */
+  /** The exact configuration file this card should hold. */
   configText?: string | null;
   /**
    * The name the card is given when prepared for this unit, where the unit's label can be one.
@@ -245,7 +246,7 @@ export function judgeReadiness(report: CardReadinessReport, expected: ReadinessE
   if (!contents) {
     add('empty', 'Contents not checked', 'unknown', 'The card is not mounted, so its files could not be read.');
   } else if (contents.files + contents.directories === 0) {
-    add('empty', 'Card is empty', 'pass', report.config?.present ? `Nothing on it besides ${CONFIG_FILE_NAME}.` : 'Nothing is on it.');
+    add('empty', 'Card is empty', 'pass', report.config?.present ? `Nothing on it besides ${report.config.name ?? CONFIG_FILE_NAME}.` : 'Nothing is on it.');
   } else {
     const what = contents.files > 0 ? `${plural(contents.files, 'file')} (${size(contents.bytes)})` : plural(contents.directories, 'folder');
     add(
@@ -269,7 +270,7 @@ export function judgeReadiness(report: CardReadinessReport, expected: ReadinessE
       `There is no ${CONFIG_FILE_NAME}. Without one, the recorder shows its missing-configuration light and restarts every 15 seconds instead of recording.`,
     );
   } else if (config.tooLarge || config.text === undefined) {
-    add('config', 'Configuration file is too large', 'fail', `${CONFIG_FILE_NAME} is ${size(config.bytes)}, far larger than any configuration.`);
+    add('config', 'Configuration file is too large', 'fail', `${config.name ?? CONFIG_FILE_NAME} is ${size(config.bytes)}, far larger than any configuration.`);
   } else {
     const parsed = parseConfig(config.text);
     const parsedOk = parsed.warnings.length === 0;
@@ -278,8 +279,8 @@ export function judgeReadiness(report: CardReadinessReport, expected: ReadinessE
       parsedOk ? 'Configuration file reads cleanly' : 'Configuration file may be misread',
       parsedOk ? 'pass' : 'warn',
       parsedOk
-        ? `${CONFIG_FILE_NAME} for ${parsed.config.deviceLabel || 'an unlabeled device'} reads without problems.`
-        : `${CONFIG_FILE_NAME} reads here, but the recorder may not read it the same way: ${parsed.warnings[0]}`,
+        ? `${config.name ?? CONFIG_FILE_NAME} for ${parsed.config.deviceLabel || 'an unlabeled device'} reads without problems.`
+        : `${config.name ?? CONFIG_FILE_NAME} reads here, but the recorder may not read it the same way: ${parsed.warnings[0]}`,
     );
   }
   if (expected.configText != null && config?.present && config.text !== undefined) {

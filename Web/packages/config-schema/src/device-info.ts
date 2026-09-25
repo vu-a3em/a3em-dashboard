@@ -13,7 +13,7 @@ import {
  * profile without parsing a multi-megabyte log. It also answers, at connect time,
  * "which device was this card in, and how did it leave off?"
  *
- * Same `KEY = "value"` grammar as `_a3em.cfg`. Absent on legacy cards, in which case
+ * Same `KEY = "value"` grammar as the configuration file. Absent on legacy cards, in which case
  * everything falls back to the conservative legacy profile.
  */
 

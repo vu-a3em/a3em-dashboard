@@ -58,7 +58,7 @@ for i in $(seq 1 60 2); do rm -f "$MP/OWL_01/Activation_0001/clip_$i.wav"; done 
 head -c 3000000 /dev/urandom > "$MP/fragmented recording with a long name.wav"
 head -c 2000000 /dev/urandom > "$MP/big.bin"; head -c 500000 /dev/urandom > "$MP/small.bin"
 printf 'x' > "$MP/OWL_01/Activation_0002/deep/deeper/tiny"; : > "$MP/empty.txt"
-printf 'é' > "$MP/Größe — 日本語.txt"; printf 'DEVICE_LABEL = REAL\n' > "$MP/_a3em.cfg"
+printf 'é' > "$MP/Größe — 日本語.txt"; printf 'DEVICE_LABEL = REAL\n' > "$MP/_conf.a3m"
 sync; diskutil unmount "${DEV}s1" >/dev/null
 echo "== written by macOS, unmounted"; o=$(ours); echo "$o"; s=$(system); echo "$s"
 want "unmounted" "$o" "ours: clean"; want "unmounted" "$s" "exit 0,"

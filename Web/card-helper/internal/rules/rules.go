@@ -51,6 +51,9 @@ func ValidateLabel(label string) []string {
 // ConfigFileName and ConfigMaxBytes bound what writeConfig may put on a card: exactly the one
 // file the device reads, at a size no real configuration approaches.
 const (
-	ConfigFileName = "_a3em.cfg"
-	ConfigMaxBytes = 64 * 1024
+	ConfigFileName = "_conf.a3m"
+	// LegacyConfigFileName is the name before the rename, which the recorder reads when
+	// ConfigFileName is absent: Chrome on Windows refuses web pages any .cfg file.
+	LegacyConfigFileName = "_a3em.cfg"
+	ConfigMaxBytes       = 64 * 1024
 )

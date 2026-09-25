@@ -107,7 +107,7 @@ type PrepareTarget struct {
 	Grant               string `json:"grant"`
 	AllocationUnitBytes int64  `json:"allocationUnitBytes"`
 	Label               string `json:"label"`
-	// Config is the _a3em.cfg to write once the card is formatted, or empty for none.
+	// Config is the configuration file to write once the card is formatted, or empty for none.
 	Config string `json:"config,omitempty"`
 }
 

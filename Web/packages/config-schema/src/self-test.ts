@@ -5,7 +5,7 @@
  * The app surfaces this the moment a card is connected: it answers "did this unit
  * verify?" before anything else is inspected, and names the subsystem when it did not.
  *
- * Same `KEY = "value"` grammar as `_a3em.cfg` and `_a3em.dev`.
+ * Same `KEY = "value"` grammar as the configuration file and `_a3em.dev`.
  */
 
 export const SELF_TEST_RESULTS_FILE_NAME = '_a3em.test.results';

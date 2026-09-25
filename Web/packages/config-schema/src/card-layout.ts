@@ -1,4 +1,4 @@
-import { NUM_HOURS_PER_AUDIO_DIRECTORY } from './firmware-constants.js';
+import { CONFIG_FILE_NAME, LEGACY_CONFIG_FILE_NAME, NUM_HOURS_PER_AUDIO_DIRECTORY } from './firmware-constants.js';
 import { SELF_TEST_CLIP_FILE_NAME } from './self-test.js';
 
 /**
@@ -106,7 +106,7 @@ export function classifyFile(name: string): CardFileKind {
   if (lower === SELF_TEST_CLIP_FILE_NAME) return 'self-test-clip';
   if (lower.endsWith('.wav') || lower.endsWith('.opus') || lower.endsWith('.ogg')) return 'audio';
   if (lower.endsWith('.imu')) return 'imu';
-  if (lower === '_a3em.cfg') return 'config';
+  if (lower === CONFIG_FILE_NAME || lower === LEGACY_CONFIG_FILE_NAME) return 'config';
   if (lower === '_a3em.dev') return 'device-info';
   if (lower === '_a3em.test.results') return 'self-test';
   // a3em.log, and the a3em.N.log alternatives written when a log cannot be reopened

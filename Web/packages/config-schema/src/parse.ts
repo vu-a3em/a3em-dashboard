@@ -18,7 +18,7 @@ export interface ParseResult {
 }
 
 /**
- * Parses `_a3em.cfg` using the same matching rules as runtime_config.c, so the
+ * Parses the configuration file using the same matching rules as runtime_config.c, so the
  * app's reading of a card agrees with the device's.
  *
  * The firmware matches keys by PREFIX (`memcmp(key, "KEY", sizeof("KEY")-1)`) in a

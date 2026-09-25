@@ -7,7 +7,7 @@ requests fail until the next day.
 
 | | |
 | --- | --- |
-| Sign-in | Firebase Authentication: Google, GitHub, Apple or Microsoft in a popup, or an email address and password; whichever `accounts.signInProviders` in [`deployment.json`](../deployment.json) lists |
+| Sign-in | Firebase Authentication: Google, GitHub, Apple, or Microsoft in a popup, or an email address and password; whichever `accounts.signInProviders` in [`deployment.json`](../deployment.json) lists |
 | Storage | Cloud Firestore, one record per protocol at `users/<uid>/protocols/<id>` |
 | Server side | [`firestore.rules`](firestore.rules), and nothing else: each person can read and write only their own folder |
 | App code | [`app/src/lib/firebase.ts`](../app/src/lib/firebase.ts), sign-in, loaded after the page when accounts are configured (about 39 kB compressed); [`firestore.ts`](../app/src/lib/firestore.ts), the database, loaded only once someone signs in (about 160 kB); [`useAccount.ts`](../app/src/lib/useAccount.ts); the sync in [`useProtocols.ts`](../app/src/lib/useProtocols.ts) |
@@ -81,7 +81,7 @@ protocol, and find it in the Firebase console under *Firestore Database → Data
 
 ## Adding sign-in methods
 
-The dashboard supports `google`, `github`, `apple`, `microsoft` and `password` (an email address
+The dashboard supports `google`, `github`, `apple`, `microsoft`, and `password` (an email address
 and password). Each is offered only when it is both listed in `accounts.signInProviders` in
 [`deployment.json`](../deployment.json) and enabled in the Firebase console. After changing the
 list, run `npm run sync:extension` and `npm run ci` from `Web/`, then commit and push.
@@ -116,7 +116,7 @@ relay address; the dashboard sends Apple users no email, so the relay needs no s
 
 ### Email address and password
 
-For people with no Google, GitHub or Apple account to use.
+For people with no Google, GitHub, or Apple account to use.
 
 1. *Authentication → Sign-in method → Add new provider → Email/Password → Enable*. Leave
    *Email link (passwordless sign-in)* off: on the free plan it can send only five emails a day.
@@ -194,7 +194,7 @@ The MX records let the sending domain receive mail, which filters check; the tem
 and reply to `support@a3em.com`, which Squarespace forwards.
 
 **When a message is still flagged,** open it in the quarantine or junk folder and view its
-headers. `Authentication-Results` should read `spf=pass`, `dkim=pass header.d=a3em.com` and
+headers. `Authentication-Results` should read `spf=pass`, `dkim=pass header.d=a3em.com`, and
 `dmarc=pass`. A DKIM signature for any other domain means the custom domain has not been applied
 (*Templates → Apply custom domain*). Marking the message *Not junk* or *Not phishing* teaches the
 filter; for a whole organization's mail, its IT administrators can allow `a3em.com`.

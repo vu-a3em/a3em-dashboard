@@ -56,7 +56,7 @@ for i in $(seq 1 60 2); do rm -f "mnt/OWL_01/Activation_0001/clip_$i.wav"; done
 head -c 3000000 /dev/urandom > "mnt/fragmented recording with a long name.wav"
 head -c 2000000 /dev/urandom > mnt/big.bin; head -c 500000 /dev/urandom > mnt/small.bin
 printf 'x' > mnt/OWL_01/Activation_0002/deep/deeper/tiny; : > mnt/empty.txt
-printf 'é' > "mnt/Größe — 日本語.txt"; printf 'DEVICE_LABEL = REAL\n' > mnt/_a3em.cfg
+printf 'é' > "mnt/Größe — 日本語.txt"; printf 'DEVICE_LABEL = REAL\n' > mnt/_conf.a3m
 contents > before.txt; sync; umount mnt
 echo "== written by Linux, unmounted"; o=$(ours); echo "$o"; s=$(system); echo "$s"
 want "unmounted" "$o" "ours: clean"; want "unmounted" "$s" "exit 0,"
