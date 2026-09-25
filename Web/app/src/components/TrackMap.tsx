@@ -22,7 +22,7 @@ export function TrackMap({
       <Pane id="position" title="Position" note="No fixes">
         <p className="hint">
           {gpsConfigured
-            ? 'This deployment had GPS enabled, but no log line carries a position. The device never got a fix.'
+            ? 'This deployment had GPS enabled, but no log line contains a position. The device never got a fix.'
             : 'No positions were recorded. GPS was not enabled for this deployment.'}
         </p>
       </Pane>

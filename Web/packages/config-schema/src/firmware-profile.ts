@@ -90,7 +90,7 @@ export const FIRMWARE_LEGACY: FirmwareProfile = {
   notes:
     'Retained for reading older cards. A clip cap of zero disabled sound-triggered ' +
     'recording entirely on these units, exceeding the phase or recording-period limits ' +
-    'corrupted device memory, and the motion threshold had no effect. Cards carry a ' +
+    'corrupted device memory, and the motion threshold had no effect. Cards contain a ' +
     'single deployment-long log and a 12-byte IMU header.',
   capabilities: {
     zeroClipCapIsRewritten: false,
@@ -115,7 +115,7 @@ export const FIRMWARE_CURRENT: FirmwareProfile = {
   label: 'Current firmware',
   notes:
     'A clip cap of zero is corrected to one on device. Array limits are enforced on device. WAV ' +
-    'headers are correct, the motion threshold reaches the sensor, and the card carries ' +
+    'headers are correct, the motion threshold reaches the sensor, and the card contains ' +
     'a device info file plus timestamped per-directory logs.',
   capabilities: {
     zeroClipCapIsRewritten: true,

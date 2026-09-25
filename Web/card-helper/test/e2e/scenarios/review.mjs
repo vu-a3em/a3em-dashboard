@@ -38,7 +38,7 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
   expect('the check finds the bitmap problem and says what it means', /found problems/.test(out.checkResult ?? '') && /record of which space is in use/.test(out.checkResult ?? ''), out.checkResult);
   expect('and a repair is offered', await evaluate(`Boolean($btn('Repair', ${pane}))`));
   expect('it names the recording the problem touches', /OWL_09\/clip\.wav/.test(out.checkResult ?? ''), out.checkResult);
-  expect('it finds the log lines written past the log’s recorded end, for the copy', /OWL_09\/a3em\.log — [\d.,]+ (bytes|kB) of log text/.test(out.checkResult ?? '') && /“Check & copy” adds it/.test(out.checkResult ?? ''), out.checkResult);
+  expect('it finds the log lines written past the log’s recorded end, for the copy', /OWL_09\/a3em\.log — [\d.,]+ (bytes|kB) of log text/.test(out.checkResult ?? '') && /Check & copy adds it/.test(out.checkResult ?? ''), out.checkResult);
   // Those lines are in the log's own cluster, which a repair leaves alone: nothing to warn of.
   expect('and the repair advice stands, since the repair leaves those lines alone', /changes no\s+file/.test(out.checkResult ?? '') && !/before any repair/.test(out.checkResult ?? ''), out.checkResult);
 

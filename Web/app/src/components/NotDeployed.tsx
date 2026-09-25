@@ -1,4 +1,5 @@
 import { cardStage, formatZonedDisplay, type CardLayout, type DeploymentConfig } from '@a3em/config-schema';
+import { TabLink } from './TabLink';
 
 /**
  * A card with nothing a recorder has written on it: freshly prepared, or blank.
@@ -50,8 +51,8 @@ export function NotDeployed({
     <div className="card">
       <h2>Nothing recorded on this card</h2>
       <p className="hint">
-        {card} holds no configuration and nothing a recorder wrote, so there is {nothing}. Prepare it under “Prepare
-        devices” before deploying it.
+        {card} holds no configuration and nothing a recorder wrote, so there is {nothing}. Prepare it under{' '}
+        <TabLink to="batch" /> before deploying it.
       </p>
     </div>
   );

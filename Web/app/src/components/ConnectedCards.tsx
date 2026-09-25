@@ -483,10 +483,9 @@ export function ConnectedCards({
         </button>
       </div>
       <p className="hint">
-        Card readers and built-in SD slots appear here; other drives never do. “Check this card” says whether a card is
-        ready to go into a recorder, and changes nothing. “Prepare this card” checks it too, where that has not been
-        done, then does only what the check found is needed: writing the unit’s settings, or erasing the card and
-        setting it up again.
+        Card readers and built-in SD slots appear here; other drives never do. “Check this card” verifies whether a card
+        is ready for deployment. “Prepare this card” checks the card, if needed, and then fully prepares it for
+        deployment.
       </p>
 
       {devices.length === 0 ? (

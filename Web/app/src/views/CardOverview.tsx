@@ -404,7 +404,7 @@ export function CardOverview({
       {logUnattributed ? (
         <div className="banner warn">
           <strong>The log on this card cannot be split by activation</strong>
-          It carries no activation directory and no activation markers, so clip counts and coverage
+          It has no activation directory and no activation markers, so clip counts and coverage
           below follow your selection but the device log — self-tests, restarts, battery, and
           temperature — is shown for the whole card.
         </div>
@@ -618,7 +618,7 @@ export function CardOverview({
           )}% in unused tails`}
         >
           <p className="hint">
-            Every file rounds up to a whole allocation unit, so each one carries some unused space in
+            Every file rounds up to a whole allocation unit, so each one has some unused space in
             its final cluster. On a card of small files that adds up.
           </p>
           <div className="grid stats">

@@ -9,6 +9,7 @@ import { Wordmark } from './components/Wordmark';
 import { CardStatus } from './components/CardStatus';
 import { HelperRailStatus, HelperTaskChip } from './components/HelperStatus';
 import { AccountButton } from './components/Account';
+import { NavigationContext, VIEW_NAMES, type View } from './components/TabLink';
 
 /** Loaded the first time someone opens it: most visits never do. */
 const AccountDialog = lazy(() => import('./components/AccountDialog').then((module) => ({ default: module.AccountDialog })));
@@ -26,7 +27,6 @@ import { loadRecoverCard, preloadHelperViews } from './lib/helperViews';
 const RecoverCard = lazy(() => loadRecoverCard().then((module) => ({ default: module.RecoverCard })));
 import { useAccount } from './lib/useAccount';
 
-type View = 'configure' | 'batch' | 'review' | 'clips' | 'offload' | 'recover';
 
 export interface CorrectionState {
   /** Null until the user overrides whichever method the card supports. */
@@ -38,12 +38,12 @@ export interface CorrectionState {
 // Ordered by the workflow: plan a deployment, prepare the units, then review and
 // offload what comes back — and, last, rescue a card that will not open at all.
 const VIEWS: Array<{ id: View; label: string; title: string }> = [
-  { id: 'configure', label: 'Configure', title: 'Configure a deployment' },
-  { id: 'batch', label: 'Prepare devices', title: 'Prepare a batch of devices' },
-  { id: 'review', label: 'Review card', title: 'Review a retrieved card' },
-  { id: 'clips', label: 'Listen', title: 'Listen to what was recorded' },
-  { id: 'offload', label: 'Check & copy', title: 'Check and copy a card' },
-  { id: 'recover', label: 'Recover card', title: 'Recover a card that will not open' },
+  { id: 'configure', label: VIEW_NAMES.configure, title: 'Configure a deployment' },
+  { id: 'batch', label: VIEW_NAMES.batch, title: 'Prepare a batch of devices' },
+  { id: 'review', label: VIEW_NAMES.review, title: 'Review a retrieved card' },
+  { id: 'clips', label: VIEW_NAMES.clips, title: 'Listen to what was recorded' },
+  { id: 'offload', label: VIEW_NAMES.offload, title: 'Check and copy a card' },
+  { id: 'recover', label: VIEW_NAMES.recover, title: 'Recover a card that will not open' },
 ];
 
 export default function App() {
@@ -120,140 +120,142 @@ export default function App() {
   const offload = useOffloadTask();
 
   return (
-    <div className="shell">
-      <nav className="rail" aria-label="Sections">
-        <div className="brand">
-          <Wordmark height={30} />
-          <small>Management Dashboard</small>
-        </div>
-        <div className="rail-links">
-          {VIEWS.map((entry) => (
-            <button
-              key={entry.id}
-              className="rail-link"
-              aria-current={view === entry.id ? 'page' : undefined}
-              onClick={() => setView(entry.id)}
-            >
-              {entry.label}
-            </button>
-          ))}
-        </div>
-        {/*
-          Ambient state, labeled.
-
-          The firmware version used to render as a bare `fw 1.4.2`, which says nothing
-          about whose firmware it is or where the number came from — it is read from
-          `_a3em.dev`, so it is the firmware of the device that last wrote this card, not
-          of anything currently attached over USB. Card tools sit below it because they
-          are an app capability rather than a property of the device, and because the
-          bottom-most slot is the right amount of attention for something optional.
-        */}
-        <div className="rail-foot">
-          <div className="rail-foot-row">
-            <span className="rail-foot-label">Device firmware</span>
-            {card.deviceInfo ? (
-              <span className="rail-foot-value" title="Read from _a3em.dev on the connected card">
-                {card.deviceInfo.firmwareVersion}
-              </span>
-            ) : (
-              <span className="rail-foot-value muted">no card connected</span>
-            )}
+    <NavigationContext.Provider value={setView}>
+      <div className="shell">
+        <nav className="rail" aria-label="Sections">
+          <div className="brand">
+            <Wordmark height={30} />
+            <small>Management Dashboard</small>
           </div>
-          <HelperRailStatus helper={helper} />
-          {/* A new tab, so a card operation or an unsaved edit in this one is never interrupted. */}
-          <a className="rail-foot-link" href="privacy.html" target="_blank" rel="noopener">
-            Privacy policy
-          </a>
-        </div>
-        {account.dialogOpen ? (
-          <Suspense fallback={null}>
-            <AccountDialog account={account} protocolCount={library.saved.length} />
-          </Suspense>
-        ) : null}
-      </nav>
-
-      <div className="main">
-        <header className="topbar" ref={topbar}>
-          <h1>{active.title}</h1>
-          <span className="spacer" />
-          <CardStatus card={card} cardDevice={cardDevice} />
-          <HelperTaskChip helper={helper} />
-          <AccountButton account={account} />
-        </header>
-        <main className="content">
-          {card.status === 'scanning' ? <CardLoading progress={card.progress} /> : null}
+          <div className="rail-links">
+            {VIEWS.map((entry) => (
+              <button
+                key={entry.id}
+                className="rail-link"
+                aria-current={view === entry.id ? 'page' : undefined}
+                onClick={() => setView(entry.id)}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
           {/*
-            One picker for the whole app rather than one per tab.
+            Ambient state, labeled.
 
-            Review and Listen both read a single activation, and a copy on each page would
-            look like two independent controls for what is really one choice. Sitting above
-            the content, in the same place on either tab, it reads as what it is: the run
-            everything below is describing.
+            The firmware version used to render as a bare `fw 1.4.2`, which says nothing
+            about whose firmware it is or where the number came from — it is read from
+            `_a3em.dev`, so it is the firmware of the device that last wrote this card, not
+            of anything currently attached over USB. Card tools sit below it because they
+            are an app capability rather than a property of the device, and because the
+            bottom-most slot is the right amount of attention for something optional.
           */}
-          {(view === 'review' || view === 'clips') && card.contents ? (
-            <ActivationPicker
-              layout={card.contents.layout}
-              selected={activation}
-              onSelect={setActivation}
-              overlapping={card.existingConfig?.setRtcAtMagnetDetect ?? false}
-            />
-          ) : null}
-          {view === 'configure' ? (
-            <DeploymentEditor
-              card={card}
-              config={draft.config}
-              onChange={draft.setConfig}
-              selectedPhase={selectedPhase}
-              onSelectPhase={setSelectedPhase}
-              draft={draft}
-              library={library}
-              cardDevice={cardDevice}
-              onPrepareDevices={() => setView('batch')}
-            />
-          ) : null}
-          {view === 'batch' ? (
-            <BatchPrepare
-              card={card}
-              helper={helper}
-              config={draft.config}
-              basedOn={draft.basedOn}
-              units={batch}
-              onUnitsChange={setBatch}
-              onEditConfiguration={() => setView('configure')}
-              onRecover={recover}
-              cardDevice={cardDevice}
-            />
-          ) : null}
-          {view === 'review' ? (
-            <CardOverview
-              card={card}
-              correction={correction}
-              onCorrectionChange={setCorrection}
-              activation={activation}
-              helper={helper}
-              cardDevice={cardDevice}
-              onRecover={recover}
-            />
-          ) : null}
-          {view === 'clips' ? (
-            <ClipBrowser
-              card={card}
-              correction={correction}
-              activation={activation}
-              recoverable={helper.status === 'ready'}
-              onRecover={recover}
-            />
-          ) : null}
-          {view === 'offload' ? (
-            <OffloadCard card={card} task={offload} correction={correction} cardDevice={cardDevice} onRecover={recover} />
-          ) : null}
-          {view === 'recover' ? (
+          <div className="rail-foot">
+            <div className="rail-foot-row">
+              <span className="rail-foot-label">Device firmware</span>
+              {card.deviceInfo ? (
+                <span className="rail-foot-value" title="Read from _a3em.dev on the connected card">
+                  {card.deviceInfo.firmwareVersion}
+                </span>
+              ) : (
+                <span className="rail-foot-value muted">no card connected</span>
+              )}
+            </div>
+            <HelperRailStatus helper={helper} />
+            {/* A new tab, so a card operation or an unsaved edit in this one is never interrupted. */}
+            <a className="rail-foot-link" href="privacy.html" target="_blank" rel="noopener">
+              Privacy policy
+            </a>
+          </div>
+          {account.dialogOpen ? (
             <Suspense fallback={null}>
-              <RecoverCard helper={helper} onConnect={() => void card.connect()} />
+              <AccountDialog account={account} protocolCount={library.saved.length} />
             </Suspense>
           ) : null}
-        </main>
+        </nav>
+
+        <div className="main">
+          <header className="topbar" ref={topbar}>
+            <h1>{active.title}</h1>
+            <span className="spacer" />
+            <CardStatus card={card} cardDevice={cardDevice} />
+            <HelperTaskChip helper={helper} />
+            <AccountButton account={account} />
+          </header>
+          <main className="content">
+            {card.status === 'scanning' ? <CardLoading progress={card.progress} /> : null}
+            {/*
+              One picker for the whole app rather than one per tab.
+
+              Review and Listen both read a single activation, and a copy on each page would
+              look like two independent controls for what is really one choice. Sitting above
+              the content, in the same place on either tab, it reads as what it is: the run
+              everything below is describing.
+            */}
+            {(view === 'review' || view === 'clips') && card.contents ? (
+              <ActivationPicker
+                layout={card.contents.layout}
+                selected={activation}
+                onSelect={setActivation}
+                overlapping={card.existingConfig?.setRtcAtMagnetDetect ?? false}
+              />
+            ) : null}
+            {view === 'configure' ? (
+              <DeploymentEditor
+                card={card}
+                config={draft.config}
+                onChange={draft.setConfig}
+                selectedPhase={selectedPhase}
+                onSelectPhase={setSelectedPhase}
+                draft={draft}
+                library={library}
+                cardDevice={cardDevice}
+                onPrepareDevices={() => setView('batch')}
+              />
+            ) : null}
+            {view === 'batch' ? (
+              <BatchPrepare
+                card={card}
+                helper={helper}
+                config={draft.config}
+                basedOn={draft.basedOn}
+                units={batch}
+                onUnitsChange={setBatch}
+                onEditConfiguration={() => setView('configure')}
+                onRecover={recover}
+                cardDevice={cardDevice}
+              />
+            ) : null}
+            {view === 'review' ? (
+              <CardOverview
+                card={card}
+                correction={correction}
+                onCorrectionChange={setCorrection}
+                activation={activation}
+                helper={helper}
+                cardDevice={cardDevice}
+                onRecover={recover}
+              />
+            ) : null}
+            {view === 'clips' ? (
+              <ClipBrowser
+                card={card}
+                correction={correction}
+                activation={activation}
+                recoverable={helper.status === 'ready'}
+                onRecover={recover}
+              />
+            ) : null}
+            {view === 'offload' ? (
+              <OffloadCard card={card} task={offload} correction={correction} cardDevice={cardDevice} onRecover={recover} />
+            ) : null}
+            {view === 'recover' ? (
+              <Suspense fallback={null}>
+                <RecoverCard helper={helper} onConnect={() => void card.connect()} />
+              </Suspense>
+            ) : null}
+          </main>
+        </div>
       </div>
-    </div>
+    </NavigationContext.Provider>
   );
 }

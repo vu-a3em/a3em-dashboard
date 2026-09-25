@@ -64,6 +64,7 @@ import type { useProtocols } from '../lib/useProtocols';
 import { ProtocolLibrary } from '../components/ProtocolLibrary';
 import { ProtocolSave } from '../components/ProtocolSave';
 import { Pane } from '../components/Pane';
+import { TabLink, WithTabLinks } from '../components/TabLink';
 import { ZonedDateTimeInput } from '../components/ZonedDateTimeInput';
 import { cardChecks as checkCard, type CardCheck } from '../lib/cardChecks';
 import { detectOs } from '../lib/helperInstall';
@@ -484,13 +485,17 @@ export function DeploymentEditor({
             />
             <label htmlFor="rtc-at-activation">Set the device clock to the start time at activation</label>
             <p className="help">
-              {config.setRtcAtMagnetDetect
-                ? 'When the magnet activates the device, its clock is set to the start time above. Every recorded ' +
-                  'time is off by however early or late it was activated. Note the exact time each device is ' +
-                  'activated, and you can correct the times in the "Review Card" tab afterward.'
-                : 'The device keeps the clock it already has. After activation, it records one minute for voice ' +
+              {config.setRtcAtMagnetDetect ? (
+                <>
+                  When the magnet activates the device, its clock is set to the start time above. Every recorded time is
+                  off by however early or late it was activated. Note the exact time each device is activated, and you
+                  can correct the times in the <TabLink to="review" /> tab afterward.
+                </>
+              ) : (
+                'The device keeps the clock it already has. After activation, it records one minute for voice ' +
                   'notes, then waits for the start time before recording. Use this only when the clock is already ' +
-                  'set, such as on a unit with GPS.'}
+                  'set, such as on a unit with GPS.'
+              )}
             </p>
           </div>
 
@@ -1233,17 +1238,21 @@ function Forecast({
         <div className="stat-label" style={{ marginTop: 16 }}>Recommended card format</div>
         <div className="stat-value">{formatAllocationUnit(allocation.recommendedBytes)} exFAT</div>
         <div className="stat-note">
-          {allocation.summary}
           {/* With the card tools, formatting is theirs: one step, done right, instead of commands to type. */}
-          {(allocation.verdict === 'wasteful' || allocation.actualBytes === null) && onPrepareDevices ? (
-            <p className="format-steps">
+          {onPrepareDevices && allocation.actualBytes === null ? (
+            <>
               Format the card as exFAT with {formatAllocationUnit(allocation.recommendedBytes)} clusters using the{' '}
-              <button className="link-button" onClick={onPrepareDevices}>
-                Prepare devices
-              </button>{' '}
-              page.
-            </p>
-          ) : allocation.verdict === 'wasteful' || allocation.actualBytes === null ? (
+              <TabLink to="batch" /> page.
+            </>
+          ) : (
+            allocation.summary
+          )}
+          {onPrepareDevices && allocation.verdict === 'wasteful' ? (
+            <>
+              {' '}
+              Use the <TabLink to="batch" /> page to do it.
+            </>
+          ) : onPrepareDevices ? null : allocation.verdict === 'wasteful' || allocation.actualBytes === null ? (
             <ol className="format-steps">
               {formatSteps.map((step) => (
                 <li key={step.detail}>
@@ -1325,7 +1334,7 @@ function Forecast({
             className="stat-note"
             style={{ marginBottom: 8, color: check.severity === 'error' ? 'var(--crit)' : 'var(--warn)' }}
           >
-            {check.message}
+            <WithTabLinks text={check.message} />
           </p>
         ))}
         {cardTarget === 'reconnectable' ? (
@@ -1449,7 +1458,7 @@ function describeDst(changes: OffsetChange[], config: DeploymentConfig): string 
   const list = formatList(dates);
   if (config.adjustForDst !== false) {
     return (
-      `Recording periods keep their local times after the clock change on ${list}. The card carries a ` +
+      `Recording periods keep their local times after the clock change on ${list}. The card contains a ` +
       'separate phase for each side of a change.'
     );
   }

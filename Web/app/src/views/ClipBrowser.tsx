@@ -28,6 +28,7 @@ import type { useCard } from '../lib/useCard';
 import { useClockCorrection } from '../lib/useClockCorrection';
 import { RecoverHint } from '../components/RecoverHint';
 import { isUndeployed, NotDeployed } from '../components/NotDeployed';
+import { TabLink } from '../components/TabLink';
 
 type Card = ReturnType<typeof useCard>;
 
@@ -257,7 +258,7 @@ export function ClipBrowser({
       {!correction ? (
         <div className="banner">
           <strong>Times below are according to the device's own clock</strong>
-          Configure a clock correction on the “Review card” tab to correct these for the real deployment time.
+          Configure a clock correction on the <TabLink to="review" /> tab to correct these for the real deployment time.
         </div>
       ) : null}
 

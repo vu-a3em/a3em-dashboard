@@ -9,6 +9,7 @@ import type { Helper } from '../lib/useHelper';
 import { Activity, useCardLogs, without } from './CardActivity';
 import { RepairDialog, useCardRepair } from './CardRepair';
 import { Pane } from './Pane';
+import { TabLink } from './TabLink';
 
 /** What was found and made for one card. */
 export interface Found {
@@ -142,7 +143,8 @@ export function PhysicalCard({
       {compatibility && !compatibility.usable ? (
         <div className="banner crit">
           <strong>The recorder would erase this card</strong>
-          {compatibility.issues[0]?.message} Copy anything you need off it first, then prepare it under “Prepare devices”.
+          {compatibility.issues[0]?.message} Copy anything you need off it first, then prepare it under{' '}
+          <TabLink to="batch" />.
         </div>
       ) : null}
       {compatibility?.issues.filter((issue) => issue.severity !== 'critical').map((issue) => (
@@ -330,8 +332,8 @@ function RepairAdvice({
   if (recovered && findings.some((finding) => finding.repair === 'bitmap')) {
     return (
       <p style={{ margin: '6px 0 0' }}>
-        Copy the card with “Check & copy” before any repair: the repair frees the space some of what is recovered
-        above is in. {fixableHere ? `“Repair…” then fixes ${one ? 'this' : 'these'}, rewriting only the card’s own records.` : ''}
+        Copy the card with <TabLink to="offload" /> before any repair: the repair frees the space some of what is
+        recovered above is in. {fixableHere ? `“Repair…” then fixes ${one ? 'this' : 'these'}, rewriting only the card’s own records.` : ''}
       </p>
     );
   }
@@ -360,8 +362,8 @@ function RepairAdvice({
   return (
     <p style={{ margin: '6px 0 0' }}>
       Only the system’s repair tool can fix {one ? 'this' : 'all of these'}, and it may shorten or remove {atRiskText}.
-      Copy the card first — with “Copy to an image file…”, or the recordings in “Check & copy”. Once everything is
-      copied off, preparing the card for its next deployment replaces the damaged records without a repair; to repair
+      Copy the card first — with “Copy to an image file…”, or the recordings in <TabLink to="offload" />. Once
+      everything is copied off, preparing the card for its next deployment replaces the damaged records without a repair; to repair
       it in place instead, use “Repair…”.
     </p>
   );
@@ -374,7 +376,8 @@ function Recovered({ tails }: Readonly<{ tails: RecoveredTail[] }>) {
     <>
       <p style={{ margin: '6px 0 0' }}>
         {tails.length === 1 ? 'One file holds' : `${tails.length.toLocaleString()} files hold`} more than the card
-        records: what the recorder wrote before it lost power, and had not yet recorded. “Check & copy” adds it to{' '}
+        records: what the recorder wrote before it lost power, and had not yet recorded. <TabLink to="offload" /> adds it
+        to{' '}
         {tails.length === 1 ? 'the file’s copy' : 'their copies'}; the card is not changed.
       </p>
       <ul className="finding-paths">
@@ -493,7 +496,7 @@ export function FsckResult({ report, recovered }: Readonly<{ report: FsckReport;
         {!report.clean && !report.modified ? (
           <p style={{ margin: '6px 0 0' }}>
             Repairing changes the card in place, so copy anything you need off it first — with “Copy to an image file…”,
-            or in “Check & copy” — then use “Repair…”.
+            or in <TabLink to="offload" /> — then use “Repair…”.
           </p>
         ) : null}
       </div>

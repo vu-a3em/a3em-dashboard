@@ -18,6 +18,7 @@ import type { useCard } from '../lib/useCard';
 import type { Helper } from '../lib/useHelper';
 import type { CardDevice } from '../lib/useCardDevice';
 import type { PreparedUnit } from '../components/ConnectedCards';
+import { TabLink, WithTabLinks } from '../components/TabLink';
 import { loadConnectedCards } from '../lib/helperViews';
 
 type Card = ReturnType<typeof useCard>;
@@ -241,8 +242,10 @@ export function BatchPrepare({
 
       {/* What every card in this batch will carry, so it can be checked before the first one. */}
       <div className="card">
-        <h2>What each card will carry</h2>
-        <p className="hint">The settings from Configure, with each unit's own label.</p>
+        <h2>What each card will contain</h2>
+        <p className="hint">
+          The settings from <TabLink to="configure" />, with each unit's own label.
+        </p>
         <ul className="batch-summary">
           <li>
             <strong>{basedOn ? `${basedOn.name} v${basedOn.version}` : 'No protocol'}</strong>
@@ -338,10 +341,6 @@ export function BatchPrepare({
               </button>
             ) : null}
 
-            <div className="meter" style={{ marginBottom: 16 }}>
-              <i style={{ width: `${(written / units.length) * 100}%`, background: 'var(--ok)' }} />
-            </div>
-
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {units.map((unit, index) => (
                 <div
@@ -370,7 +369,11 @@ export function BatchPrepare({
                   {labelProblems[index].length ? (
                     <span className="batch-label-problem">{labelProblems[index].join(' ')}</span>
                   ) : null}
-                  {unit.note ? <span className="batch-label-note">{unit.note}</span> : null}
+                  {unit.note ? (
+                    <span className="batch-label-note">
+                      <WithTabLinks text={unit.note} />
+                    </span>
+                  ) : null}
                   {direct ? null : (
                     <button
                       className={`btn ${index === nextPending ? 'primary' : ''}`}
@@ -388,7 +391,7 @@ export function BatchPrepare({
             {written === units.length ? (
               <div className="banner ok" style={{ marginTop: 16, marginBottom: 0 }}>
                 <strong>{units.length === 1 ? 'The unit is prepared' : `All ${units.length} units prepared`}</strong>
-                {units.length === 1 ? 'Its card carries its own label.' : 'Each card carries its own label.'}{' '}
+                {units.length === 1 ? 'Its card has its own label.' : 'Each card has its own label.'}{' '}
                 {config.ledsEnabled
                   ? `The device runs its self-test at activation, so check the LED before sealing ${units.length === 1 ? 'the' : 'each'} unit.`
                   : 'The LEDs are off in this configuration, so a unit gives no visible sign that it activated or passed its self-test.'}

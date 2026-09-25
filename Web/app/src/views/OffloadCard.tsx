@@ -218,7 +218,7 @@ export function OffloadCard({
           // length by four bytes, and judging those recordings by the corrected rule would
           // condemn every last one of them. Saying so beats silently applying it.
           <p className="help">
-            This card carries no device file, so it was written by the original firmware.
+            This card has no device file, so it was written by the original firmware.
             Recordings are checked against that older firmware's known quirks — including the
             audio length every WAV of that era overstates by four bytes.
           </p>
@@ -352,7 +352,7 @@ export function OffloadCard({
               <span className="help" style={{ display: 'block', marginTop: 2 }}>
                 {renamePlan.entries.length.toLocaleString()} recordings renamed in the copy.
                 {renamePlan.skipped.length
-                  ? ` ${renamePlan.skipped.length.toLocaleString()} carry no timestamp and keep their names.`
+                  ? ` ${renamePlan.skipped.length.toLocaleString()} have no timestamp and keep their names.`
                   : ''}{' '}
                 The card itself is never written to.
               </span>

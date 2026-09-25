@@ -516,7 +516,7 @@ export function planRename(layout: CardLayout, correction: ClockCorrection): Ren
   for (const file of layout.files) {
     if (file.kind !== 'audio' && file.kind !== 'imu') continue;
     if (!file.deviceTime) {
-      skipped.push({ path: file.path, reason: 'name carries no timestamp' });
+      skipped.push({ path: file.path, reason: 'name has no timestamp' });
       continue;
     }
 

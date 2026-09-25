@@ -14,7 +14,7 @@ export function CoverageHeatmap({ grid, timezone }: Readonly<{ grid: CoverageGri
   if (!grid.dates.length) {
     return (
       <Pane id="coverage" title="Recording coverage">
-        <p className="hint">Nothing on this card carries a timestamp, so there is no coverage to show.</p>
+        <p className="hint">Nothing on this card has a timestamp, so there is no coverage to show.</p>
       </Pane>
     );
   }
@@ -48,7 +48,7 @@ export function CoverageHeatmap({ grid, timezone }: Readonly<{ grid: CoverageGri
         <div className="issue warning">
           <span className="marker">!</span>
           <span>
-            This card carries no configuration, so there is nothing to say what should have been
+            This card has no configuration, so there is nothing to say what should have been
             recorded. Only what was actually recorded is shown.
           </span>
         </div>

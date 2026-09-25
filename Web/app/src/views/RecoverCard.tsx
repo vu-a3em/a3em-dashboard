@@ -8,6 +8,7 @@ import { Activity, useCardLogs, without, type CardLogs } from '../components/Car
 import { RepairDialog, useCardRepair } from '../components/CardRepair';
 import { FsckResult, ImageResult, type Found } from '../components/PhysicalCard';
 import { InstallGuideDialog } from '../components/HelperStatus';
+import { TabLink } from '../components/TabLink';
 
 /**
  * Recovering a card that will not open.
@@ -133,14 +134,19 @@ export function RecoverCard({ helper, onConnect }: Readonly<{ helper: Helper; on
       <p className="hint">
         A card whose filesystem is damaged may not appear in the card picker dialog box, so “Connect SD card” cannot open
         it. However, the card may still be recoverable using the tools on this page. Only cards that are corrupted,
-        unmountable, or unreadable will be shown; a card that opens normally is checked and repaired under “Review
-        card”.
+        unmountable, or unreadable will be shown; a card that opens normally is checked and repaired under{' '}
+        <TabLink to="review" />.
       </p>
       {listed.length === 0 ? (
         <p className="muted">
-          {devices.length === 0
-            ? 'No cards are connected. Insert the card; it appears here within a few seconds if it will not open.'
-            : `${devices.length === 1 ? 'The connected card opens' : `All ${devices.length} connected cards open`} normally, so there is nothing to recover here. Use “Connect SD card”, then “Review card”.`}
+          {devices.length === 0 ? (
+            'No cards are connected. Insert the card; it appears here within a few seconds if it will not open.'
+          ) : (
+            <>
+              {devices.length === 1 ? 'The connected card opens' : `All ${devices.length} connected cards open`} normally,
+              so there is nothing to recover here. Use “Connect SD card”, then <TabLink to="review" />.
+            </>
+          )}
         </p>
       ) : (
         <div className="connected-cards">
@@ -257,7 +263,7 @@ function RecoveryCard({
           <p className="card-help">
             The card has no partitions, so there is no filesystem to check or repair. If it held recordings, copy it to
             an image file and take the image to a recovery tool such as PhotoRec, which finds files by their contents
-            rather than through the filesystem. If it did not, prepare it under “Prepare devices”.
+            rather than through the filesystem. If it did not, prepare it under <TabLink to="batch" />.
           </p>
           <div className="recovery-actions">{imageButton}</div>
         </>

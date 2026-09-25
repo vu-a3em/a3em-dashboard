@@ -15,6 +15,8 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
   expect('the old card is listed', await until(evaluate, sleep, `Boolean(${card(cards.old)})`, 200));
   out.order = await evaluate(`[...document.querySelectorAll('.card h2, .card .card-head h2')].map((h) => h.textContent.trim())`);
   expect('the cards come after the batch', out.order.findIndex((t) => t.startsWith('Devices in this batch')) < out.order.indexOf('Cards connected to this computer'), out.order);
+  out.contents = await evaluate(`$text([...document.querySelectorAll('.card')].find((c) => c.querySelector('h2')?.textContent === 'What each card will contain'))`);
+  expect('the batch says what each card will contain, from Configure, as a link', /The settings from Configure/.test(out.contents ?? '') && (await evaluate(`Boolean([...document.querySelectorAll('.card .hint .link-button')].find((b) => b.textContent === 'Configure'))`)), out.contents);
   const prepareButton = (id) => `$btn('Prepare this card', ${card(id)})`;
   out.noBatch = await evaluate(`[${prepareButton(cards.old)}.disabled, ${prepareButton(cards.old)}.title]`);
   expect('without a batch, "Prepare this card" cannot be pressed, and says why', out.noBatch[0] === true && /Create a batch/.test(out.noBatch[1]), out.noBatch);
