@@ -4,6 +4,7 @@ export * from './audio-threshold.js';
 export * from './card-layout.js';
 export * from './device-info.js';
 export * from './imu-file.js';
+export * from './recovery.js';
 export * from './log-file.js';
 export * from './self-test.js';
 export * from './open-items.js';

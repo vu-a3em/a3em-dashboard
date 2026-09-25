@@ -7,13 +7,24 @@
   const ROLE = window.__PICK__ || 'prepared';
   const cards = window.__CARDS__ ?? {};
   const NAME = { dirty: cards.dirtyLabel, old: cards.oldLabel }[ROLE] || cards.preparedLabel || 'OWL_01';
+  let picks = 0;
   window.showDirectoryPicker = async () => {
     const root = await navigator.storage.getDirectory();
+    // After the card, a folder to copy it into.
+    if (picks++ > 0) return root.getDirectoryHandle('copy-destination', { create: true });
     const dir = await root.getDirectoryHandle(NAME, { create: true });
     const cfg = await dir.getFileHandle('_a3em.cfg', { create: true });
     const writer = await cfg.createWritable();
     await writer.write(`DEVICE_LABEL = "${NAME}"\n`);
     await writer.close();
+    if (ROLE === 'dirty') {
+      // The dirty card's log as its directory entry records it: the first 2,000 bytes (setup-macos.sh).
+      const lines = Array.from({ length: 120 }, (_, i) => `EVT|TICK|t=${1788000000 + i},ok\n`).join('');
+      const log = await (await dir.getDirectoryHandle('OWL_09', { create: true })).getFileHandle('a3em.log', { create: true });
+      const logWriter = await log.createWritable();
+      await logWriter.write(lines.slice(0, 2000));
+      await logWriter.close();
+    }
     const getFileHandle = dir.getFileHandle.bind(dir);
     const removeEntry = dir.removeEntry.bind(dir);
     const probe = (op, name) => fetch(BRIDGE + 'probe', { method: 'POST', body: JSON.stringify({ op, name, role: ROLE }) });

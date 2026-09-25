@@ -614,6 +614,21 @@ export interface FsckReport {
   /** What a repair did, and where it saved what it replaced. */
   repaired?: string[];
   saved?: string[];
+  /** What logs and IMU files may hold past their recorded end: raw, for lib/tails.ts to judge. */
+  tails?: CardTail[];
+}
+
+/** What the card holds past a log's or IMU file's recorded end, as the card helper found it. */
+export interface CardTail {
+  path: string;
+  kind: 'log' | 'imu';
+  recordedBytes: number;
+  /** Base64: the end of what a log records. */
+  before?: string;
+  /** Base64: from the recorded end, or for an IMU file cut short, from its header. */
+  data: string;
+  /** How much of `data` is in the file's own last cluster; the rest is in space no file owns. */
+  inFileBytes?: number;
 }
 
 /**

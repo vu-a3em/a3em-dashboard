@@ -3,6 +3,7 @@ import { formatAllocationUnit } from '@a3em/config-schema';
 import { mountVolume, type FilesystemFinding, type FsckReport, type ImageReport } from '../lib/helper';
 import { checkCardFilesystem, copyCardToImage } from '../lib/cardImage';
 import { useKept } from '../lib/keptState';
+import { acceptTails, useRecoveredTails, type RecoveredTail } from '../lib/tails';
 import type { CardDevice } from '../lib/useCardDevice';
 import type { Helper } from '../lib/useHelper';
 import { Activity, useCardLogs, without } from './CardActivity';
@@ -42,13 +43,18 @@ export function PhysicalCard({
   cardDevice,
   helper,
   onReopened,
+  clipSeconds = null,
 }: Readonly<{
   cardDevice: CardDevice;
   helper: Helper;
   /** After a repair, which closes the card: it is open again, so the dashboard can read it afresh. */
   onReopened?: () => void;
+  /** The longest clip the card's configuration records, which no recovered IMU file exceeds. */
+  clipSeconds?: number | null;
 }>) {
   const { device, volumeId, details, loadDetails } = cardDevice;
+  // What logs and IMU files hold past their recorded end, for "Check & copy" to add to their copies.
+  const { tails, setTails } = useRecoveredTails(device, volumeId);
   const logs = useCardLogs('review');
   const { now, isWorking, working } = logs;
   // What was found and made, by card, kept while the page is open, like the log: a copy that
@@ -102,7 +108,9 @@ export function PhysicalCard({
     if (!volume) return;
     record(device.id, { fsck: undefined, repaired: undefined });
     const report = await checkCardFilesystem(device, volume.id, helper, logs);
-    if (report) record(device.id, { fsck: report });
+    if (!report) return;
+    record(device.id, { fsck: report });
+    if (report.engine === 'a3em') setTails(acceptTails(report.tails, clipSeconds));
   };
 
   const copyToImage = async () => {
@@ -214,7 +222,11 @@ export function PhysicalCard({
         <Activity log={log} running={running} now={now} onStop={logs.canStop(device.id) ? () => logs.stop(device.id) : undefined} />
       ) : null}
       {!running && found.image ? <ImageResult report={found.image} /> : null}
-      {!running && found.repaired ? <FsckResult report={found.repaired} /> : !running && found.fsck ? <FsckResult report={found.fsck} /> : null}
+      {!running && found.repaired ? (
+        <FsckResult report={found.repaired} />
+      ) : !running && found.fsck ? (
+        <FsckResult report={found.fsck} recovered={tails} />
+      ) : null}
       <p className="card-help">
         Checking the filesystem and copying the card read it directly, so your computer may ask for an administrator
         password. Neither changes anything on the card; a repair does, which is why it asks first.
@@ -306,9 +318,23 @@ function Findings({ findings }: Readonly<{ findings: FilesystemFinding[] }>) {
  * harm nothing, and preparing a card for its next deployment rebuilds its records anyway, so a
  * card already copied off needs no repair at all.
  */
-function RepairAdvice({ findings, fixableHere }: Readonly<{ findings: FilesystemFinding[]; fixableHere: boolean }>) {
+function RepairAdvice({
+  findings,
+  fixableHere,
+  recovered,
+}: Readonly<{ findings: FilesystemFinding[]; fixableHere: boolean; recovered: boolean }>) {
   const one = findings.length === 1;
   const it = one ? 'it' : 'them';
+  // Rebuilding the record of space in use frees what no file owns, which is where much of what is
+  // recovered lies: copied first, it is in the copies whatever the repair then does.
+  if (recovered && findings.some((finding) => finding.repair === 'bitmap')) {
+    return (
+      <p style={{ margin: '6px 0 0' }}>
+        Copy the card with “Check & copy” before any repair: the repair frees the space some of what is recovered
+        above is in. {fixableHere ? `“Repair…” then fixes ${one ? 'this' : 'these'}, rewriting only the card’s own records.` : ''}
+      </p>
+    );
+  }
   if (!findings.some((finding) => finding.severity === 'problem')) {
     return (
       <p style={{ margin: '6px 0 0' }}>
@@ -342,7 +368,27 @@ function RepairAdvice({ findings, fixableHere }: Readonly<{ findings: Filesystem
 }
 
 /** The helper's own check, which says what is wrong in words and names the files it touches. */
-function OwnCheckResult({ report }: Readonly<{ report: FsckReport }>) {
+/** What logs and IMU files hold past their recorded end, and where it goes. */
+function Recovered({ tails }: Readonly<{ tails: RecoveredTail[] }>) {
+  return (
+    <>
+      <p style={{ margin: '6px 0 0' }}>
+        {tails.length === 1 ? 'One file holds' : `${tails.length.toLocaleString()} files hold`} more than the card
+        records: what the recorder wrote before it lost power, and had not yet recorded. “Check & copy” adds it to{' '}
+        {tails.length === 1 ? 'the file’s copy' : 'their copies'}; the card is not changed.
+      </p>
+      <ul className="finding-paths">
+        {tails.map((tail) => (
+          <li key={tail.path}>
+            <span className="mono">{tail.path}</span> — {tail.summary}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function OwnCheckResult({ report, recovered }: Readonly<{ report: FsckReport; recovered?: RecoveredTail[] | null }>) {
   const findings = report.findings ?? [];
   const problems = findings.filter((finding) => finding.severity === 'problem');
   const checked =
@@ -382,7 +428,14 @@ function OwnCheckResult({ report }: Readonly<{ report: FsckReport }>) {
             <Findings findings={findings} />
           </>
         )}
-        {!report.clean && !report.modified ? <RepairAdvice findings={findings} fixableHere={report.fixableHere ?? false} /> : null}
+        {!report.modified && recovered?.length ? <Recovered tails={recovered} /> : null}
+        {!report.clean && !report.modified ? (
+          <RepairAdvice
+            findings={findings}
+            fixableHere={report.fixableHere ?? false}
+            recovered={Boolean(recovered?.some((tail) => tail.unowned))}
+          />
+        ) : null}
         {report.modified && report.saved?.length ? (
           <p style={{ margin: '6px 0 0' }}>
             What the repair replaced is kept in <span className="mono">{folderOf(report.saved[0])}</span> for 30 days,
@@ -394,8 +447,8 @@ function OwnCheckResult({ report }: Readonly<{ report: FsckReport }>) {
   );
 }
 
-export function FsckResult({ report }: Readonly<{ report: FsckReport }>) {
-  if (report.engine === 'a3em') return <OwnCheckResult report={report} />;
+export function FsckResult({ report, recovered }: Readonly<{ report: FsckReport; recovered?: RecoveredTail[] | null }>) {
+  if (report.engine === 'a3em') return <OwnCheckResult report={report} recovered={recovered} />;
   if (!report.clean && COULD_NOT_OPEN.test(report.output)) {
     return (
       <div className="card-result">

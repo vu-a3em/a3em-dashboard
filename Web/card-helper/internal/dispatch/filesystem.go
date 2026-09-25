@@ -39,11 +39,14 @@ type FilesystemReport struct {
 	Directories int             `json:"directories,omitempty"`
 	Repaired    []string        `json:"repaired,omitempty"`
 	Saved       []string        `json:"saved,omitempty"`
+	// Tails is what logs and IMU files may hold past their recorded end, for the page to judge
+	// and add to their copies.
+	Tails []exfat.Tail `json:"tails,omitempty"`
 }
 
 func fromCheck(check exfat.CheckReport) FilesystemReport {
 	return FilesystemReport{Clean: check.Clean, Engine: "a3em", Findings: check.Findings, Repairs: check.Repairs,
-		FixableHere: check.FixableHere, Files: check.Files, Directories: check.Directories, Output: describeFindings(check)}
+		FixableHere: check.FixableHere, Files: check.Files, Directories: check.Directories, Output: describeFindings(check), Tails: check.Tails}
 }
 
 func fromSystem(fsck platform.FsckReport) FilesystemReport {

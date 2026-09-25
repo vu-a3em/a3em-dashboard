@@ -38,7 +38,9 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
   expect('the check finds the bitmap problem and says what it means', /found problems/.test(out.checkResult ?? '') && /record of which space is in use/.test(out.checkResult ?? ''), out.checkResult);
   expect('and a repair is offered', await evaluate(`Boolean($btn('Repair', ${pane}))`));
   expect('it names the recording the problem touches', /OWL_09\/clip\.wav/.test(out.checkResult ?? ''), out.checkResult);
-  expect('and says the repair here changes no file', /changes no\s+file/.test(out.checkResult ?? ''), out.checkResult);
+  expect('it finds the log lines written past the log’s recorded end, for the copy', /OWL_09\/a3em\.log — [\d.,]+ (bytes|kB) of log text/.test(out.checkResult ?? '') && /“Check & copy” adds it/.test(out.checkResult ?? ''), out.checkResult);
+  // Those lines are in the log's own cluster, which a repair leaves alone: nothing to warn of.
+  expect('and the repair advice stands, since the repair leaves those lines alone', /changes no\s+file/.test(out.checkResult ?? '') && !/before any repair/.test(out.checkResult ?? ''), out.checkResult);
 
   // A copy can be stopped, and leaves no image, finished or not, behind.
   await stopACopy(evaluate, sleep, pane, expect, out);
@@ -69,4 +71,23 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
   out.probesLeft = Number(await (await fetch('http://127.0.0.1:8790/probes?role=dirty')).text());
   expect('no marker file is left on the card', out.probesLeft === 0, out.probesLeft);
   await shot('1-repaired');
+
+  // "Check & copy" adds the log's unrecorded lines to its copy, where they belong, using what the
+  // check above found: no second password prompt.
+  await evaluate(rail('Check & copy'));
+  await until(evaluate, sleep, `Boolean($btn('Choose destination and copy'))`, 100);
+  await evaluate(`$btn('Choose destination and copy').click()`);
+  out.copyDone = await until(evaluate, sleep, `(() => { const t = $text(document.querySelector('.content')); return /Copy finished/.test(t) ? t : null; })()`, 600);
+  expect('the copy says what it added past the card’s recorded end', /1 copy holds what the card had not recorded/.test(out.copyDone ?? '') && /OWL_09\/a3em\.log — 560 bytes of log text/.test(out.copyDone ?? ''), out.copyDone);
+  out.logCopy = await evaluate(`(async () => {
+    const root = await navigator.storage.getDirectory();
+    const copy = await root.getDirectoryHandle('copy-destination');
+    const file = await (await (await copy.getDirectoryHandle('OWL_09')).getFileHandle('a3em.log')).getFile();
+    const report = await (await copy.getFileHandle('a3em-copy-report.txt')).getFile();
+    return { size: file.size, text: await file.text(), report: await report.text() };
+  })()`);
+  const expected = Array.from({ length: 120 }, (_, i) => `EVT|TICK|t=${1788000000 + i},ok\n`).join('').slice(0, 2560);
+  expect('the log’s copy is its recorded 2,000 bytes and the 560 after them, in place', out.logCopy?.size === 2560 && out.logCopy?.text === expected, out.logCopy?.size);
+  expect('and the copy report lists it', /OWL_09\/a3em\.log\t560 bytes of log text/.test(out.logCopy?.report ?? ''), out.logCopy?.report);
+  await shot('2-copied');
 };

@@ -29,6 +29,7 @@ import type { CardDevice } from '../lib/useCardDevice';
 import { loadPhysicalCard } from '../lib/helperViews';
 import { RecoverHint } from '../components/RecoverHint';
 import { isUndeployed, NotDeployed } from '../components/NotDeployed';
+import { longestClip } from '../lib/tails';
 import type { Helper } from '../lib/useHelper';
 
 type Card = ReturnType<typeof useCard>;
@@ -337,7 +338,12 @@ export function CardOverview({
       <>
         {cardDevice.device ? (
           <Suspense fallback={null}>
-            <PhysicalCard cardDevice={cardDevice} helper={helper} onReopened={() => void card.rescan()} />
+            <PhysicalCard
+              cardDevice={cardDevice}
+              helper={helper}
+              onReopened={() => void card.rescan()}
+              clipSeconds={longestClip(card.existingConfig)}
+            />
           </Suspense>
         ) : null}
         {unreadable.length ? (
@@ -379,7 +385,12 @@ export function CardOverview({
       {/* The card as hardware, first: whether the recorder would erase it outranks what it holds. */}
       {cardDevice.device ? (
         <Suspense fallback={null}>
-          <PhysicalCard cardDevice={cardDevice} helper={helper} onReopened={() => void card.rescan()} />
+          <PhysicalCard
+            cardDevice={cardDevice}
+            helper={helper}
+            onReopened={() => void card.rescan()}
+            clipSeconds={longestClip(card.existingConfig)}
+          />
         </Suspense>
       ) : null}
 

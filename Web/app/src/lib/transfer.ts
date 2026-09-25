@@ -144,6 +144,8 @@ export interface CopyProgress {
 export interface CopyResult {
   copied: number;
   bytesCopied: number;
+  /** Files whose copies hold more than the card records: what the recorder wrote past their end. */
+  recovered: Array<{ path: string; summary: string }>;
   /** Files that could not be copied, with why. The point of the whole exercise. */
   skipped: Array<{ path: string; reason: string }>;
   /** Files already present at the destination with the same size. */
@@ -173,10 +175,15 @@ export async function copyCard(
      * Copy again with a different correction and you get a different copy.
      */
     renameTo?: ReadonlyMap<string, string>;
+    /**
+     * What the recorder wrote past a file's recorded end, by source path (see lib/tails.ts): added
+     * to the file's copy, or for an IMU file cut short, the whole of it. The card is not written.
+     */
+    additions?: ReadonlyMap<string, { bytes: Uint8Array; replaces: boolean; summary: string }>;
   } = {},
 ): Promise<CopyResult> {
   const bytesTotal = entries.reduce((sum, entry) => sum + entry.sizeBytes, 0);
-  const result: CopyResult = { copied: 0, bytesCopied: 0, skipped: [], alreadyPresent: 0, canceled: false };
+  const result: CopyResult = { copied: 0, bytesCopied: 0, recovered: [], skipped: [], alreadyPresent: 0, canceled: false };
   const directoryCache = new Map<string, FileSystemDirectoryHandle>();
 
   for (const [index, entry] of entries.entries()) {
@@ -197,12 +204,16 @@ export async function copyCard(
       const name = segments.pop()!;
       const parent = await ensureDirectory(destination, segments, directoryCache);
 
-      // Skip anything already copied at the same size, so a re-run resumes.
+      // Skip anything already copied at the same size, so a re-run resumes. A copy with
+      // something recovered is longer than the card's file, by what was added.
+      const addition = options.additions?.get(entry.path);
+      const expected = addition ? (addition.replaces ? 0 : entry.sizeBytes) + addition.bytes.length : entry.sizeBytes;
       try {
         const existing = await (await parent.getFileHandle(name)).getFile();
-        if (existing.size === entry.sizeBytes) {
+        if (existing.size === expected) {
           result.alreadyPresent++;
           result.bytesCopied += entry.sizeBytes;
+          if (addition) result.recovered.push({ path: entry.path, summary: addition.summary });
           continue;
         }
       } catch {
@@ -212,10 +223,23 @@ export async function copyCard(
       const source = await entry.handle.getFile();
       const target = await parent.getFileHandle(name, { create: true });
       const writable = await target.createWritable();
-      // No try/finally closing the writable: pipeTo closes it on both paths, and closing
-      // an already-closed writable throws over the original error and hides what actually
-      // went wrong. The outer catch records the failure and moves to the next file.
-      await source.stream().pipeTo(writable);
+      if (!addition) {
+        // No try/finally closing the writable: pipeTo closes it on both paths, and closing
+        // an already-closed writable throws over the original error and hides what actually
+        // went wrong. The outer catch records the failure and moves to the next file.
+        await source.stream().pipeTo(writable);
+      } else {
+        // The card's bytes, left open for what follows them; pipeTo still aborts it on failure.
+        if (!addition.replaces) await source.stream().pipeTo(writable, { preventClose: true });
+        try {
+          await writable.write(addition.bytes as Uint8Array<ArrayBuffer>);
+          await writable.close();
+        } catch (error) {
+          await writable.abort().catch(() => undefined);
+          throw error;
+        }
+        result.recovered.push({ path: entry.path, summary: addition.summary });
+      }
       result.copied++;
       result.bytesCopied += entry.sizeBytes;
     } catch (error) {
@@ -261,10 +285,19 @@ export function buildSkipManifest(result: CopyResult, cardName: string): string 
     `Files copied: ${result.copied}`,
     `Already present: ${result.alreadyPresent}`,
     `Skipped: ${result.skipped.length}`,
+    `Recovered past the recorded end: ${result.recovered.length}`,
     result.canceled ? 'Run was canceled before finishing.' : '',
     '',
   ];
   for (const skip of result.skipped) lines.push(`${skip.path}\t${skip.reason}`);
+  if (result.recovered.length) {
+    lines.push(
+      '',
+      'These copies hold more than the card records: what the recorder wrote before it lost power, and',
+      'had not yet recorded. The card itself still gives the shorter length.',
+    );
+    for (const entry of result.recovered) lines.push(`${entry.path}\t${entry.summary}`);
+  }
   return lines.filter((line) => line !== undefined).join('\n') + '\n';
 }
 

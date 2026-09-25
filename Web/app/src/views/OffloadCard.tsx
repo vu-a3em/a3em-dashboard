@@ -4,6 +4,8 @@ import { RECORDING_VERDICT_LABELS, describeCorrection, planRename } from '@a3em/
 import type { CorrectionState } from '../App';
 import { useClockCorrection } from '../lib/useClockCorrection';
 import { CARD_ACCESS_SUPPORTED } from '../lib/card';
+import { diagnoseVolume } from '../lib/helper';
+import { acceptTails, longestClip, useRecoveredTails } from '../lib/tails';
 import {
   buildSkipManifest,
   checkIntegrity,
@@ -50,6 +52,9 @@ export function OffloadCard({
   */
   const { correction } = useClockCorrection(card, correctionState);
   const [applyCorrection, setApplyCorrection] = useState(true);
+  // What logs and IMU files hold past their recorded end, found by a filesystem check of this card.
+  const { tails, setTails } = useRecoveredTails(cardDevice.device, cardDevice.volumeId);
+  const [looking, setLooking] = useState(false);
   const renamePlan = useMemo(
     () => (correction && card.contents ? planRename(card.contents.layout, correction) : null),
     [correction, card.contents],
@@ -130,9 +135,30 @@ export function OffloadCard({
         }
       }
 
+      /*
+        What the recorder wrote past files' recorded ends, to go into their copies. The card
+        helper finds it while checking the filesystem, which asks for the password once; a check
+        already made of this card on "Review card" is used instead. Without the helper, or the
+        password, the copy goes ahead with the files as the card records them.
+      */
+      let recovered = tails;
+      if (!recovered && cardDevice.device && cardDevice.volumeId) {
+        setLooking(true);
+        try {
+          const found = await diagnoseVolume(cardDevice.volumeId);
+          recovered = found.engine === 'a3em' ? acceptTails(found.tails, longestClip(card.existingConfig)) : [];
+          setTails(recovered);
+        } catch {
+          recovered = [];
+        } finally {
+          setLooking(false);
+        }
+      }
+
       const copyResult = await copyCard(card.contents!.entries, destination, {
         onProgress: setProgress,
         renameTo,
+        additions: new Map((recovered ?? []).map((tail) => [tail.path, tail])),
       });
       setResult(copyResult);
 
@@ -149,7 +175,7 @@ export function OffloadCard({
 
       // Write the account of what was skipped next to the copy, so it survives the
       // session rather than living only on screen.
-      if (copyResult.skipped.length) {
+      if (copyResult.skipped.length || copyResult.recovered.length) {
         const manifest = await destination.getFileHandle('a3em-copy-report.txt', { create: true });
         const writable = await manifest.createWritable();
         await writable.write(buildSkipManifest(copyResult, card.name ?? 'card'));
@@ -164,6 +190,9 @@ export function OffloadCard({
   };
 
   const totalBytes = layout.files.reduce((sum, file) => sum + file.sizeBytes, 0);
+  // A file whose data is recovered into its copy is not lost, though the card records it empty.
+  const recoveredPaths = new Set((tails ?? []).map((tail) => tail.path));
+  const lost = report ? report.problems.filter((problem) => !recoveredPaths.has(problem.path)) : [];
 
   return (
     <>
@@ -225,11 +254,7 @@ export function OffloadCard({
                 value={report.recoverable.length.toLocaleString()}
                 tone={report.recoverable.length ? 'warn' : 'ok'}
               />
-              <Stat
-                label="Lost"
-                value={report.problems.length.toLocaleString()}
-                tone={report.problems.length ? 'crit' : 'ok'}
-              />
+              <Stat label="Lost" value={lost.length.toLocaleString()} tone={lost.length ? 'crit' : 'ok'} />
             </div>
 
             {report.recoverable.length ? (
@@ -247,7 +272,25 @@ export function OffloadCard({
               </div>
             ) : null}
 
-            {report.problems.length ? (
+            {tails?.length ? (
+              <div className="banner ok" style={{ marginTop: 14, marginBottom: 0 }}>
+                <strong>
+                  {tails.length === 1 ? '1 file holds' : `${tails.length.toLocaleString()} files hold`} more than the
+                  card records
+                </strong>
+                What the recorder wrote before it lost power, and had not yet recorded. Copying adds it to{' '}
+                {tails.length === 1 ? 'the file’s copy' : 'their copies'}; the card is not changed.
+                <ul className="finding-paths">
+                  {tails.map((tail) => (
+                    <li key={tail.path}>
+                      <span className="mono">{tail.path}</span> — {tail.summary}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {lost.length ? (
               <div className="scroll-x" style={{ marginTop: 14 }}>
                 <table className="data">
                   <thead>
@@ -258,7 +301,7 @@ export function OffloadCard({
                     </tr>
                   </thead>
                   <tbody>
-                    {report.problems.slice(0, 100).map((problem) => (
+                    {lost.slice(0, 100).map((problem) => (
                       <tr key={problem.path}>
                         <td className="mono">{problem.path.split('/').pop()}</td>
                         <td>
@@ -269,9 +312,9 @@ export function OffloadCard({
                     ))}
                   </tbody>
                 </table>
-                {report.problems.length > 100 ? (
+                {lost.length > 100 ? (
                   <p className="stat-note">
-                    Showing the first 100 of {report.problems.length.toLocaleString()}.
+                    Showing the first 100 of {lost.length.toLocaleString()}.
                   </p>
                 ) : null}
               </div>
@@ -317,6 +360,13 @@ export function OffloadCard({
           </label>
         ) : null}
 
+        {looking ? (
+          <p className="stat-note">
+            Asking the card helper for what logs and IMU files hold past their recorded end, to add it to their
+            copies. It may ask for your password.
+          </p>
+        ) : null}
+
         {progress ? (
           <>
             <div className="meter">
@@ -360,6 +410,24 @@ export function OffloadCard({
                 </div>
               ) : null}
             </div>
+
+            {result.recovered.length ? (
+              <div className="banner ok" style={{ marginTop: 0, marginBottom: 14 }}>
+                <strong>
+                  {result.recovered.length === 1 ? '1 copy holds' : `${result.recovered.length.toLocaleString()} copies hold`}{' '}
+                  what the card had not recorded
+                </strong>
+                What the recorder wrote past {result.recovered.length === 1 ? 'the file’s' : 'the files’'} recorded end,
+                added in place. The card still gives the shorter length; a3em-copy-report.txt lists these.
+                <ul className="finding-paths">
+                  {result.recovered.map((entry) => (
+                    <li key={entry.path}>
+                      <span className="mono">{entry.path}</span> — {entry.summary}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             {repair ? (
               <div

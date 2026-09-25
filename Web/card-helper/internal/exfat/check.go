@@ -62,6 +62,8 @@ type CheckReport struct {
 	Directories int    `json:"directories"`
 	// NotExFAT is a card this checker cannot read: no exFAT volume where one should be.
 	NotExFAT bool `json:"notExfat,omitempty"`
+	// Tails is what logs and IMU files may hold past their recorded end (see tails.go).
+	Tails []Tail `json:"tails,omitempty"`
 }
 
 // maxPaths is how many affected files a finding names.
@@ -97,6 +99,12 @@ type volume struct {
 	label    string
 	crossed  map[string]bool // files already reported for sharing clusters, so each is named once
 	stop     func() bool
+
+	// For what the recorder wrote past files' recorded ends (tails.go).
+	logs     []recordedFile
+	emptyIMU []string
+	onCard   []byte   // the allocation bitmap as the card has it
+	lostRuns []extent // runs of clusters marked in use that no file owns
 }
 
 type extent struct{ first, count int64 }
@@ -124,7 +132,13 @@ func Check(dev blockdev.Device, stop func() bool) (CheckReport, error) {
 	if err := v.compareBitmap(); err != nil {
 		return CheckReport{}, err
 	}
-	return v.report(), nil
+	report = v.report()
+	tails, err := v.tails()
+	if err != nil {
+		return CheckReport{}, err
+	}
+	report.Tails = tails
+	return report, nil
 }
 
 // open finds the volume, reads both boot regions, and checks them.
@@ -501,6 +515,9 @@ func (v *volume) file(parent string, set []byte, depth int) error {
 		v.files_++
 	}
 	if flags&0x01 == 0 {
+		if !directory {
+			v.noteFile(path, length, flags, nil)
+		}
 		return nil // no clusters allocated
 	}
 	clusters, extents, err := v.chain(path, first, length, flags&0x02 != 0, directory)
@@ -508,6 +525,9 @@ func (v *volume) file(parent string, set []byte, depth int) error {
 		return err
 	}
 	v.files = append(v.files, fileExtents{path, extents})
+	if !directory {
+		v.noteFile(path, length, flags, extents)
+	}
 	// Vendor allocation entries claim clusters too.
 	for offset := 64; offset+32 <= len(set); offset += 32 {
 		if set[offset] == 0xe1 {
@@ -654,8 +674,14 @@ func (v *volume) compareBitmap() error {
 			}
 		case !used && marked:
 			lost++
+			if n := len(v.lostRuns); n > 0 && v.lostRuns[n-1].first+v.lostRuns[n-1].count == index+2 {
+				v.lostRuns[n-1].count++
+			} else if n < 100_000 {
+				v.lostRuns = append(v.lostRuns, extent{index + 2, 1})
+			}
 		}
 	}
+	v.onCard = onCard
 	if freeInUse > 0 {
 		names, owners := v.owners(free)
 		f := Finding{Kind: "bitmap-free", Severity: "problem", Repair: "bitmap", Count: freeInUse, Paths: names,

@@ -27,6 +27,7 @@ if [ "$1" = teardown ]; then
   exit 0
 fi
 HELPER=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
+HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=$2
 mkdir -p "$WORK"; cd "$WORK"
 export A3EM_HELPER_VIRTUAL_ONLY=1 A3EM_HELPER_STATE_DIR="$WORK/state"
@@ -77,7 +78,10 @@ MP=$(mount_of "$DIRTY"); mkdir -p "$MP/OWL_09"; head -c 400000 /dev/urandom > "$
 # bitmap calls free, it would land on the recording, and the card would then be cross-linked,
 # which only the system's repair can deal with, rather than holding the one mistake intended.
 mkdir -p "$MP/.fseventsd"; touch "$MP/.fseventsd/no_log" "$MP/.metadata_never_index"
+# A log with events after its recorded end, as a recorder that lost power before syncing leaves it.
+python3 -c 'import sys; open(sys.argv[1], "w").write("".join("EVT|TICK|t=%d,ok\n" % (1788000000 + i) for i in range(120)))' "$MP/OWL_09/a3em.log"
 sync; hdiutil detach "$DIRTY" >/dev/null
+python3 "$HERE/shorten.py" dirty.img OWL_09/a3em.log 2000
 spoil_bitmap dirty.img
 DIRTY=$(attach dirty.img); guard "$DIRTY"; diskutil mount "${DIRTY}s1" >/dev/null
 
