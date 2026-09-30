@@ -278,7 +278,21 @@ export interface ParsedLog {
    * only as good as whatever source was recovered from. It changes how far a clock
    * correction can be trusted.
    */
-  clockRecovery: { timestamp: string | null; source: string; chosenTime: string | null } | null;
+  clockRecovery: {
+    timestamp: string | null;
+    source: string;
+    chosenTime: string | null;
+    /**
+     * Whether the clock was rebuilt before the magnet activated the device.
+     *
+     * With `SET_RTC_AT_MAGNET_DETECT` the device deliberately boots without a clock it
+     * trusts and runs on the last time it wrote to MRAM until the magnet sets it. A
+     * recovery there is the requested feature working, not a loss. One AFTER activation
+     * is a different event entirely: the clock went away mid-deployment, and every
+     * timestamp after it is suspect.
+     */
+    beforeActivation: boolean;
+  } | null;
   /**
    * What the digital microphone clock was set to, and what it turned out to be.
    *
@@ -483,6 +497,9 @@ export function parseLogs(
   let sawBoot = false;
   const selfTests: SelfTestRun[] = [];
   let clockRecovery: ParsedLog['clockRecovery'] = null;
+  // Set by the first ACTIVATED marker, so a clock rebuilt before it can be told from one
+  // rebuilt during the deployment.
+  let activationSeen = false;
   let pdmClock: ParsedLog['pdmClock'] = null;
   const hardFaults: HardFault[] = [];
 
@@ -635,16 +652,20 @@ export function parseLogs(
           }
         } else if (code === 'CLOCK_RECOVERED') {
           const chosen = Number(fields.chosen ?? 0);
+          const beforeActivation = !activationSeen;
           clockRecovery = {
             timestamp,
             source: fields.source ?? 'unknown',
             chosenTime: chosen > 0 ? new Date(chosen * 1000).toISOString() : null,
+            beforeActivation,
           };
           lifecycle.push({
             timestamp,
             kind: 'BOOT',
-            summary: `Clock was lost and rebuilt from the ${fields.source ?? 'card'}`,
-            notable: true,
+            summary: beforeActivation
+              ? `Clock read from the ${fields.source ?? 'card'} while waiting to be activated`
+              : `Clock was lost and rebuilt from the ${fields.source ?? 'card'}`,
+            notable: !beforeActivation,
           });
         } else if (code === 'HARD_FAULT') {
           const address = Number(fields.address ?? 0);
@@ -689,6 +710,7 @@ export function parseLogs(
             notable: false,
           });
         } else if (code === 'ACTIVATED') {
+          activationSeen = true;
           lifecycle.push({
             timestamp,
             kind: 'ACTIVATED',

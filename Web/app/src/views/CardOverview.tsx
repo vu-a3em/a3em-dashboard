@@ -242,7 +242,16 @@ export function CardOverview({
       findings.push(
         `${restartInfo.unexpectedRestarts} restart${restartInfo.unexpectedRestarts === 1 ? '' : 's'} happened that nothing in the deployment asked for.`,
       );
-    if (log?.clockRecovery) findings.push('The clock was lost and rebuilt from the card, so subsequent times may show internal discrepancies.');
+    /*
+      Only a clock lost DURING the deployment.
+
+      With SET_RTC_AT_MAGNET_DETECT the device is meant to boot without a clock it trusts
+      and run on the last time it wrote to MRAM until the magnet sets it, so a recovery
+      before activation is the requested feature working. Reporting it as a caveat put a
+      warning on every deployment configured that way, which is most of them.
+    */
+    if (log?.clockRecovery && !log.clockRecovery.beforeActivation)
+      findings.push('The clock was lost and rebuilt from the card, so subsequent times may show internal discrepancies.');
     if (log?.configResult === 'CORRECTED') findings.push('The device had to correct the configuration file, so it ran with settings nobody chose.');
     else if (log?.configResult === 'FAIL') findings.push('The device could not read the configuration file.');
     // FIRMWARE: logged as SOLAR_REVERSED on each day a solar window ended before it started.

@@ -311,6 +311,33 @@ describe('telling a deployment\'s own restarts from incidents', () => {
   });
 });
 
+describe('a clock rebuilt from the card', () => {
+  const recovered = 'EVT|CLOCK_RECOVERED|t=1770368400,source=MRAM,mram=1770368000,chosen=1770368000';
+  const activated = 'EVT|ACTIVATED|t=1770368500,activation=1';
+
+  it('treats a rebuild before activation as the configured path, not a loss', () => {
+    /*
+      SET_RTC_AT_MAGNET_DETECT has the device boot without a clock it trusts and run on the
+      last time it wrote to MRAM until the magnet sets it. Flagging that put a caveat on
+      every deployment configured that way.
+    */
+    const text = [recovered, activated].join('\n');
+    const log = parseLogs([{ name: 'a3em.log', text }]);
+    assert.equal(log.clockRecovery?.beforeActivation, true);
+    const row = log.lifecycle.find((e) => /[Cc]lock/.test(e.summary));
+    assert.equal(row?.notable, false);
+  });
+
+  it('still reports a clock lost after the deployment started', () => {
+    // Here the clock went away mid-run, and every timestamp after it is suspect.
+    const text = [activated, recovered].join('\n');
+    const log = parseLogs([{ name: 'a3em.log', text }]);
+    assert.equal(log.clockRecovery?.beforeActivation, false);
+    const row = log.lifecycle.find((e) => /[Cc]lock/.test(e.summary));
+    assert.equal(row?.notable, true);
+  });
+});
+
 describe('activation attribution', () => {
   const telem = (t: number, mv: number) => `EVT|TELEM|t=${t},time=${t},batt_mv=${mv},temp_c=20.0`;
 
