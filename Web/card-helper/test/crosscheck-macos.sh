@@ -25,23 +25,10 @@ r=r["report"]; print("  ours:", "clean" if r["clean"] else "; ".join(f["kind"]+(
 system() { code=0; fsck_exfat -n "/dev/r$VOL" >out 2>&1 || code=$?; echo "  fsck_exfat: exit $code, $(grep -E 'appears to be OK|corrupt|needs to be repaired|bitmap|Cannot|Invalid' out | tr '\n' ' ' | cut -c1-160)"; }
 repair() {
   attempt=1
-  delay=1
+  delay=$REPAIR_RETRY_DELAY
   while :; do
-    if TOKEN=$("$HELPER" call '{"op":"challenge","device":"'"$ID"'","operation":"repair"}' 2>/dev/null | python3 -c '
-import json,sys
-r=json.load(sys.stdin)
-if not r.get("ok"):
- print("  repair failed:", r.get("error", "unknown error"), file=sys.stderr)
- sys.exit(10 if r.get("code") == "unknown-device" else 1)
-print(r["token"])'); then
-      if "$HELPER" call '{"op":"repair","device":"'"$ID"'","volume":"'"$VOL"'","grant":"'"$TOKEN"'"}' 2>/dev/null | python3 -c '
-import json,sys
-r=json.load(sys.stdin)
-if not r.get("ok"):
- print("  repair failed:", r.get("error", "unknown error"), file=sys.stderr)
- sys.exit(10 if r.get("code") == "unknown-device" else 1)
-r=r["report"]
-print("  repair:", r["engine"], "repaired", r.get("repaired"), "| now", "clean" if r["clean"] else "not clean", "| saved", len(r.get("saved") or []))'; then
+    if TOKEN=$(helper_call '{"op":"challenge","device":"'"$ID"'","operation":"repair"}' token); then
+      if helper_call '{"op":"repair","device":"'"$ID"'","volume":"'"$VOL"'","grant":"'"$TOKEN"'"}' report; then
         return 0
       else
         status=$?
@@ -50,18 +37,36 @@ print("  repair:", r["engine"], "repaired", r.get("repaired"), "| now", "clean" 
       status=$?
     fi
 
-    if [ "$status" -ne 10 ]; then return "$status"; fi
-    if [ "$attempt" -ge 4 ]; then
+    if [ "$status" -ne "$UNKNOWN_DEVICE_STATUS" ]; then return "$status"; fi
+    if [ "$attempt" -ge "$MAX_REPAIR_ATTEMPTS" ]; then
       echo "  repair failed: volume lookup still unavailable after $attempt attempts" >&2
       return 1
     fi
-    echo "  volume lookup not ready; retrying repair in ${delay}s (attempt $((attempt + 1))/4)" >&2
+    echo "  volume lookup not ready; retrying repair in ${delay}s (attempt $((attempt + 1))/$MAX_REPAIR_ATTEMPTS)" >&2
     sleep "$delay"
     attempt=$((attempt + 1))
     delay=$((delay * 2))
   done
 }
 contents() { mp=$(diskutil info "${DEV}s1" | awk -F': *' '/Mount Point/{print $2}'); (cd "$mp" && find . -type f ! -name '.*' ! -path './.*' -exec md5 -r {} \; | sort); }
+
+UNKNOWN_DEVICE_STATUS=10
+MAX_REPAIR_ATTEMPTS=4
+REPAIR_RETRY_DELAY=1
+helper_call() {
+  response=$("$HELPER" call "$1" 2>/dev/null) || return $?
+  printf '%s\n' "$response" | python3 -c '
+import json,sys
+r=json.load(sys.stdin)
+if not r.get("ok"):
+ print("  repair failed:", r.get("error", "unknown error"), file=sys.stderr)
+ sys.exit(int(sys.argv[2]) if r.get("code") == "unknown-device" else 1)
+if sys.argv[1] == "token":
+ print(r["token"])
+else:
+ r=r["report"]
+ print("  repair:", r["engine"], "repaired", r.get("repaired"), "| now", "clean" if r["clean"] else "not clean", "| saved", len(r.get("saved") or []))' "$2" "$UNKNOWN_DEVICE_STATUS"
+}
 
 SYSTEM_SEES_LOST=1
 # What each case must show. The system's checker must see every damage but one: exfatprogs does
