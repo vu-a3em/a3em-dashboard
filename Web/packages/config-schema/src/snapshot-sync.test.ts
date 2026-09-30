@@ -45,7 +45,7 @@ import { ALLOCATION_UNIT_CHOICES_BYTES } from './allocation-unit.js';
 import { KEY_ORDER } from './parse.js';
 import { loadFirmwareSnapshot, loadPlannerSnapshot } from './snapshots.js';
 import { DEACTIVATION_REASON_LABELS } from './device-info.js';
-import { FIRMWARE_FAULT_REASONS } from './log-file.js';
+import { FIRMWARE_FAULT_REASONS, RESTART_REASONS_REPORTABLE, RESTART_REASONS_ROUTINE } from './log-file.js';
 import {
   BUFFERS,
   DEFAULTS,
@@ -508,6 +508,30 @@ describe('the stop reasons stay in step with the firmware', () => {
     const known = new Set([...snapshot.resetReasons.all, 'UNKNOWN']);
     const invented = Object.keys(DEACTIVATION_REASON_LABELS).filter((r) => !known.has(r));
     assert.deepEqual(invented, [], `explained but never emitted: ${invented.join(', ')}`);
+  });
+
+  it('has decided, for every reason, whether to put it in front of the reader', () => {
+    /*
+      The other half of the fault question. "Is this a failure?" is the firmware's call and
+      is settled below; "should somebody look at this?" is the dashboard's, and the two
+      differ on BATTERY-LOW — not a fault, and the most consequential thing a retrieved
+      card can say. Partitioning the firmware's own list means a reason added on the
+      device fails here until someone decides which it is, rather than defaulting into
+      whichever answer the code happens to give.
+    */
+    const classified = [...RESTART_REASONS_ROUTINE, ...RESTART_REASONS_REPORTABLE].sort();
+    assert.deepEqual(
+      classified,
+      [...snapshot.resetReasons.all].sort(),
+      'every reset reason the firmware can report must be listed as routine or reportable, and nothing else may be.',
+    );
+    const both = [...RESTART_REASONS_ROUTINE].filter((r) => RESTART_REASONS_REPORTABLE.has(r));
+    assert.deepEqual(both, [], `a reason cannot be both routine and reportable: ${both.join(', ')}`);
+  });
+
+  it('treats every failure the firmware names as reportable', () => {
+    const unreported = snapshot.resetReasons.faults.filter((r) => !RESTART_REASONS_REPORTABLE.has(r));
+    assert.deepEqual(unreported, [], `faults missing from the reportable list: ${unreported.join(', ')}`);
   });
 
   it('agrees with the firmware about which restarts are failures', () => {

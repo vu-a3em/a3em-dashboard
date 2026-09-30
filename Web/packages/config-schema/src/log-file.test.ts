@@ -228,6 +228,73 @@ describe('events that carry their own timestamp', () => {
   });
 });
 
+describe('telling a deployment\'s own restarts from incidents', () => {
+  const boot = (t: number, reason: string) =>
+    `EVT|BOOT|t=${t},fw=x,resets=1,epoch=1,last_stop=${reason}`;
+
+  it('counts none when every restart is one the deployment asked for', () => {
+    // A phased run restarts at every boundary by design. Reporting those as incidents told
+    // the reader a clean seven-phase deployment had gone wrong seven times.
+    const text = [
+      boot(1770368400, 'POWER-ON'),
+      boot(1770368500, 'MAGNET-ON'),
+      boot(1770368600, 'PHASE-DONE'),
+      boot(1770368700, 'PHASE-DONE'),
+      boot(1770368800, 'MAGNET-OFF'),
+    ].join('\n');
+    const restarts = parseLogs([{ name: 'a3em.log', text }]).restarts;
+    assert.ok(restarts);
+    assert.equal(restarts.unexpectedRestarts, 0);
+    assert.equal(restarts.hadFault, false);
+  });
+
+  it('counts the one nothing asked for, and not the phase changes around it', () => {
+    const text = [
+      boot(1770368400, 'POWER-ON'),
+      boot(1770368500, 'PHASE-DONE'),
+      // The device could not say why it came back - a reset line pulled by something
+      // outside the firmware looks exactly like this.
+      boot(1770368600, 'UNKNOWN'),
+      boot(1770368700, 'PHASE-DONE'),
+    ].join('\n');
+    const restarts = parseLogs([{ name: 'a3em.log', text }]).restarts;
+    assert.ok(restarts);
+    assert.equal(restarts.unexpectedRestarts, 1);
+    assert.equal(restarts.hadFault, false);
+  });
+
+  it('reports the battery cutoff, which the firmware does not call a fault', () => {
+    /*
+      The firmware is right that this is not a failure - the cutoff fired exactly as
+      configured. It is still the most consequential thing a retrieved card can say, so
+      the dashboard reports it separately rather than letting "not a fault" mean "nothing
+      to see".
+    */
+    const text = [boot(1770368400, 'PHASE-DONE'), boot(1770368500, 'BATTERY-LOW')].join('\n');
+    const restarts = parseLogs([{ name: 'a3em.log', text }]).restarts;
+    assert.ok(restarts);
+    assert.equal(restarts.endedOnLowBattery, true);
+    assert.equal(restarts.unexpectedRestarts, 1);
+    assert.equal(restarts.hadFault, false);
+  });
+
+  it('leaves the battery flag down when the cutoff never fired', () => {
+    const text = [boot(1770368400, 'POWER-ON'), boot(1770368500, 'PHASE-DONE')].join('\n');
+    const restarts = parseLogs([{ name: 'a3em.log', text }]).restarts;
+    assert.ok(restarts);
+    assert.equal(restarts.endedOnLowBattery, false);
+    assert.equal(restarts.unexpectedRestarts, 0);
+  });
+
+  it('still calls a fault a fault', () => {
+    const text = [boot(1770368400, 'PHASE-DONE'), boot(1770368500, 'SD-FAILURE')].join('\n');
+    const restarts = parseLogs([{ name: 'a3em.log', text }]).restarts;
+    assert.ok(restarts);
+    assert.equal(restarts.unexpectedRestarts, 1);
+    assert.equal(restarts.hadFault, true);
+  });
+});
+
 describe('activation attribution', () => {
   const telem = (t: number, mv: number) => `EVT|TELEM|t=${t},time=${t},batt_mv=${mv},temp_c=20.0`;
 

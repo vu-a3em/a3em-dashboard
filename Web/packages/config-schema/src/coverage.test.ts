@@ -100,6 +100,70 @@ describe('what should have been recorded', () => {
   });
 });
 
+describe('an hour a phase boundary runs through', () => {
+  /*
+    The case a seven-day soak produced: an INTERVAL phase handing over to a SCHEDULED one
+    part-way through an hour, where the interval's next occurrence fell after the handover
+    and the schedule's next window was hours away. Nothing was lost and the grid called it
+    a gap, because it judged all sixty minutes as the phase owning the first second.
+  */
+  // The phase starts at a quarter past, so its occurrences fall on :15 and :45 and the last
+  // one is due exactly as the phase ends - which is the geometry the soak actually had.
+  const handover = config({
+    startTime: '2026-04-01T00:15:00.000Z',
+    endTime: '2026-04-02T00:00:00.000Z',
+    isPhased: true,
+    phases: [
+      {
+        ...defaultPhase(),
+        startTime: '2026-04-01T00:15:00.000Z',
+        endTime: '2026-04-01T02:15:00.000Z',
+        audioRecordingMode: 'INTERVAL',
+        audioTriggerInterval: 30,
+        audioTriggerIntervalTimeScale: 'MINUTES',
+      },
+      {
+        ...defaultPhase(),
+        startTime: '2026-04-01T02:15:00.000Z',
+        endTime: '2026-04-02T00:00:00.000Z',
+        audioRecordingMode: 'SCHEDULED',
+        audioTriggerTimes: [{ startSecond: 4 * 3600, endSecond: 5 * 3600 }],
+      },
+    ],
+  });
+
+  it('does not fault the hour when neither phase promised anything in it', () => {
+    // 02:00-02:15 is the interval phase, whose next occurrence is due at 02:15 - the instant
+    // it ends, so it never fires. 02:15-03:00 is the schedule, idle until 04:00.
+    assert.equal(expectationFor('2026-04-01T02:00:00.000Z', handover, UTC), 'idle');
+  });
+
+  it('still expects the hours where the interval does land', () => {
+    assert.equal(expectationFor('2026-04-01T01:00:00.000Z', handover, UTC), 'scheduled');
+    assert.equal(expectationFor('2026-04-01T04:00:00.000Z', handover, UTC), 'scheduled');
+  });
+});
+
+describe('interval recording longer than an hour', () => {
+  it('leaves the hours between occurrences idle rather than missing', () => {
+    // Every four hours from midnight: 00:00, 04:00, 08:00 and nothing in between.
+    const sparse = config({
+      phases: [
+        {
+          ...defaultPhase(),
+          audioRecordingMode: 'INTERVAL',
+          audioTriggerInterval: 4,
+          audioTriggerIntervalTimeScale: 'HOURS',
+        },
+      ],
+    });
+    assert.equal(expectationFor('2026-04-01T00:00:00.000Z', sparse, UTC), 'scheduled');
+    assert.equal(expectationFor('2026-04-01T01:00:00.000Z', sparse, UTC), 'idle');
+    assert.equal(expectationFor('2026-04-01T03:00:00.000Z', sparse, UTC), 'idle');
+    assert.equal(expectationFor('2026-04-01T04:00:00.000Z', sparse, UTC), 'scheduled');
+  });
+});
+
 describe('building the coverage grid', () => {
   const continuous = config({ phases: [{ ...defaultPhase(), audioRecordingMode: 'CONTINUOUS' }] });
 

@@ -25,6 +25,7 @@ import { SelfTestPanel } from '../components/SelfTestPanel';
 import { CoverageHeatmap } from '../components/CoverageHeatmap';
 import { TrackMap } from '../components/TrackMap';
 import { Pane } from '../components/Pane';
+import { Pager, usePager } from '../components/Pager';
 import type { CardDevice } from '../lib/useCardDevice';
 import { loadPhysicalCard } from '../lib/helperViews';
 import { RecoverHint } from '../components/RecoverHint';
@@ -46,6 +47,16 @@ const PhysicalCard = lazy(() => loadPhysicalCard().then((module) => ({ default: 
  * forty hid exactly the part worth reading, so the tail is paged rather than dropped.
  */
 const EVENTS_PER_PAGE = 40;
+
+/**
+ * Microphone readings per page.
+ *
+ * Smaller than the event page because this table sits below several others and a reader
+ * scrolls to it, and because one reading per recording directory means a fortnight is
+ * already eighty rows. It opens on the most recent page: a microphone that failed did so
+ * at the end, and that was the reason the old fixed slice showed the last twelve.
+ */
+const HEALTH_PER_PAGE = 12;
 
 /**
  * What a card says about the deployment it just came back from.
@@ -130,6 +141,15 @@ export function CardOverview({
   }, [card.contents, card.log, activation]);
 
   const log = scopedLog.log;
+  /*
+    Paging state for the two tables long enough to need it. These sit here, with the other
+    hooks, because the component returns early for a card that is still scanning or was
+    never deployed, and a hook after an early return is called in a different order on
+    those renders.
+  */
+  const eventPages = usePager(log?.lifecycle ?? [], EVENTS_PER_PAGE, log);
+  // Opens on the newest page, which is where a microphone that failed shows it.
+  const healthPages = usePager(log?.microphoneHealth ?? [], HEALTH_PER_PAGE, log, true);
   /** A click that has not finished re-scoping yet. */
   const rescoping = scopedLog.scopedFor !== activation;
 
@@ -149,10 +169,6 @@ export function CardOverview({
    * as a glitch. A run holding most of a long deployment's log takes seconds, and there
    * silence reads as a dead click — so the notice waits before appearing.
    */
-  // Reset to the first page whenever a different log is in front of the reader, so that
-  // picking another activation does not land them deep inside a list they have not seen.
-  const [eventPage, setEventPage] = useState(0);
-  useEffect(() => setEventPage(0), [log]);
   const [slowRescope, setSlowRescope] = useState(false);
   useEffect(() => {
     if (!rescoping) {
@@ -240,7 +256,13 @@ export function CardOverview({
     const shown: string[] = [];
     const unchecked: string[] = [];
     (selfTest ? shown : unchecked).push(selfTest ? 'the hardware passed its checks' : 'hardware self-tests');
-    (restartInfo ? shown : unchecked).push(restartInfo ? 'the device ran without restarting' : 'restarts');
+    (restartInfo ? shown : unchecked).push(
+      restartInfo
+        ? restartInfo.unexpectedRestarts > 0
+          ? 'the device restarted when nothing asked it to'
+          : 'the device restarted only when the deployment asked it to'
+        : 'restarts',
+    );
     (coverage.expectationsUnknown ? unchecked : shown).push(
       coverage.expectationsUnknown ? 'recording coverage' : 'every scheduled hour recorded',
     );
@@ -379,12 +401,6 @@ export function CardOverview({
   // Whether ANY lifecycle event carries a time. Current firmware writes no timestamp
   // prefix on log lines, which would otherwise render a column of nothing but dashes.
   const lifecycleDated = lifecycle.some((event) => event.timestamp);
-  const eventPageCount = Math.max(1, Math.ceil(lifecycle.length / EVENTS_PER_PAGE));
-  // Clamped rather than trusted: a shorter log can arrive in the same render that resets
-  // the page, and a stale index would otherwise page past the end of the new list.
-  const eventPageIndex = Math.min(eventPage, eventPageCount - 1);
-  const eventPageStart = eventPageIndex * EVENTS_PER_PAGE;
-  const visibleEvents = lifecycle.slice(eventPageStart, eventPageStart + EVENTS_PER_PAGE);
   // The zone the schedule was written in, so the axes read the way the deployment did.
   const chartTimezone = card.existingConfig?.timezone ?? 'UTC';
   const latestDiagnostics = [...telemetry].reverse().find((sample) => sample.sdWriteFailures !== null) ?? null;
@@ -667,7 +683,12 @@ export function CardOverview({
           id="lifecycle"
           title="What the device did"
           note={`${lifecycle.length} events`}
-          defaultOpen={lifecycle.length > 6 || Boolean(restarts?.hadFault) || (restarts?.maxResetsInEpoch ?? 0) > 0}
+          defaultOpen={
+            lifecycle.length > 6 ||
+            Boolean(restarts?.hadFault) ||
+            Boolean(restarts?.endedOnLowBattery) ||
+            (restarts?.unexpectedRestarts ?? 0) > 0
+          }
         >
           {/*
             The instructions introduce the table, so they lead. The restart verdict is a
@@ -680,7 +701,7 @@ export function CardOverview({
               : ' This firmware does not stamp a time onto log lines, so the order is known but the times are not.'}
           </p>
 
-          {restarts && (restarts.powerOnCount > 1 || restarts.maxResetsInEpoch > 0 || restarts.hadFault) ? (
+          {restarts && (restarts.powerOnCount > 1 || restarts.unexpectedRestarts > 0 || restarts.hadFault) ? (
             /*
               The headline and the explanation have to describe the SAME event.
 
@@ -688,21 +709,40 @@ export function CardOverview({
               the first keeps the battery connected, the second does not — and the copy used
               to announce the first and then explain the second, so a device that had never
               lost power was described as having been power-cycled.
+
+              The count is of UNEXPECTED restarts, not all of them. A phased deployment
+              restarts at every boundary by design, so a clean seven-phase run was being
+              announced as seven incidents — which teaches the reader to ignore the banner,
+              and the one restart that mattered was sitting in the same number as the six
+              that did not.
             */
             <div className={`banner ${restarts.hadFault ? 'crit' : 'warn'}`}>
               <strong>
-                {restarts.maxResetsInEpoch > 0
-                  ? `${restarts.maxResetsInEpoch} restart${restarts.maxResetsInEpoch === 1 ? '' : 's'} without losing power`
-                  : `${restarts.powerOnCount} separate power-ons`}
+                {/*
+                  The battery leads when it fired. It is not a fault and the firmware is
+                  right not to call it one, but it is the most consequential line this
+                  banner can carry: the deployment stopped early and the recordings end
+                  where the battery did. Reporting it as "1 unexpected restart" buries the
+                  one thing the reader has to act on.
+                */}
+                {restarts.endedOnLowBattery
+                  ? 'The battery reached its cutoff'
+                  : restarts.unexpectedRestarts > 0
+                    ? `${restarts.unexpectedRestarts} unexpected restart${restarts.unexpectedRestarts === 1 ? '' : 's'}`
+                    : `${restarts.powerOnCount} separate power-ons`}
               </strong>
-              {restarts.hadFault
-                ? 'At least one was a fault rather than a deliberate restart. The recordings either ' +
-                  'side of it are intact, but there is a gap where the device was restarting.'
-                : restarts.maxResetsInEpoch > 0
-                  ? 'The device restarted itself while still powered, so the battery stayed connected ' +
-                    'throughout.'
-                  : 'The device lost power and came back, which is what a battery change or a switch ' +
-                    'off and on looks like.'}
+              {restarts.endedOnLowBattery
+                ? 'The device shut itself down as configured, so the recordings stop there rather ' +
+                  'than at the end date. Check the battery before redeploying, and expect the ' +
+                  'coverage grid to be empty from that point on.'
+                : restarts.hadFault
+                  ? 'At least one was a fault rather than a deliberate restart. The recordings either ' +
+                    'side of it are intact, but there is a gap where the device was restarting.'
+                  : restarts.unexpectedRestarts > 0
+                    ? 'The device restarted itself while still powered, and nothing in the configuration ' +
+                      'asked it to. Phase changes are not counted here. The table below names each one.'
+                    : 'The device lost power and came back, which is what a battery change or a switch ' +
+                      'off and on looks like.'}
             </div>
           ) : null}
 
@@ -715,8 +755,8 @@ export function CardOverview({
                 </tr>
               </thead>
               <tbody>
-                {visibleEvents.map((event, index) => (
-                  <tr key={`${event.timestamp}:${eventPageStart + index}`}>
+                {eventPages.visible.map((event, index) => (
+                  <tr key={`${event.timestamp}:${eventPages.start + index}`}>
                     {lifecycleDated ? (
                       <td className="mono" style={{ whiteSpace: 'nowrap' }}>
                         {deviceTime(event.timestamp, correction, chartTimezone)}
@@ -728,51 +768,7 @@ export function CardOverview({
               </tbody>
             </table>
           </div>
-          {lifecycle.length > EVENTS_PER_PAGE ? (
-            <div className="pager">
-              <button
-                type="button"
-                className="btn small ghost"
-                onClick={() => setEventPage(0)}
-                disabled={eventPageIndex === 0}
-              >
-                First
-              </button>
-              <button
-                type="button"
-                className="btn small ghost"
-                onClick={() => setEventPage(eventPageIndex - 1)}
-                disabled={eventPageIndex === 0}
-              >
-                Previous
-              </button>
-              {/*
-                The range, not just the page number: "events 441-480 of 686" answers where you
-                are in the run, which a bare "page 12 of 18" does not.
-              */}
-              <p className="stat-note">
-                Events {(eventPageStart + 1).toLocaleString()}-
-                {(eventPageStart + visibleEvents.length).toLocaleString()} of{' '}
-                {lifecycle.length.toLocaleString()}, page {eventPageIndex + 1} of {eventPageCount}
-              </p>
-              <button
-                type="button"
-                className="btn small ghost"
-                onClick={() => setEventPage(eventPageIndex + 1)}
-                disabled={eventPageIndex >= eventPageCount - 1}
-              >
-                Next
-              </button>
-              <button
-                type="button"
-                className="btn small ghost"
-                onClick={() => setEventPage(eventPageCount - 1)}
-                disabled={eventPageIndex >= eventPageCount - 1}
-              >
-                Last
-              </button>
-            </div>
-          ) : null}
+          <Pager state={eventPages} noun="Events" />
         </Pane>
       ) : null}
 
@@ -887,7 +883,6 @@ export function CardOverview({
           <p className="hint">
             Reported once per recording directory, so a microphone that failed partway through is visible
             and roughly datable.
-            {health.length > 12 ? ` Showing the most recent 12 of ${health.length.toLocaleString()}.` : ''}
           </p>
           <div className="scroll-x">
             <table className="data">
@@ -900,7 +895,7 @@ export function CardOverview({
                 </tr>
               </thead>
               <tbody>
-                {health.slice(-12).map((sample) => (
+                {healthPages.visible.map((sample) => (
                   <tr key={sample.timestamp}>
                     <td className="mono">{deviceTime(sample.timestamp, correction, chartTimezone)}</td>
                     <td>
@@ -915,6 +910,7 @@ export function CardOverview({
               </tbody>
             </table>
           </div>
+          <Pager state={healthPages} noun="Readings" />
         </Pane>
       ) : null}
 

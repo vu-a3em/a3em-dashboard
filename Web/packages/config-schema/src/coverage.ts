@@ -1,5 +1,6 @@
 import { utcOffsetSecondsAt } from './timezone.js';
 import { periodSegments, scheduleOnDay, SECONDS_PER_DAY } from './schedule.js';
+import { TIME_SCALE_SECONDS } from './firmware-constants.js';
 import type { DeploymentConfig, PhaseConfig } from './types.js';
 
 /**
@@ -231,11 +232,61 @@ export function expectationFor(
   if (!config) return 'unknown';
 
   const instant = Date.parse(startsAt);
-  if (instant < Date.parse(config.startTime) || instant >= Date.parse(config.endTime)) return 'unknown';
+  const hourEnd = instant + 3_600_000;
+  if (hourEnd <= Date.parse(config.startTime) || instant >= Date.parse(config.endTime)) return 'unknown';
 
-  const phase = phaseAt(config, instant);
-  if (!phase) return 'unknown';
+  /*
+    An hour is judged piece by piece, because a phase boundary can fall inside one.
 
+    Reading the phase at the hour's first instant and applying it to the whole hour gets the
+    rest of the hour wrong whenever a phase changes part-way through. A seven-day soak hit
+    exactly that: the hour from 02:00 was a quarter INTERVAL and three quarters SCHEDULED,
+    the interval phase ended eleven seconds before its next occurrence was due, and the
+    schedule that replaced it had no window until 04:00. Nothing was lost, and the grid
+    called it a gap because it judged all sixty minutes as the phase that owned the first
+    second of them.
+  */
+  let verdict: Expectation = 'unknown';
+  for (const segment of phaseSegments(config, instant, hourEnd)) {
+    const found = segmentExpectation(segment.phase, config, timezone, segment.from, segment.to);
+    // A guaranteed stretch outranks a gated one: recordings the schedule promised and did
+    // not deliver are still missing, whatever else shared the hour with them.
+    if (found === 'scheduled') return 'scheduled';
+    if (found === 'unpredictable') verdict = 'unpredictable';
+    else if (found === 'idle' && verdict === 'unknown') verdict = 'idle';
+  }
+  return verdict;
+}
+
+/** The stretches of `[from, to)` that each fall under a single phase, in order. */
+function phaseSegments(
+  config: DeploymentConfig,
+  from: number,
+  to: number,
+): Array<{ phase: PhaseConfig; from: number; to: number }> {
+  const out: Array<{ phase: PhaseConfig; from: number; to: number }> = [];
+  let cursor = from;
+  // A boundary every iteration or the loop ends, so this cannot spin on a malformed config.
+  while (cursor < to) {
+    const phase = phaseAt(config, cursor);
+    if (!phase) break;
+    const phaseEnd = phase.endTime ? Date.parse(phase.endTime) : Date.parse(config.endTime);
+    const next = Math.min(to, phaseEnd);
+    if (!(next > cursor)) break;
+    out.push({ phase, from: cursor, to: next });
+    cursor = next;
+  }
+  return out;
+}
+
+/** What one phase promises over one stretch of time within it. */
+function segmentExpectation(
+  phase: PhaseConfig,
+  config: DeploymentConfig,
+  timezone: string,
+  from: number,
+  to: number,
+): Expectation {
   /*
     Silence detection makes an empty hour correct behavior, not a loss.
 
@@ -248,8 +299,30 @@ export function expectationFor(
   const gated = phase.silenceThreshold > 0;
   switch (phase.audioRecordingMode) {
     case 'CONTINUOUS':
-    case 'INTERVAL':
-      return gated ? 'unpredictable' : 'scheduled';
+      if (gated) return 'unpredictable';
+      /*
+        A stretch shorter than one clip cannot finish one. The clip covering it began in the
+        hour before and is filed under the hour it started in, so expecting a second one here
+        would fault an hour for a recording that exists and is simply counted next door.
+      */
+      return to - from >= phase.audioClipLengthSeconds * 1000 ? 'scheduled' : 'idle';
+    case 'INTERVAL': {
+      if (gated) return 'unpredictable';
+      /*
+        Interval recording promises an occurrence on a fixed grid from the phase's start, not
+        one in every hour. An interval longer than an hour leaves most hours legitimately
+        empty, and even a short one leaves the tail of a phase empty when the phase ends
+        before the next occurrence is due.
+      */
+      const phaseStart = phase.startTime ? Date.parse(phase.startTime) : Date.parse(config.startTime);
+      const phaseEnd = phase.endTime ? Date.parse(phase.endTime) : Date.parse(config.endTime);
+      const everyMs = intervalMs(phase);
+      if (!everyMs) return 'idle';
+      const limit = Math.min(to, phaseEnd);
+      const elapsed = Math.max(0, from - phaseStart);
+      const occurrence = phaseStart + Math.ceil(elapsed / everyMs) * everyMs;
+      return occurrence < limit ? 'scheduled' : 'idle';
+    }
     case 'AMPLITUDE':
       return 'unpredictable';
     case 'SCHEDULED': {
@@ -266,7 +339,7 @@ export function expectationFor(
       } catch {
         offset = 0;
       }
-      const seconds = Math.floor(instant / 1000);
+      const seconds = Math.floor(from / 1000);
       const day = scheduleOnDay(phase, config, seconds, offset);
       if (day.continuous) return gated ? 'unpredictable' : 'scheduled';
       /*
@@ -277,20 +350,20 @@ export function expectationFor(
       let frame = offset;
       if (!fromSun && config.adjustForDst !== false) {
         try {
-          frame = utcOffsetSecondsAt(timezone, startsAt);
+          frame = utcOffsetSecondsAt(timezone, new Date(from).toISOString());
         } catch {
           frame = offset;
         }
       }
-      const hourStart = (((seconds + frame) % SECONDS_PER_DAY) + SECONDS_PER_DAY) % SECONDS_PER_DAY;
-      const hourEnd = hourStart + 3600;
+      const spanStart = (((seconds + frame) % SECONDS_PER_DAY) + SECONDS_PER_DAY) % SECONDS_PER_DAY;
+      const spanEnd = spanStart + Math.round((to - from) / 1000);
       return day.periods
         .flatMap(periodSegments)
         .some(
           (segment) =>
-            (segment.startSecond < hourEnd && segment.endSecond > hourStart) ||
-            // An hour that itself runs over midnight also meets the start of the next day.
-            (hourEnd > SECONDS_PER_DAY && segment.startSecond < hourEnd - SECONDS_PER_DAY),
+            (segment.startSecond < spanEnd && segment.endSecond > spanStart) ||
+            // A span that itself runs over midnight also meets the start of the next day.
+            (spanEnd > SECONDS_PER_DAY && segment.startSecond < spanEnd - SECONDS_PER_DAY),
         )
         ? gated
           ? 'unpredictable'
@@ -300,6 +373,12 @@ export function expectationFor(
     default:
       return 'unknown';
   }
+}
+
+/** A phase's recording interval in milliseconds, or zero if it does not have one. */
+function intervalMs(phase: PhaseConfig): number {
+  const scale = TIME_SCALE_SECONDS[phase.audioTriggerIntervalTimeScale] ?? 0;
+  return Math.max(0, phase.audioTriggerInterval) * scale * 1000;
 }
 
 function phaseAt(config: DeploymentConfig, instant: number): PhaseConfig | null {

@@ -144,6 +144,24 @@ export interface RestartHistory {
   maxResetsInEpoch: number;
   /** Reasons seen across all restarts, most recent last. */
   reasons: string[];
+  /**
+   * Restarts the configuration does not account for.
+   *
+   * A phased deployment restarts at every phase boundary by design — the firmware powers
+   * the device down and brings it back on the next phase's start — and so does activation
+   * and a deliberate deactivation. Counting those as incidents told the reader a
+   * seven-phase run had gone wrong seven times. This counts only the restarts nothing in
+   * the configuration asked for, which is the number worth reacting to.
+   */
+  unexpectedRestarts: number;
+  /**
+   * True when the battery cutoff ended a run.
+   *
+   * Not a fault — the firmware did exactly what it was configured to do — but the single
+   * most consequential thing on this list for whoever has the card, because the deployment
+   * stopped early and the recordings end there.
+   */
+  endedOnLowBattery: boolean;
   /** True when any restart was a crash, a watchdog bite, or a peripheral timeout. */
   hadFault: boolean;
 }
@@ -361,6 +379,53 @@ export function describeHardFault(address: number, cfsr: number): string {
  * disagreement here would have the dashboard flagging restarts the device considers
  * routine. A test pins this to the firmware source.
  */
+/**
+ * Restart reasons a deployment asks for, so seeing them means nothing went wrong.
+ *
+ * `PHASE-DONE` is the big one: a phased deployment restarts at every boundary. `CYCLE` is
+ * the firmware's own deliberate power cycle, and the two magnet reasons are somebody with
+ * a magnet.
+ */
+const ROUTINE_RESTART_REASONS: ReadonlySet<string> = new Set([
+  'POWER-ON',
+  'PHASE-DONE',
+  'MAGNET-ON',
+  'MAGNET-OFF',
+  'CYCLE',
+]);
+
+/**
+ * Restart reasons worth a reader's attention, whether or not the firmware calls them
+ * failures.
+ *
+ * `BATTERY-LOW` is the one that makes this its own list rather than a synonym for the
+ * fault set. The firmware is right that it is not a fault — the cutoff fired exactly as
+ * configured — but for whoever retrieved the card it is the most consequential thing that
+ * can appear here: the deployment stopped early and the recordings end where the battery
+ * did. Calling it routine because the device handled it correctly tells the reader
+ * nothing happened, when what happened is that they lost the rest of their season.
+ *
+ * Anything the firmware can report has to sit in exactly one of these two sets; a test
+ * pins that to the firmware source, so a reason added on the device forces a decision
+ * here rather than defaulting into silence.
+ */
+const REPORTABLE_RESTART_REASONS: ReadonlySet<string> = new Set([
+  'AUDIO-ERROR',
+  'BATTERY-LOW',
+  'HARD-FAULT',
+  'NO-CONFIG',
+  'PERIPH-TIMEOUT',
+  'RTC-STOPPED',
+  'SD-FAILURE',
+]);
+
+/** Whether a restart reason should be put in front of the reader. */
+function isReportableReason(reason: string): boolean {
+  // Unknown is not in either list on purpose: the device could not say why it came back,
+  // and that is exactly the case worth surfacing rather than assuming the best.
+  return !ROUTINE_RESTART_REASONS.has(reason);
+}
+
 const FAULT_REASONS: ReadonlySet<string> = new Set([
   'AUDIO-ERROR',
   'HARD-FAULT',
@@ -372,6 +437,8 @@ const FAULT_REASONS: ReadonlySet<string> = new Set([
 
 /** Exposed so the contract test can compare it against the firmware snapshot. */
 export const FIRMWARE_FAULT_REASONS = FAULT_REASONS;
+export const RESTART_REASONS_ROUTINE = ROUTINE_RESTART_REASONS;
+export const RESTART_REASONS_REPORTABLE = REPORTABLE_RESTART_REASONS;
 
 const LINE_PREFIX = /^\[(\d+|-+)\]\s*/;
 const SEVERITY = /^(INFO|WARNING|ERROR):\s*/;
@@ -646,7 +713,9 @@ export function parseLogs(
             timestamp,
             kind: 'PHASE_END',
             summary: `Recording phase ended — ${reason.toLowerCase().replace(/[-_]/g, ' ')}`,
-            notable: FAULT_REASONS.has(reason),
+            // Not just the faults: a phase that ended on the battery cutoff, or for a
+            // reason the device could not name, is worth the reader's eye too.
+            notable: isReportableReason(reason),
           });
         } else if (code === 'BATTERY_LOW') {
           lifecycle.push({
@@ -762,6 +831,8 @@ export function parseLogs(
           powerOnCount: bootEpochs.size,
           maxResetsInEpoch,
           reasons: restartReasons,
+          unexpectedRestarts: restartReasons.filter(isReportableReason).length,
+          endedOnLowBattery: restartReasons.includes('BATTERY-LOW'),
           hadFault: restartReasons.some((reason) => FAULT_REASONS.has(reason)),
         }
       : null,
