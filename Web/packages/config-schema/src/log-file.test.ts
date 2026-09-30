@@ -171,6 +171,28 @@ describe('telemetry carrying its own timestamp', () => {
     assert.equal(sample.dmaCompletionTrusted, null);
   });
 
+  it('reads the IMU file pair, motion count, and left-running microphone', () => {
+    const text =
+      '[1770368400] EVT|TELEM|time=1770368400,batt_mv=3500,temp_c=21.0,' +
+      'imu_opens=41,imu_closes=40,motion_changes=1873,mic_left_on=4\n';
+    const sample = parseLogs([{ name: 'a3em.log', text }]).telemetry[0];
+    assert.equal(sample.imuFilesOpened, 41);
+    assert.equal(sample.imuFilesClosed, 40);
+    assert.equal(sample.motionChanges, 1873);
+    assert.equal(sample.micLeftRunning, 4);
+  });
+
+  it('reports the new counters as absent on firmware that never emitted them', () => {
+    // Zero would read as "nothing went wrong", which is a claim a log predating the
+    // counters cannot make. One open more than closes is the signal worth seeing.
+    const text = '[1770368400] EVT|TELEM|batt_mv=3500,temp_c=21.0\n';
+    const sample = parseLogs([{ name: 'a3em.log', text }]).telemetry[0];
+    assert.equal(sample.imuFilesOpened, null);
+    assert.equal(sample.imuFilesClosed, null);
+    assert.equal(sample.motionChanges, null);
+    assert.equal(sample.micLeftRunning, null);
+  });
+
   it('reads the audio path verdict as the words the firmware logs', () => {
     const trusted = '[1] EVT|TELEM|time=1770368400,batt_mv=1,temp_c=1,dcmp=trusted\n';
     const unproven = '[1] EVT|TELEM|time=1770368400,batt_mv=1,temp_c=1,dcmp=unproven\n';

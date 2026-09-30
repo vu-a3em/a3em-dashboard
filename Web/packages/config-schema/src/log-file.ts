@@ -58,6 +58,31 @@ export interface TelemetrySample {
   sdRemountRecoveries: number | null;
   imuBuffersDropped: number | null;
   audioBuffersDropped: number | null;
+  /**
+   * IMU files created and closed since the phase began.
+   *
+   * These are a pair, and it is the difference that carries the information: a file that
+   * was opened and never closed keeps a zero-byte directory entry however much data was
+   * written into it, so `opened` running ahead of `closed` by more than the one file
+   * currently being written means a recording was lost without anything else noticing.
+   */
+  imuFilesOpened: number | null;
+  imuFilesClosed: number | null;
+  /**
+   * Motion state changes since the phase began, for ACTIVITY recording.
+   *
+   * Counted rather than logged per transition: a moving animal changes state constantly,
+   * and each event line is flushed to the card as it is written.
+   */
+  motionChanges: number | null;
+  /**
+   * Times a scheduled wait began with the microphone still converting.
+   *
+   * Should be zero. A seven-day soak found four of one phase's twenty-four listening
+   * windows where the converter ran on through the whole gap to the next one, capturing
+   * buffers nothing read; this counts the condition the fix now catches.
+   */
+  micLeftRunning: number | null;
   /** Buffers captured since boot. Zero here alongside a running device is a fault. */
   audioBuffersCaptured: number | null;
   /**
@@ -807,6 +832,10 @@ function telemetryFromFields(timestamp: string, fields: Record<string, string>):
     sdRemountRecoveries: counter(fields.sd_remount),
     imuBuffersDropped: counter(fields.imu_dropped),
     audioBuffersDropped: counter(fields.audio_dropped),
+    imuFilesOpened: counter(fields.imu_opens),
+    imuFilesClosed: counter(fields.imu_closes),
+    motionChanges: counter(fields.motion_changes),
+    micLeftRunning: counter(fields.mic_left_on),
   };
 }
 
@@ -865,6 +894,10 @@ function readDetailsBlock(lines: string[], startIndex: number): { sample: Teleme
       sdRemountRecoveries: null,
       imuBuffersDropped: null,
       audioBuffersDropped: null,
+      imuFilesOpened: null,
+      imuFilesClosed: null,
+      motionChanges: null,
+      micLeftRunning: null,
       audioBuffersCaptured: null,
       dmaCompletionTrusted: null,
       instructionCacheHitPercent: null,

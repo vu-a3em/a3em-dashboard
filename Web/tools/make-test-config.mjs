@@ -268,6 +268,12 @@ config.phases.forEach((p) => {
   const seconds = (Date.parse(p.endTime) - Date.parse(p.startTime)) / 1000;
   const rate = p.useOpusEncoding ? 48000 : p.audioSampleRateHz;
   // The PDM clock cannot hit every rate; the file is written at, and labeled with, what it got.
+  // These are the NOMINAL rates the PDM divider can reach. What a file's header actually says is
+  // the MEASURED rate, which the seven-day soak put about 0.35% below nominal at every rate it ran
+  // (16000 read 15945, 24000 read 23916, 32000 read 31803, 8000 read 7972, 48000 read 47830). So
+  // the device's audio clock really does run slow against its RTC, and a header will sit a little
+  // under the figure below rather than on it. Sizes are what this table is for; do not read it as
+  // a prediction of the header.
   const actual = { 4000: 3906, 11025: 10989, 22050: 21978, 32000: 31914, 44100: 44117 }[rate] ?? rate;
   const bytes = p.useOpusEncoding
     ? (p.opusBitrate / 8) * p.audioClipLengthSeconds

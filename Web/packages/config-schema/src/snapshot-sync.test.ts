@@ -265,6 +265,16 @@ describe('the log parser stays in step with the firmware event contract', () => 
       // then succeeded on a reopen is a different event from one that lost data.
       'sd_write_fail', 'sd_reopen', 'sd_remount', 'imu_dropped', 'audio_dropped',
       'audio_buffers', 'dcmp', 'icache_hit_pct',
+      // A pair, where the difference is the information: an IMU file opened and never
+      // closed keeps a zero-byte directory entry however much was written into it.
+      'imu_opens', 'imu_closes',
+      // Motion transitions, counted rather than logged one by one - a moving animal
+      // changes state constantly and every event line is flushed to the card.
+      'motion_changes',
+      // Times a scheduled wait began with the microphone still converting. Should be
+      // zero; it is the condition behind a soak phase that recorded for seven hours
+      // nothing was listening to.
+      'mic_left_on',
       // The device's own measurement of the rate it is actually running at.
       'rate_est_hz', 'rate_settled',
     ],
