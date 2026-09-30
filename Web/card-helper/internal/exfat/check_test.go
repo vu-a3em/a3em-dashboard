@@ -235,6 +235,8 @@ func TestSpaceMarkedInUseThatNothingUsesIsMinor(t *testing.T) {
 
 func TestADamagedMainBootRegionIsRestoredFromItsBackup(t *testing.T) {
 	c, _ := withFiles(t)
+	c.write(PartitionStartSector*BytesPerSector+106, []byte{0x04, 0x00})
+	c.write(PartitionStartSector*BytesPerSector+112, []byte{37})
 	c.write((PartitionStartSector+11)*BytesPerSector, make([]byte, BytesPerSector))
 	report := check(t, c)
 	if strings.Join(kinds(report), ",") != "boot-region" || !report.FixableHere {
@@ -246,6 +248,10 @@ func TestADamagedMainBootRegionIsRestoredFromItsBackup(t *testing.T) {
 	}
 	if !bootRegionOK(c.read(PartitionStartSector, 12)) {
 		t.Error("the main boot region should be intact again")
+	}
+	main := c.read(PartitionStartSector, 1)
+	if main[106] != 0x04 || main[107] != 0 || main[112] != 37 {
+		t.Errorf("repair should preserve the main boot region's mutable fields: flags %02x%02x, in-use %d", main[107], main[106], main[112])
 	}
 }
 

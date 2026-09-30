@@ -24,11 +24,42 @@ if not r.get("ok"): print("  ours: failed:", r["error"]); sys.exit(0)
 r=r["report"]; print("  ours:", "clean" if r["clean"] else "; ".join(f["kind"]+("("+",".join(f.get("paths",[])[:2])+")" if f.get("paths") else "") for f in r["findings"]), "| fixable here" if r.get("fixableHere") else "", "|", r.get("files"), "files,", r.get("directories"), "folders")'; }
 system() { code=0; fsck_exfat -n "/dev/r$VOL" >out 2>&1 || code=$?; echo "  fsck_exfat: exit $code, $(grep -E 'appears to be OK|corrupt|needs to be repaired|bitmap|Cannot|Invalid' out | tr '\n' ' ' | cut -c1-160)"; }
 repair() {
-  TOKEN=$("$HELPER" call '{"op":"challenge","device":"'"$ID"'","operation":"repair"}' 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
-  "$HELPER" call '{"op":"repair","device":"'"$ID"'","volume":"'"$VOL"'","grant":"'"$TOKEN"'"}' 2>/dev/null | python3 -c '
-import json,sys; r=json.load(sys.stdin)
-if not r.get("ok"): print("  repair failed:", r["error"]); sys.exit(0)
-r=r["report"]; print("  repair:", r["engine"], "repaired", r.get("repaired"), "| now", "clean" if r["clean"] else "not clean", "| saved", len(r.get("saved") or []))'
+  attempt=1
+  delay=1
+  while :; do
+    if TOKEN=$("$HELPER" call '{"op":"challenge","device":"'"$ID"'","operation":"repair"}' 2>/dev/null | python3 -c '
+import json,sys
+r=json.load(sys.stdin)
+if not r.get("ok"):
+ print("  repair failed:", r.get("error", "unknown error"), file=sys.stderr)
+ sys.exit(10 if r.get("code") == "unknown-device" else 1)
+print(r["token"])'); then
+      if "$HELPER" call '{"op":"repair","device":"'"$ID"'","volume":"'"$VOL"'","grant":"'"$TOKEN"'"}' 2>/dev/null | python3 -c '
+import json,sys
+r=json.load(sys.stdin)
+if not r.get("ok"):
+ print("  repair failed:", r.get("error", "unknown error"), file=sys.stderr)
+ sys.exit(10 if r.get("code") == "unknown-device" else 1)
+r=r["report"]
+print("  repair:", r["engine"], "repaired", r.get("repaired"), "| now", "clean" if r["clean"] else "not clean", "| saved", len(r.get("saved") or []))'; then
+        return 0
+      else
+        status=$?
+      fi
+    else
+      status=$?
+    fi
+
+    if [ "$status" -ne 10 ]; then return "$status"; fi
+    if [ "$attempt" -ge 4 ]; then
+      echo "  repair failed: volume lookup still unavailable after $attempt attempts" >&2
+      return 1
+    fi
+    echo "  volume lookup not ready; retrying repair in ${delay}s (attempt $((attempt + 1))/4)" >&2
+    sleep "$delay"
+    attempt=$((attempt + 1))
+    delay=$((delay * 2))
+  done
 }
 contents() { mp=$(diskutil info "${DEV}s1" | awk -F': *' '/Mount Point/{print $2}'); (cd "$mp" && find . -type f ! -name '.*' ! -path './.*' -exec md5 -r {} \; | sort); }
 
