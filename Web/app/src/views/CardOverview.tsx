@@ -760,9 +760,8 @@ export function CardOverview({
                   ? 'At least one was a fault rather than a deliberate restart. The recordings either ' +
                     'side of it are intact, but there is a gap where the device was restarting.'
                   : restarts.unexpectedRestarts > 0
-                    ? 'The device restarted itself while still powered, and nothing in the deployment ' +
-                      'asked it to. The count leaves out phase changes, which restart the device by ' +
-                      'design; the table below lists every restart, with the unexplained ones marked.'
+                    ? 'The device unexpectedly restarted itself while still powered on. The table below ' +
+                      'lists every restart with the unexplained ones highlighted in red.'
                     : 'The device lost power and came back, which is what a battery change or a switch ' +
                       'off and on looks like.'}
             </div>
