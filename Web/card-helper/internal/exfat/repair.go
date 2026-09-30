@@ -1,6 +1,7 @@
 package exfat
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -108,7 +109,13 @@ func (v *volume) repairBoot(save func(string, []byte) error) error {
 		if err := save("boot region (main, damaged)", v.mainRaw); err != nil {
 			return err
 		}
-		return blockdev.WriteAll(v.dev, v.backupRaw, v.start*BytesPerSector, nil)
+		repaired := bytes.Clone(v.backupRaw)
+		if sameBoot(v.mainRaw, v.backupRaw) {
+			for _, offset := range []int{106, 107, 112} {
+				repaired[offset] = v.mainRaw[offset]
+			}
+		}
+		return blockdev.WriteAll(v.dev, repaired, v.start*BytesPerSector, nil)
 	case v.mainOK:
 		if err := save("boot region (backup)", v.backupRaw); err != nil {
 			return err
