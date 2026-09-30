@@ -46,6 +46,16 @@ export interface HelperState {
   status: HelperStatus;
   identity: HelperIdentity | null;
   devices: HelperDevice[];
+  /**
+   * Whether the device list is still being built.
+   *
+   * Separate from `status` because enumeration is slow and the helper's presence is not:
+   * on Windows the native side shells out to PowerShell and runs Get-Disk, Get-Partition
+   * and Get-Volume, which takes seconds. Waiting for that before reporting `ready` left
+   * the page looking like it had not finished loading. An empty list while this is true
+   * means "still looking", not "no cards".
+   */
+  devicesLoading: boolean;
   error: string | null;
   /** Non-null while something long is running. */
   task: HelperTask | null;
@@ -55,6 +65,7 @@ const INITIAL: HelperState = {
   status: isChromium() ? 'checking' : 'unsupported',
   identity: null,
   devices: [],
+  devicesLoading: false,
   error: null,
   task: null,
 };
@@ -79,13 +90,29 @@ export function useHelper() {
     try {
       const identity = await helperHello();
       if ((identity.protocol ?? 1) < HELPER_PROTOCOL) {
-        setState({ status: 'outdated', identity, devices: [], error: null, task: null });
+        setState({ status: 'outdated', identity, devices: [], devicesLoading: false, error: null, task: null });
         return;
       }
 
-      // An enumeration failure is not an absent helper: the helper answered. Report it as
-      // present with the reason attached, rather than showing install instructions to
-      // someone who has already installed it.
+      /*
+        The helper has answered, so its status is already known - report it now and let the
+        device list arrive when it can.
+
+        Enumeration is the slow part and it is slowest exactly where it is least affordable:
+        the Windows helper spawns PowerShell for Get-Disk, Get-Partition and Get-Volume, so
+        the page used to sit at "checking" for seconds after everything it needed was in
+        hand. An enumeration failure is still not an absent helper - the helper answered -
+        so it is reported as present with the reason attached rather than as missing.
+      */
+      setState({
+        status: identity.implemented.length > 0 ? 'ready' : 'incomplete',
+        identity,
+        devices: [],
+        devicesLoading: true,
+        error: null,
+        task: null,
+      });
+
       let devices: HelperDevice[] = [];
       let error: string | null = null;
       try {
@@ -95,20 +122,16 @@ export function useHelper() {
           error = listError instanceof Error ? listError.message : String(listError);
         }
       }
-
-      setState({
-        status: identity.implemented.length > 0 ? 'ready' : 'incomplete',
-        identity,
-        devices,
-        error,
-        task: null,
-      });
+      // Anything the operator started while the list was building stays as it is; only the
+      // list and its error are replaced.
+      setState((previous) => ({ ...previous, devices, devicesLoading: false, error }));
     } catch (error) {
       const missing = error instanceof HelperError && error.isMissing;
       setState({
         status: missing ? 'absent' : 'unsupported',
         identity: null,
         devices: [],
+        devicesLoading: false,
         error: missing ? null : error instanceof Error ? error.message : String(error),
         task: null,
       });

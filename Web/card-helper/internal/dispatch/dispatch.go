@@ -27,6 +27,7 @@ import (
 
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/blockdev"
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/cardfs"
+	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/copyout"
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/destination"
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/exfat"
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/grant"
@@ -39,14 +40,17 @@ import (
 	"github.com/vu-a3em/a3em-dashboard/card-helper/internal/sysenv"
 )
 
-// ProtocolVersion changes when a reply changes shape.
+// ProtocolVersion changes when a reply changes shape. Adding an operation does not: a page
+// that has never heard of it carries on, and one that has looks for its name in the hello
+// reply's "implemented". Copying went in that way, so a helper installed before it is not
+// declared outdated for lacking something the page falls back from.
 const ProtocolVersion = 3
 
 // Operations are every op this helper answers.
 var Operations = []string{
 	"hello", "listDevices", "identify", "inspect", "mount", "unmount", "eject", "diagnose",
 	"challenge", "repair", "image", "format", "prepare", "readiness", "verify", "writeConfig",
-	"chooseImage", "stop", "rename",
+	"chooseImage", "stop", "rename", "copy", "chooseCopyFolder",
 }
 
 // Dispatcher answers requests.
@@ -270,6 +274,30 @@ func (d *Dispatcher) route(req protocol.Request) (reply, error) {
 
 	case "rename":
 		return d.rename(req)
+
+	case "chooseCopyFolder":
+		// The folder dialog has to come from here: a File System Access handle carries no
+		// path, so a folder the page picked is one this process cannot write into.
+		_, volume, err := d.holding(req.Volume)
+		if err != nil {
+			return nil, err
+		}
+		path, err := destination.ChooseFolder(destination.StartFolder(), "Where should the recordings be copied?")
+		switch {
+		case errors.Is(err, destination.ErrCanceled):
+			return nil, refuse("No folder was chosen, so nothing was copied.", "cancelled")
+		case errors.Is(err, destination.ErrNoDialog):
+			return nil, refuse("This system has no folder dialog the helper can show.", "no-dialog")
+		case err != nil:
+			return nil, err
+		}
+		if err := offCard(volume, path); err != nil {
+			return nil, err
+		}
+		return reply{"destination": path}, nil
+
+	case "copy":
+		return d.copy(req)
 	}
 	return nil, refuse("Unknown operation.", "unknown-op")
 }
@@ -881,4 +909,90 @@ func (d *Dispatcher) rename(req protocol.Request) (reply, error) {
 		return nil, &jobs.Failed{Message: result.Error, Code: result.Code, Detail: result.Detail}
 	}
 	return reply{"renamed": true}, nil
+}
+
+// offCard refuses a destination that is on the card being copied. Copying a card onto
+// itself fills it with itself; the free-space check would not catch it, because the space
+// disappears as the copy consumes it.
+func offCard(volume *platform.Volume, path string) error {
+	if volume == nil || volume.MountPoint == nil {
+		return nil
+	}
+	mount := filepath.Clean(*volume.MountPoint)
+	target := filepath.Clean(path)
+	if target == mount || strings.HasPrefix(target, mount+string(filepath.Separator)) {
+		return refuse("The recordings cannot be copied onto the card they come from. Choose another drive.", "bad-destination")
+	}
+	return nil
+}
+
+// copy moves a list of the card's files to a folder, as the person using the computer.
+//
+// The page decides what is on the list, what each file is called at the other end, and what
+// to add to a recording the device never closed; every one of those is a rule that lives,
+// tested, in the dashboard's schema package. This end does the part the browser is bad at.
+func (d *Dispatcher) copy(req protocol.Request) (reply, error) {
+	_, volume, err := d.holding(req.Volume)
+	if err != nil {
+		return nil, err
+	}
+	if volume.MountPoint == nil {
+		return nil, refuse("The card is not mounted.", "not-mounted")
+	}
+	if req.Destination == "" || !filepath.IsAbs(req.Destination) {
+		return nil, refuse("The copy destination must be a full path.", "bad-destination")
+	}
+	if err := offCard(volume, req.Destination); err != nil {
+		return nil, err
+	}
+	if info, err := os.Stat(req.Destination); err != nil || !info.IsDir() {
+		return nil, refuse("The copy destination is not a folder that exists.", "bad-destination")
+	}
+	// A report with no files is how the page deposits its account of a copy that has
+	// already finished: the text depends on what the copy did, so it cannot come with it.
+	if len(req.Files) == 0 && req.Report == "" {
+		return nil, refuse("There is nothing on the list to copy.", "bad-request")
+	}
+
+	// Known before a byte moves, so it is said now rather than when the drive fills.
+	var wanted int64
+	files := make([]copyout.File, 0, len(req.Files))
+	for _, file := range req.Files {
+		wanted += file.Bytes + int64(len(file.Append))
+		patch := make([]copyout.Patch, 0, len(file.Patch))
+		for _, p := range file.Patch {
+			patch = append(patch, copyout.Patch{Offset: p.Offset, Bytes: p.Bytes})
+		}
+		files = append(files, copyout.File{From: file.From, To: file.To, Bytes: file.Bytes,
+			Append: file.Append, Replace: file.Replace, Patch: patch})
+	}
+	if space := destination.Check(req.Destination, wanted); !space.Fits {
+		return nil, refuse(space.Problem, "no-space")
+	}
+	copyout.SortForLocality(files)
+
+	// A card's worth of recordings takes minutes, so it can be stopped: by the page, or by
+	// the page going away.
+	stop, done := d.stoppable(req.ID)
+	defer done()
+	report, err := withHeartbeat(d, req, func(progress jobs.Reporter) (copyout.Report, error) {
+		return copyout.Run(files, copyout.Options{
+			Source: *volume.MountPoint, Destination: req.Destination, Stop: stop,
+			Report: func(p copyout.Progress) {
+				progress(jobs.Update{Stage: "copying", Note: p.CurrentPath, Done: p.BytesDone, Total: p.BytesTotal})
+			},
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// The account of what was skipped goes beside the copy, so it outlives the session.
+	if req.Report != "" {
+		path := filepath.Join(req.Destination, "a3em-copy-report.txt")
+		if err := os.WriteFile(path, []byte(req.Report), 0o644); err != nil {
+			report.Skipped = append(report.Skipped, copyout.Skipped{Path: "a3em-copy-report.txt", Reason: err.Error()})
+		}
+	}
+	return reply{"report": report}, nil
 }

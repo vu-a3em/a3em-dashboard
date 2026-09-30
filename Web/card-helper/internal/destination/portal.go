@@ -57,19 +57,42 @@ func choosePortal(dir, name, prompt string) (string, error) {
 	return saveFile(conn, dir, name, prompt, choosingTime)
 }
 
+// chooseFolderPortal asks the same portal for a folder instead of a file name, which is what
+// a copy needs: somewhere to put a tree, not something to call it.
+func chooseFolderPortal(dir, prompt string) (string, error) {
+	conn, err := dbus.Session()
+	if err != nil {
+		return "", errNoPortal
+	}
+	defer conn.Close()
+	return openFolder(conn, dir, prompt, choosingTime)
+}
+
 func saveFile(b bus, dir, name, prompt string, wait time.Duration) (string, error) {
+	return portalChoose(b, "SaveFile", prompt, map[string]dbus.Variant{
+		"current_name":   {Sig: "s", Value: name},
+		"current_folder": {Sig: "ay", Value: append([]byte(dir), 0)},
+	}, wait)
+}
+
+func openFolder(b bus, dir, prompt string, wait time.Duration) (string, error) {
+	return portalChoose(b, "OpenFile", prompt, map[string]dbus.Variant{
+		"directory":      {Sig: "b", Value: true},
+		"current_folder": {Sig: "ay", Value: append([]byte(dir), 0)},
+	}, wait)
+}
+
+// portalChoose is the conversation both dialogs have: ask, wait for the one reply addressed
+// to this request, and read the chosen path out of it.
+func portalChoose(b bus, method, prompt string, options map[string]dbus.Variant, wait time.Duration) (string, error) {
 	token := requestToken()
 	handle := requestPath(b.Name(), token)
 	if err := b.AddMatch(responseRule(handle)); err != nil {
 		return "", errNoPortal
 	}
-	options := map[string]dbus.Variant{
-		"handle_token":   {Sig: "s", Value: token},
-		"modal":          {Sig: "b", Value: true},
-		"current_name":   {Sig: "s", Value: name},
-		"current_folder": {Sig: "ay", Value: append([]byte(dir), 0)},
-	}
-	reply, err := b.Call(portalName, portalPath, chooserInterface, "SaveFile", time.Minute, "ssa{sv}", "", prompt, options)
+	options["handle_token"] = dbus.Variant{Sig: "s", Value: token}
+	options["modal"] = dbus.Variant{Sig: "b", Value: true}
+	reply, err := b.Call(portalName, portalPath, chooserInterface, method, time.Minute, "ssa{sv}", "", prompt, options)
 	if err != nil {
 		// No portal, or one without a file chooser, as some desktops' are.
 		return "", errNoPortal
@@ -93,7 +116,7 @@ func saveFile(b bus, dir, name, prompt string, wait time.Duration) (string, erro
 		return "", err
 	}
 	if len(response.Body) != 2 {
-		return "", errors.New("the save dialog answered in a way the A3EM Card Helper cannot read")
+		return "", errors.New("the dialog answered in a way the A3EM Card Helper cannot read")
 	}
 	// 1 is Cancel; 2, "ended some other way", is how GNOME's dialog reports Escape or its close
 	// button. Either way nothing was chosen.
@@ -104,7 +127,7 @@ func saveFile(b bus, dir, name, prompt string, wait time.Duration) (string, erro
 	uris, _ := results["uris"].(dbus.Variant)
 	list, _ := uris.Value.([]string)
 	if len(list) == 0 {
-		return "", errors.New("the save dialog chose nothing")
+		return "", errors.New("the dialog chose nothing")
 	}
 	return filePath(list[0])
 }

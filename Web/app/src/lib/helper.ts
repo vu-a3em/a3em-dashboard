@@ -761,3 +761,69 @@ export async function identifyCard(
     await handle.removeEntry(probe).catch(() => undefined);
   }
 }
+
+/**
+ * One file for the helper to copy, named relative to the card and to the destination.
+ *
+ * `append` is base64 because Go decodes a `[]byte` field from exactly that. It carries what
+ * the recorder wrote past a file's recorded end, recovered from the filesystem, so the copy
+ * gets the whole recording and the card is never written to.
+ */
+export interface HelperCopyFile {
+  from: string;
+  to: string;
+  bytes: number;
+  append?: string;
+  replace?: boolean;
+  /** Bytes to write at fixed offsets in the copy, for a header the device never finished. */
+  patch?: Array<{ offset: number; bytes: string }>;
+}
+
+/** What a helper copy did. Counts and failures, not a line per file — the reply has 1 MB. */
+export interface HelperCopyReport {
+  copied: number;
+  alreadyPresent: number;
+  bytesCopied: number;
+  recovered?: string[];
+  skipped?: Array<{ path: string; reason: string }>;
+  canceled: boolean;
+  /** More files failed than the reply could carry. */
+  skippedTruncated?: boolean;
+}
+
+/**
+ * Whether this helper can do the copying.
+ *
+ * Asked of the hello reply's operation list rather than of the protocol version, so a helper
+ * installed before copying existed is not declared outdated for lacking something the page
+ * simply falls back from.
+ */
+export function helperCanCopy(identity: HelperIdentity | null): boolean {
+  return Boolean(identity?.implemented?.includes('copy') && identity.implemented.includes('chooseCopyFolder'));
+}
+
+/**
+ * The folder to copy into, from the system's own dialog.
+ *
+ * It has to be asked for here. A File System Access handle carries no path, so a folder the
+ * page picked is one the helper cannot write into — which is why this dialog looks different
+ * from every other picker in the app.
+ */
+export async function chooseCopyFolder(volume: string): Promise<string> {
+  const result = await call<{ destination: string }>({ op: 'chooseCopyFolder', volume });
+  return result.destination;
+}
+
+/** Copies the listed files off the card, natively. */
+export async function copyViaHelper(
+  volume: string,
+  destination: string,
+  files: HelperCopyFile[],
+  options: { report?: string; onProgress?: (progress: TaskProgress) => void; signal?: AbortSignal } = {},
+): Promise<HelperCopyReport> {
+  const result = await call<{ report: HelperCopyReport }>(
+    { op: 'copy', volume, destination, files, ...(options.report ? { report: options.report } : {}) },
+    { onProgress: options.onProgress ?? (() => undefined), signal: options.signal },
+  );
+  return result.report;
+}

@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { OffloadTask } from '../lib/useOffloadTask';
 import { RECORDING_VERDICT_LABELS, describeCorrection, planRename } from '@a3em/config-schema';
 import type { CorrectionState } from '../App';
 import { useClockCorrection } from '../lib/useClockCorrection';
 import { CARD_ACCESS_SUPPORTED } from '../lib/card';
-import { diagnoseVolume } from '../lib/helper';
+import { chooseCopyFolder, copyViaHelper, diagnoseVolume, helperCanCopy } from '../lib/helper';
+import { copyCardViaHelper } from '../lib/helperCopy';
 import { acceptTails, longestClip, useRecoveredTails } from '../lib/tails';
 import type { Helper } from '../lib/useHelper';
 import { HelperOffer } from '../components/HelperOffer';
@@ -47,6 +48,18 @@ export function OffloadCard({
 }>) {
   // Held in App so that a check or copy in flight survives switching to another section
   const { report, setReport, checking, setChecking, progress, setProgress, result, setResult, repair, setRepair, error, setError } = task;
+  /*
+    The controller for the copy in flight.
+
+    A copy of a full card is tens of thousands of files and can run for a long time, and
+    until now the only way out was closing the tab - which leaves a half-written folder and
+    no account of what made it. `copyCard` already stops between files when its signal
+    aborts and reports `canceled`, so the whole of this is giving the operator the signal.
+  */
+  const abort = useRef<AbortController | null>(null);
+  // A copy stops at the next file boundary, which on a large clip is not instant, so the
+  // button reports that it was heard rather than appearing to do nothing.
+  const [stopping, setStopping] = useState(false);
 
   /*
     Correcting the clock as the files are COPIED, rather than renaming them on the card.
@@ -118,10 +131,29 @@ export function OffloadCard({
     setResult(null);
     setRepair(null);
     try {
-      const picker = window as unknown as {
-        showDirectoryPicker: (o?: { mode?: string }) => Promise<FileSystemDirectoryHandle>;
-      };
-      const destination = await picker.showDirectoryPicker({ mode: 'readwrite' });
+      /*
+        Two ways to copy, and the destination is chosen differently by each.
+
+        Where the helper can do it, it does: Chrome writes every file through a `.crswap`
+        temporary and a rename, which on Windows costs a card of recordings several
+        filesystem operations and a flush apiece, all crossing the browser's permission
+        boundary. The helper is a sequential read and write.
+
+        Its folder has to come from its own dialog. A File System Access handle carries no
+        path, so a folder picked here is one the helper cannot write into — which is why
+        this one picker looks like the system's rather than the browser's.
+      */
+      const native = helperCanCopy(helper.identity) && Boolean(cardDevice.volumeId);
+      let destination: FileSystemDirectoryHandle | null = null;
+      let nativePath = '';
+      if (native) {
+        nativePath = await chooseCopyFolder(cardDevice.volumeId!);
+      } else {
+        const picker = window as unknown as {
+          showDirectoryPicker: (o?: { mode?: string }) => Promise<FileSystemDirectoryHandle>;
+        };
+        destination = await picker.showDirectoryPicker({ mode: 'readwrite' });
+      }
 
       /*
         The repair below works from the check's findings, so without one nothing is
@@ -163,36 +195,71 @@ export function OffloadCard({
         }
       }
 
-      const copyResult = await copyCard(card.contents!.entries, destination, {
-        onProgress: setProgress,
-        renameTo,
-        additions: new Map((recovered ?? []).map((tail) => [tail.path, tail])),
-      });
+      const controller = new AbortController();
+      abort.current = controller;
+      setStopping(false);
+      const additions = new Map((recovered ?? []).map((tail) => [tail.path, tail]));
+      // Clips the device never closed, to be mended in the copy so the card's own header is
+      // left as the device wrote it. Keyed by source path, which is what both copies see.
+      const repairs = new Map(
+        (findings?.recoverable ?? []).filter((file) => file.repair).map((file) => [file.path, file.repair!]),
+      );
+
+      const copyResult = native
+        ? await copyCardViaHelper(card.contents!.entries, cardDevice.volumeId!, nativePath, {
+            onProgress: setProgress,
+            signal: controller.signal,
+            renameTo,
+            additions,
+            // The helper mends headers as it writes; the browser path needs a second pass.
+            repairs,
+          })
+        : await copyCard(card.contents!.entries, destination!, {
+            onProgress: setProgress,
+            signal: controller.signal,
+            renameTo,
+            additions,
+          });
       setResult(copyResult);
 
-      // Mend the copies of any clip the device never closed. Done here rather than on the
-      // card so the original is never written to, and only for files the copy step did not
-      // skip — a file that failed to copy has nothing at the destination to repair.
+      // What was copied before a stop still needs its report and its repairs, so a canceled
+      // run leaves a folder that says what is in it rather than one that does not.
       const landed = new Set(copyResult.skipped.map((skip) => skip.path));
-      const targets = (findings?.recoverable ?? [])
-        .filter((file) => file.repair && !landed.has(file.path))
-        // Destination paths, not source ones: a renamed copy is no longer where the
-        // check found it, and repairing by the original path would miss every file.
-        .map((file) => ({ path: renameTo?.get(file.path) ?? file.path, repair: file.repair! }));
-      if (targets.length) setRepair(await repairWavHeaders(destination, targets));
+      const mended = [...repairs.keys()].filter((path) => !landed.has(path));
+      if (mended.length) {
+        setRepair(
+          native
+            ? // Written during the copy, so a file that landed was mended with it.
+              { repaired: mended.length, failed: [] }
+            : await repairWavHeaders(
+                destination!,
+                // Destination paths, not source ones: a renamed copy is no longer where the
+                // check found it, and repairing by the original path would miss every file.
+                mended.map((path) => ({ path: renameTo?.get(path) ?? path, repair: repairs.get(path)! })),
+              ),
+        );
+      }
 
-      // Write the account of what was skipped next to the copy, so it survives the
-      // session rather than living only on screen.
+      // The account of what was skipped goes next to the copy, so it survives the session
+      // rather than living only on screen. It depends on what the copy did, so the helper
+      // is asked to deposit it afterwards rather than handed it at the start.
       if (copyResult.skipped.length || copyResult.recovered.length) {
-        const manifest = await destination.getFileHandle('a3em-copy-report.txt', { create: true });
-        const writable = await manifest.createWritable();
-        await writable.write(buildSkipManifest(copyResult, card.name ?? 'card'));
-        await writable.close();
+        const manifest = buildSkipManifest(copyResult, card.name ?? 'card');
+        if (native) {
+          await copyViaHelper(cardDevice.volumeId!, nativePath, [], { report: manifest });
+        } else {
+          const handle = await destination!.getFileHandle('a3em-copy-report.txt', { create: true });
+          const writable = await handle.createWritable();
+          await writable.write(manifest);
+          await writable.close();
+        }
       }
     } catch (caught) {
       if (caught instanceof DOMException && caught.name === 'AbortError') return;
       setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
+      abort.current = null;
+      setStopping(false);
       setProgress(null);
     }
   };
@@ -393,6 +460,16 @@ export function OffloadCard({
               {(progress.bytesDone / 1024 ** 3).toFixed(2)} of {(progress.bytesTotal / 1024 ** 3).toFixed(2)} GB
             </p>
             <p className="stat-note mono">{progress.currentPath}</p>
+            <button
+              className="btn small"
+              onClick={() => {
+                setStopping(true);
+                abort.current?.abort();
+              }}
+              disabled={stopping}
+            >
+              {stopping ? 'Stopping after this file…' : 'Stop copying'}
+            </button>
           </>
         ) : (
           <button className="btn primary" onClick={() => void runCopy()} disabled={!CARD_ACCESS_SUPPORTED}>

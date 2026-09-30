@@ -99,6 +99,35 @@ type Request struct {
 	// Devices asks a readiness check about several cards at once, so that reading all their
 	// layouts costs one administrator prompt.
 	Devices []string `json:"devices,omitempty"`
+	/*
+		Files is the list a copy is to move, named relative to the card and the destination.
+
+		It arrives whole rather than in pages. Chrome's 1 MB cap is on messages coming FROM
+		the host; a message to it may be far larger, and this helper already accepts up to
+		maxIncomingBytes. A card holding fifty thousand recordings is a few megabytes of
+		names, which costs one message and saves fifty thousand round trips.
+	*/
+	Files []CopyFile `json:"files,omitempty"`
+	// Report is text a copy writes beside itself, for an account of what it skipped.
+	Report string `json:"report,omitempty"`
+}
+
+// CopyFile is one file a copy moves. The page decides what is on this list and what each
+// file is called at the other end; the helper moves what it is given.
+type CopyFile struct {
+	From    string `json:"from"`
+	To      string `json:"to"`
+	Bytes   int64  `json:"bytes"`
+	Append  []byte `json:"append,omitempty"`
+	Replace bool   `json:"replace,omitempty"`
+	// Patch mends a copy's header where the device left it unfinished, at fixed offsets.
+	Patch []CopyPatch `json:"patch,omitempty"`
+}
+
+// CopyPatch is bytes to write at an offset inside a copied file.
+type CopyPatch struct {
+	Offset int64  `json:"offset"`
+	Bytes  []byte `json:"bytes"`
 }
 
 // PrepareTarget is one card in a prepare request: the device, its grant, and what to put on it.

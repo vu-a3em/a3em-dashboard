@@ -424,7 +424,12 @@ export function BatchPrepare({
             {written === units.length ? (
               <div className="banner ok" style={{ marginTop: 16, marginBottom: 0 }}>
                 <strong>{units.length === 1 ? 'The device is prepared' : `All ${units.length} devices prepared`}</strong>
-                {units.length === 1 ? 'Its card has its own label.' : 'Each card has its own label.'}{' '}
+                {/*
+                  The label line only says something when there is more than one card. For a
+                  single device "Its card has its own label" states a fact with nothing to
+                  contrast against, and reads as though the label were unexpected.
+                */}
+                {units.length === 1 ? '' : 'Each card has its own label. '}
                 {config.ledsEnabled
                   ? `The device runs its self-test at activation, so check the LED before sealing ${units.length === 1 ? 'the' : 'each'} device.`
                   : 'The LEDs are off in this configuration, so a device gives no visible sign that it activated or passed its self-test.'}

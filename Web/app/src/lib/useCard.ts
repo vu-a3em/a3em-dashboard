@@ -82,6 +82,21 @@ const INITIAL: CardState = {
  * automatically: browsers require a user gesture to re-grant permission, and silently
  * failing that check would look like the card had vanished.
  */
+/**
+ * A name worth showing for a card, where the folder handle does not give one.
+ *
+ * Chrome names a directory handle after its folder, and the root of a drive has no folder
+ * name to take: on Windows, picking `E:\\` yields a handle whose `name` is a single
+ * backslash, which is what the connected-card ribbon was showing. macOS picks
+ * `/Volumes/LABEL`, so it never surfaced there. The card's own label directory is the
+ * better answer when there is one, since that is what the device calls itself.
+ */
+export function cardDisplayName(handleName: string, deviceLabel?: string | null): string {
+  const trimmed = handleName.trim();
+  if (trimmed && trimmed !== '\\' && trimmed !== '/') return trimmed;
+  return deviceLabel?.trim() || 'SD card';
+}
+
 export function useCard() {
   const [handle, setHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [state, setState] = useState<CardState>(INITIAL);
@@ -104,7 +119,14 @@ export function useCard() {
   }, []);
 
   const ingest = useCallback(async (root: FileSystemDirectoryHandle) => {
-    setState((previous) => ({ ...previous, status: 'scanning', name: root.name, error: null, progress: null }));
+    // Nothing has been read yet, so only the handle can name it; the scan fills in the rest.
+    setState((previous) => ({
+      ...previous,
+      status: 'scanning',
+      name: cardDisplayName(root.name),
+      error: null,
+      progress: null,
+    }));
     try {
       const contents = await readCard(root, {
         onProgress: (progress) => setState((previous) => ({ ...previous, progress })),
@@ -134,7 +156,7 @@ export function useCard() {
 
       setState({
         status: 'ready',
-        name: root.name,
+        name: cardDisplayName(root.name, contents.layout.deviceLabel),
         notice: null,
         contents,
         progress: null,
@@ -150,7 +172,8 @@ export function useCard() {
     } catch (error) {
       if (error instanceof CardGoneError) {
         // Not a damaged card: its folder is not there. Reopen works once it is back as it was.
-        setState({ ...INITIAL, status: 'reconnectable', name: root.name, error: `${root.name} is not inserted` });
+        const shown = cardDisplayName(root.name);
+        setState({ ...INITIAL, status: 'reconnectable', name: shown, error: `${shown} is not inserted` });
         return;
       }
       setState((previous) => ({
@@ -233,7 +256,7 @@ export function useCard() {
    */
   const setAside = useCallback(() => {
     if (!handle) return;
-    setState({ ...INITIAL, status: 'reconnectable', name: handle.name });
+    setState({ ...INITIAL, status: 'reconnectable', name: cardDisplayName(handle.name) });
   }, [handle]);
 
   return { ...state, handle, connect, reconnect, rescan, disconnect, setAside, erased };

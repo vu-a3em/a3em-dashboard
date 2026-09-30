@@ -452,7 +452,9 @@ export function ConnectedCards({
       </p>
 
       {devices.length === 0 ? (
-        <p className="muted">No cards are connected.</p>
+        // Enumeration is slow on Windows, where the helper shells out to PowerShell. Saying
+        // "no cards" while still looking sends the operator to re-seat a card that is fine.
+        <p className="muted">{helper.devicesLoading ? 'Looking for connected cards…' : 'No cards are connected.'}</p>
       ) : (
         <>
           {devices.length > 1 ? (

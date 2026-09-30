@@ -184,7 +184,7 @@ export async function copyCard(
 ): Promise<CopyResult> {
   const bytesTotal = entries.reduce((sum, entry) => sum + entry.sizeBytes, 0);
   const result: CopyResult = { copied: 0, bytesCopied: 0, recovered: [], skipped: [], alreadyPresent: 0, canceled: false };
-  const directoryCache = new Map<string, FileSystemDirectoryHandle>();
+  const directoryCache = new Map<string, CopyDirectory>();
 
   for (const [index, entry] of entries.entries()) {
     if (options.signal?.aborted) {
@@ -202,22 +202,34 @@ export async function copyCard(
     try {
       const segments = (options.renameTo?.get(entry.path) ?? entry.path).split('/');
       const name = segments.pop()!;
-      const parent = await ensureDirectory(destination, segments, directoryCache);
+      const directory = await ensureDirectory(destination, segments, directoryCache);
+      const parent = directory.handle;
 
       // Skip anything already copied at the same size, so a re-run resumes. A copy with
       // something recovered is longer than the card's file, by what was added.
       const addition = options.additions?.get(entry.path);
       const expected = addition ? (addition.replaces ? 0 : entry.sizeBytes) + addition.bytes.length : entry.sizeBytes;
-      try {
-        const existing = await (await parent.getFileHandle(name)).getFile();
-        if (existing.size === expected) {
-          result.alreadyPresent++;
-          result.bytesCopied += entry.sizeBytes;
-          if (addition) result.recovered.push({ path: entry.path, summary: addition.summary });
-          continue;
+      /*
+        Ask the directory what it holds, once, instead of asking after every file.
+
+        The resume check used to open a handle and a File for every entry, whether or not
+        anything was there - two round trips per file through the browser's filesystem
+        layer, on top of the write. Copying to an empty folder, which is the ordinary case,
+        spent all of them learning that it was empty. A directory that this run created is
+        known to be empty without asking at all.
+      */
+      if (directory.existing.has(name)) {
+        try {
+          const existing = await (await parent.getFileHandle(name)).getFile();
+          if (existing.size === expected) {
+            result.alreadyPresent++;
+            result.bytesCopied += entry.sizeBytes;
+            if (addition) result.recovered.push({ path: entry.path, summary: addition.summary });
+            continue;
+          }
+        } catch {
+          // Listed a moment ago and unreadable now; treat it as absent and write it.
         }
-      } catch {
-        // Not there yet, which is the normal case.
       }
 
       const source = await entry.handle.getFile();
@@ -240,6 +252,7 @@ export async function copyCard(
         }
         result.recovered.push({ path: entry.path, summary: addition.summary });
       }
+      directory.existing.add(name);
       result.copied++;
       result.bytesCopied += entry.sizeBytes;
     } catch (error) {
@@ -258,12 +271,19 @@ export async function copyCard(
   return result;
 }
 
+/** A destination directory and the names it already held when this copy reached it. */
+interface CopyDirectory {
+  handle: FileSystemDirectoryHandle;
+  existing: Set<string>;
+}
+
 async function ensureDirectory(
   root: FileSystemDirectoryHandle,
   segments: string[],
-  cache: Map<string, FileSystemDirectoryHandle>,
-): Promise<FileSystemDirectoryHandle> {
-  let current = root;
+  cache: Map<string, CopyDirectory>,
+): Promise<CopyDirectory> {
+  let current: CopyDirectory = cache.get('') ?? { handle: root, existing: await listNames(root) };
+  cache.set('', current);
   let path = '';
   for (const segment of segments) {
     path = path ? `${path}/${segment}` : segment;
@@ -272,10 +292,33 @@ async function ensureDirectory(
       current = cached;
       continue;
     }
-    current = await current.getDirectoryHandle(segment, { create: true });
+    // Whether the directory is new decides whether it is worth listing: one this copy just
+    // created cannot hold anything, so asking would be a round trip for a known answer.
+    const existed = current.existing.has(segment);
+    const handle = await current.handle.getDirectoryHandle(segment, { create: true });
+    current = { handle, existing: existed ? await listNames(handle) : new Set() };
     cache.set(path, current);
   }
   return current;
+}
+
+/**
+ * The entry names directly inside a directory, for deciding what a resume can skip.
+ *
+ * `keys()` is not in the DOM typings yet, the same cast `readCard` makes for `entries()`.
+ * A directory that will not list leaves the set empty, which costs a resume its ability to
+ * skip - every file is rewritten - but never loses one, since the write still replaces
+ * whatever is there.
+ */
+async function listNames(handle: FileSystemDirectoryHandle): Promise<Set<string>> {
+  const names = new Set<string>();
+  try {
+    const keys = (handle as unknown as { keys: () => AsyncIterableIterator<string> }).keys();
+    for await (const name of keys) names.add(name);
+  } catch {
+    return new Set();
+  }
+  return names;
 }
 
 /** A manifest of what was skipped, to save alongside the copy. */
