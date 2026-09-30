@@ -606,7 +606,11 @@ export function parseLogs(
               resets > 0
                 ? `Restarted (${resets} since power-on) after ${reason}`
                 : `Powered on, running firmware version ${fields.fw ?? 'unknown firmware'}`,
-            notable: FAULT_REASONS.has(reason),
+            // Marked for the same reasons the banner counts, so the row the warning refers
+            // to can actually be found in a table that lists every restart including the
+            // routine ones. Faults alone left a battery cutoff and an unexplained return
+            // looking like an ordinary phase change.
+            notable: isReportableReason(reason),
           });
         } else if (code === 'SELF_TEST_START') {
           selfTests.push({

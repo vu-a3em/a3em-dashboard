@@ -228,8 +228,20 @@ export function CardOverview({
     const selfTest = card.selfTest;
     if (selfTest && !selfTest.passed) findings.push(`The hardware self-test failed on ${selfTest.failedSubsystem}.`);
     const restartInfo = log?.restarts ?? null;
+    /*
+      Only restarts nothing asked for.
+
+      A phased deployment restarts at every boundary by design, so counting all of them put
+      "7 restarts happened without the device losing power" at the top of a run that had
+      done exactly what it was told. A caveat the reader has to learn to ignore costs more
+      than it gives, because the next one will be ignored too.
+    */
     if (restartInfo?.hadFault) findings.push('The device came back from a fault, so there is a gap where it was restarting.');
-    else if (restartInfo && restartInfo.maxResetsInEpoch > 0) findings.push(`${restartInfo.maxResetsInEpoch} restart${restartInfo.maxResetsInEpoch === 1 ? '' : 's'} happened without the device losing power.`);
+    else if (restartInfo?.endedOnLowBattery) findings.push('The battery reached its cutoff, so the recordings stop before the end date.');
+    else if (restartInfo && restartInfo.unexpectedRestarts > 0)
+      findings.push(
+        `${restartInfo.unexpectedRestarts} restart${restartInfo.unexpectedRestarts === 1 ? '' : 's'} happened that nothing in the deployment asked for.`,
+      );
     if (log?.clockRecovery) findings.push('The clock was lost and rebuilt from the card, so subsequent times may show internal discrepancies.');
     if (log?.configResult === 'CORRECTED') findings.push('The device had to correct the configuration file, so it ran with settings nobody chose.');
     else if (log?.configResult === 'FAIL') findings.push('The device could not read the configuration file.');
@@ -739,8 +751,9 @@ export function CardOverview({
                   ? 'At least one was a fault rather than a deliberate restart. The recordings either ' +
                     'side of it are intact, but there is a gap where the device was restarting.'
                   : restarts.unexpectedRestarts > 0
-                    ? 'The device restarted itself while still powered, and nothing in the configuration ' +
-                      'asked it to. Phase changes are not counted here. The table below names each one.'
+                    ? 'The device restarted itself while still powered, and nothing in the deployment ' +
+                      'asked it to. The count leaves out phase changes, which restart the device by ' +
+                      'design; the table below lists every restart, with the unexplained ones marked.'
                     : 'The device lost power and came back, which is what a battery change or a switch ' +
                       'off and on looks like.'}
             </div>

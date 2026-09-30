@@ -286,6 +286,22 @@ describe('telling a deployment\'s own restarts from incidents', () => {
     assert.equal(restarts.unexpectedRestarts, 0);
   });
 
+  it('marks the restarts the warning is about, and leaves the routine ones plain', () => {
+    // The table lists every restart, so the count in the banner only makes sense if the
+    // rows it refers to can be picked out of the phase changes around them.
+    const text = [
+      boot(1770368400, 'PHASE-DONE'),
+      boot(1770368500, 'UNKNOWN'),
+      boot(1770368600, 'BATTERY-LOW'),
+      boot(1770368700, 'MAGNET-OFF'),
+    ].join('\n');
+    const boots = parseLogs([{ name: 'a3em.log', text }]).lifecycle.filter((e) => e.kind === 'BOOT');
+    assert.deepEqual(
+      boots.map((e) => e.notable),
+      [false, true, true, false],
+    );
+  });
+
   it('still calls a fault a fault', () => {
     const text = [boot(1770368400, 'PHASE-DONE'), boot(1770368500, 'SD-FAILURE')].join('\n');
     const restarts = parseLogs([{ name: 'a3em.log', text }]).restarts;
