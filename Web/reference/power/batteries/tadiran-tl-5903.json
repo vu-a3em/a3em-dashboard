@@ -1,0 +1,74 @@
+{
+  "_comment": "Datasheet profile. Curve points were read off the published charts by eye and carry the stated uncertainty; labelled discharge results are exact as printed. Replace or supplement with measured data as it arrives, keeping the datasheet entries for comparison.",
+  "id": "tadiran-tl-5903",
+  "name": "Tadiran TL-5903 (iXtra)",
+  "chemistry": "Li-SOCl2, bobbin",
+  "size": "AA (ER14505)",
+  "source": {
+    "document": "Tadiran TL-5903 datasheet, ECN 1501879 Rev. F 04/2020",
+    "url": "https://tadiranbat.com/wp-content/uploads/2022/03/tl-5903-fev-f-0420.pdf",
+    "sha256": "1543e368a2d19bdc69e0ecf11201c437643f343bfe0e1d07af9e46a20e887770",
+    "retrieved": "2026-10-14"
+  },
+  "ratings": {
+    "nominalVoltageV": 3.6,
+    "nominalCapacityAh": 2.4,
+    "nominalCapacityConditions": "not stated on the datasheet; no published discharge curve reaches it",
+    "maxContinuousCurrentMa": 100,
+    "maxPulseCurrentMa": 200,
+    "operatingTemperatureC": [-55, 85],
+    "massG": 18,
+    "volumeCc": 8,
+    "lithiumContentG": 0.65
+  },
+  "dischargeAt25C": {
+    "cutoffV": 2.0,
+    "note": "Labelled results from the 'Discharge characteristics @ +25 C' chart. Plateau voltages are read from the chart to about +/-0.03 V.",
+    "points": [
+      { "loadOhm": 100, "currentMa": 31, "capacityAh": 1.7, "plateauV": 3.15 },
+      { "loadOhm": 680, "currentMa": 5, "capacityAh": 2.17, "plateauV": 3.42 },
+      { "loadOhm": 1800, "currentMa": 2, "capacityAh": 2.2, "plateauV": 3.5 },
+      { "loadOhm": 12000, "currentMa": 0.3, "capacityAh": 2.17, "plateauV": 3.56 },
+      { "loadOhm": 40000, "currentMa": 0.09, "capacityAh": 2.12, "plateauV": 3.6 },
+      { "loadOhm": 147000, "currentMa": 0.025, "capacityAh": 1.9, "plateauV": 3.63 }
+    ]
+  },
+  "capacityVsCurrent": {
+    "digitized": true,
+    "uncertaintyAh": 0.05,
+    "note": "From the 'Capacity vs. current' chart, log current axis 0.01-30 mA. At 25 C the labelled discharge results above take precedence where the two disagree (the chart reads about 1.5 Ah at 30 mA against the labelled 1.70 Ah at 31 mA). Low-current capacity falls because self-discharge competes with the load over the years such a discharge takes; it falls further, not less, when warm.",
+    "series": [
+      { "temperatureC": -30, "points": [[0.02, 2.0], [0.05, 2.12], [0.1, 2.16], [0.4, 2.2], [1, 1.75], [3, 1.55], [10, 1.05], [30, 0.45]] },
+      { "temperatureC": 25, "points": [[0.02, 1.9], [0.05, 2.08], [0.1, 2.15], [0.3, 2.17], [2, 2.2], [5, 2.17], [31, 1.7]] },
+      { "temperatureC": 55, "points": [[0.02, 1.05], [0.1, 1.45], [0.3, 1.7], [1, 2.0], [3, 2.25], [10, 2.27], [30, 2.25]] },
+      { "temperatureC": 72, "points": [[0.02, 0.8], [0.1, 1.15], [0.3, 1.35], [1, 1.6], [3, 1.85], [10, 2.15], [15, 2.27], [30, 2.2]] }
+    ]
+  },
+  "loadedVoltageVsTemperature": {
+    "digitized": true,
+    "uncertaintyV": 0.03,
+    "note": "From the 'Voltage vs. temperature' chart: the voltage the cell holds under a steady load, early in life. Points are [currentMa, volts] at each temperature.",
+    "series": [
+      { "temperatureC": -30, "points": [[0.01, 3.55], [0.04, 3.45], [0.3, 3.35], [2, 3.2], [10, 2.75], [31, 2.6]] },
+      { "temperatureC": 0, "points": [[0.01, 3.6], [0.04, 3.55], [0.3, 3.47], [2, 3.35], [10, 3.0], [31, 2.87]] },
+      { "temperatureC": 25, "points": [[0.01, 3.66], [0.04, 3.62], [0.3, 3.56], [2, 3.5], [10, 3.3], [31, 3.15]] },
+      { "temperatureC": 70, "points": [[0.01, 3.7], [0.04, 3.68], [0.3, 3.65], [2, 3.6], [10, 3.52], [31, 3.47]] }
+    ]
+  },
+  "voltageDelay": {
+    "note": "Passivation: the first load after storage sees a voltage dip that recovers as the passivation layer breaks down.",
+    "points": [
+      { "storageYears": 1, "pulse": "20 mA for 1 s, no background current, room temperature", "minimumV": 3.22, "recoveryMs": 100, "settledV": 3.46 },
+      { "storageYears": 10, "pulse": "20 mA for 1 s, no background current, room temperature", "minimumV": 2.67, "recoveryMs": 100, "settledV": 3.24 }
+    ]
+  },
+  "storage": {
+    "maxTemperatureC": 30,
+    "maxRelativeHumidityPercent": 30
+  },
+  "openQuestions": [
+    "Loaded voltage at the 35-75 mA an SD write draws is beyond every published curve; the battery suite measures it on a real cell at each temperature.",
+    "End of life is where the loaded voltage, at the sensed temperature and the device's heaviest load, falls to the board's minimum operating voltage (BROWNOUT_HEAVY).",
+    "Self-discharge per year is not stated numerically; it is inferred here only through the low-current capacity loss."
+  ]
+}

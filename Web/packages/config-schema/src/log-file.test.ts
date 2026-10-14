@@ -182,6 +182,33 @@ describe('telemetry carrying its own timestamp', () => {
     assert.equal(sample.micLeftRunning, 4);
   });
 
+  it('reads the power-model activity counters', () => {
+    const text =
+      '[1770368400] EVT|TELEM|time=1770368400,batt_mv=3500,temp_c=21.0,' +
+      'card_wakes=212,sd_writes=1480,sd_kb=96512,audio_opens=40,audio_closes=39,mic_starts=40,' +
+      'opus_ms=0,awake_ms=5000000000,sleeps=873214\n';
+    const sample = parseLogs([{ name: 'a3em.log', text }]).telemetry[0];
+    assert.equal(sample.sdCardWakes, 212);
+    assert.equal(sample.sdWriteTransactions, 1480);
+    assert.equal(sample.sdKilobytesWritten, 96512);
+    assert.equal(sample.audioFilesOpened, 40);
+    assert.equal(sample.audioFilesClosed, 39);
+    assert.equal(sample.microphoneStarts, 40);
+    // Zero is a real reading on a WAV deployment, not an absent field.
+    assert.equal(sample.opusEncodeMs, 0);
+    // Awake time is 64-bit on the device; it must survive past 32 bits here too.
+    assert.equal(sample.awakeMs, 5000000000);
+    assert.equal(sample.deepSleeps, 873214);
+  });
+
+  it('reports the activity counters as absent on firmware that never emitted them', () => {
+    const text = '[1770368400] EVT|TELEM|batt_mv=3500,temp_c=21.0\n';
+    const sample = parseLogs([{ name: 'a3em.log', text }]).telemetry[0];
+    assert.equal(sample.sdCardWakes, null);
+    assert.equal(sample.awakeMs, null);
+    assert.equal(sample.deepSleeps, null);
+  });
+
   it('reports the new counters as absent on firmware that never emitted them', () => {
     // Zero would read as "nothing went wrong", which is a claim a log predating the
     // counters cannot make. One open more than closes is the signal worth seeing.

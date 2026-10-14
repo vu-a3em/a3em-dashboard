@@ -1,0 +1,1224 @@
+{
+  "_comment": "Source of truth for every measured quantity the power forecaster uses. Quantities are keyed by the power characterization firmware's step names and codes (a3em-firmware/tests/peripherals/test_power.c); tools/power/power_ingest.py appends measurements, and nothing else should edit them by hand. See README.md.",
+  "schemaVersion": 1,
+  "units": {
+    "uA": "mean current at the battery terminal, in microamps",
+    "uC": "charge per event at the battery terminal, in microcoulombs, in excess of the baseline state",
+    "mV": "supply voltage at the battery terminal, in millivolts"
+  },
+  "conditions": {
+    "temperatures": {
+      "room": "bench, about 20-25 C",
+      "fridge": "about 2-5 C",
+      "freezer": "about -15 to -20 C"
+    },
+    "supply": "PPK2 source meter at 3.6 V unless the quantity depends on a battery, which is measured on that cell in ampere-meter mode"
+  },
+  "quantities": [
+    {
+      "id": "SLEEP_FLOOR",
+      "code": "0x01",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "Deep sleep with only what a deployment always has configured: RTC on the crystal, HFRC trim (HFADJ) enabled, magnet sensor and IMU configured and asleep, VHF switch driven off, SD card unpowered, shared SRAM retained.",
+      "forecastRole": "The floor every other state is an increment over.",
+      "prior": {
+        "value": 520,
+        "unit": "uA",
+        "basis": "absolute",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx Calculations!E27 (MCU idle, marked '<- Measure')",
+        "note": "A placeholder; an Apollo4 in deep sleep is expected to sit far below this."
+      },
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_NO_HFADJ",
+      "code": "0x02",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor with the HFRC trim disabled.",
+      "forecastRole": "Shows whether HFADJ costs anything in deep sleep; the deployment firmware always enables it.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_SRAM_ACTIVE",
+      "code": "0x03",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor with shared SRAM held fully active rather than retained, as it is while audio DMA runs.",
+      "forecastRole": "Increment paid for every second the microphone is capturing, already inside the capture states; isolated here to explain them.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_TIMER_XT",
+      "code": "0x04",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor plus a free-running timer on the 32 kHz crystal, no interrupt.",
+      "forecastRole": "Baseline for EVT_WAKE; also the cost of any XT-clocked timer left running.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_TIMER_HFRC",
+      "code": "0x05",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor plus a free-running timer on HFRC/16, no interrupt.",
+      "forecastRole": "Whether an HFRC-clocked timer keeps the high-frequency oscillator alive in deep sleep. The magnet sensor's active sampling timer is HFRC-clocked.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_WATCHDOG",
+      "code": "0x06",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor with the watchdog running, as it always is in a deployment.",
+      "forecastRole": "Always-on increment.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_TICK_1HZ",
+      "code": "0x07",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor plus a 1 Hz crystal-timer wake that does nothing, with the battery monitor initialized.",
+      "forecastRole": "Baseline for the 1 Hz core events.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_MAGNET_ARMED",
+      "code": "0x08",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor with the magnet sensor sampling every 90 ms, as it does whenever magnetic deactivation is possible.",
+      "forecastRole": "Always-on increment during recording phases that allow magnetic deactivation.",
+      "prior": {
+        "value": 0.5,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx MagPower!E2:E5 and Calculations!E29:E30, at 1.8 V",
+        "note": "Sensor-only duty-cycle model; excludes the HFRC timer that drives it."
+      },
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_TRACKER_SLAVE",
+      "code": "0x09",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor with the tracker's I2C slave initialized. The deployment firmware initializes it even when no GPS board is attached.",
+      "forecastRole": "Always-on increment; if large, a case for initializing it only when GPS is configured.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_IMU_IDLE",
+      "code": "0x0A",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor with the IMU's I2C master initialized and the IMU powered down.",
+      "forecastRole": "Always-on increment.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_ADC_IDLE",
+      "code": "0x0B",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor with the battery-monitor ADC initialized and idle.",
+      "forecastRole": "Always-on increment.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_MIC_PINS_DRIVEN",
+      "code": "0x0C",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor with both microphone power switches driven off instead of left at their reset state.",
+      "forecastRole": "A difference from the floor means an unused switch input is floating and leaking.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_LED_RED",
+      "code": "0x0D",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor with the red LED lit steadily.",
+      "forecastRole": "LED on-current; the forecaster applies each pattern's duty cycle.",
+      "prior": {
+        "value": 1500,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx measurements.ts LED.averageCurrentMa",
+        "note": "Placeholder blink average, not a steady on-current."
+      },
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_LED_GREEN",
+      "code": "0x0E",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor with the green LED lit steadily.",
+      "forecastRole": "LED on-current; the forecaster applies each pattern's duty cycle.",
+      "prior": {
+        "value": 1500,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx measurements.ts LED.averageCurrentMa",
+        "note": "Placeholder blink average, not a steady on-current."
+      },
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_VHF_ENABLED",
+      "code": "0x0F",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "The floor with the VHF enable output asserted.",
+      "forecastRole": "What the beacon's enable line draws from the A3EM cell; the beacon itself has its own battery.",
+      "prior": {
+        "value": 0,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "measurements.ts VHF.activeCurrentMa",
+        "note": "Assumes the enable line draws nothing."
+      },
+      "measurements": []
+    },
+    {
+      "id": "SLEEP_APP_IDLE",
+      "code": "0x10",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "Every peripheral initialized exactly as the deployment firmware does, card powered and mounted, magnet armed.",
+      "forecastRole": "Cross-check: should equal the floor plus the always-on increments plus SD_IDLE for the card fitted.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "CPU_ACTIVE",
+      "code": "0x11",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "Processor running register-and-cache-bound work continuously at the deployment clock, nothing else on.",
+      "forecastRole": "Generic active current, for work not covered by a dedicated event.",
+      "prior": {
+        "value": 2820,
+        "unit": "uA",
+        "basis": "absolute",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx Calculations!E28 (MCU active, marked '<- Measure')"
+      },
+      "measurements": []
+    },
+    {
+      "id": "OFF_RTC",
+      "code": "0x12",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "Power-off mode waiting on an RTC alarm only.",
+      "forecastRole": "Shelf, pre-deployment, and between-phase sleeps without magnetic wake.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "OFF_MAGNET",
+      "code": "0x13",
+      "suite": "core",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "Power-off mode with the magnet sensor sampled every 500 ms for a wake.",
+      "forecastRole": "Shelf and between-phase sleeps when the magnet can wake the device.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_WAKE",
+      "code": "0x18",
+      "suite": "core",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_TIMER_XT",
+      "event": "one wake from deep sleep and return",
+      "dependsOn": [],
+      "description": "A bare wake from deep sleep on a timer interrupt, doing nothing.",
+      "forecastRole": "Charged per wake: DMA completions, alarms, and every other interrupt.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_BATTERY_READ",
+      "code": "0x19",
+      "suite": "core",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_TICK_1HZ",
+      "event": "one battery_monitor_get_details() call",
+      "dependsOn": [],
+      "description": "One battery and temperature measurement.",
+      "forecastRole": "Charged at every TELEM and validation wake, and every 10 s while awake loops service the temperature trim.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "SD_IDLE",
+      "code": "0x20",
+      "suite": "sd",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [
+        "card"
+      ],
+      "description": "The floor with the card powered and mounted but asleep between transfers, as it is throughout a recording phase.",
+      "forecastRole": "Always-on increment during recording phases; specific to the card model.",
+      "prior": {
+        "value": 600,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx Calculations!E25 (SD sleep)"
+      },
+      "measurements": []
+    },
+    {
+      "id": "SD_IDLE_TICK_1HZ",
+      "code": "0x21",
+      "suite": "sd",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [
+        "card"
+      ],
+      "description": "SD_IDLE plus a 1 Hz wake doing nothing, with a file open.",
+      "forecastRole": "Baseline for the SD events.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_SD_SESSION_4K",
+      "code": "0x22",
+      "suite": "sd",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SD_IDLE_TICK_1HZ",
+      "event": "one session: wake the card, write 4 KiB, sleep it",
+      "dependsOn": [
+        "card"
+      ],
+      "description": "One card session writing 4 KiB.",
+      "forecastRole": "Fit point for session charge = fixed + per-byte x bytes.",
+      "prior": {
+        "value": 1281,
+        "unit": "uC",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx derived from Calculations!E23:E26,E31 and SdSpeeds U1",
+        "note": "35 mA x 25 ms wake + 75 mA writing at 10 MB/s + 5 ms FAT upkeep at 75 mA."
+      },
+      "measurements": []
+    },
+    {
+      "id": "EVT_SD_SESSION_32K",
+      "code": "0x23",
+      "suite": "sd",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SD_IDLE_TICK_1HZ",
+      "event": "one session writing 32 KiB",
+      "dependsOn": [
+        "card"
+      ],
+      "description": "One card session writing 32 KiB.",
+      "forecastRole": "Fit point for session charge.",
+      "prior": {
+        "value": 1496,
+        "unit": "uC",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx derived as for EVT_SD_SESSION_4K"
+      },
+      "measurements": []
+    },
+    {
+      "id": "EVT_SD_SESSION_128K",
+      "code": "0x24",
+      "suite": "sd",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SD_IDLE_TICK_1HZ",
+      "event": "one session writing 128 KiB",
+      "dependsOn": [
+        "card"
+      ],
+      "description": "One card session writing 128 KiB.",
+      "forecastRole": "Fit point for session charge.",
+      "prior": {
+        "value": 2233,
+        "unit": "uC",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx derived as for EVT_SD_SESSION_4K"
+      },
+      "measurements": []
+    },
+    {
+      "id": "EVT_SD_SESSION_512K",
+      "code": "0x25",
+      "suite": "sd",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SD_IDLE_TICK_1HZ",
+      "event": "one session writing 512 KiB",
+      "dependsOn": [
+        "card"
+      ],
+      "description": "One card session writing 512 KiB, the size of a full WAV staging flush.",
+      "forecastRole": "Fit point for session charge; the common WAV flush.",
+      "prior": {
+        "value": 5182,
+        "unit": "uC",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx derived as for EVT_SD_SESSION_4K"
+      },
+      "measurements": []
+    },
+    {
+      "id": "EVT_SD_FILE_CYCLE",
+      "code": "0x26",
+      "suite": "sd",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SD_IDLE_TICK_1HZ",
+      "event": "one file created and finalized",
+      "dependsOn": [
+        "card"
+      ],
+      "description": "Create a file, write 512 bytes, close it.",
+      "forecastRole": "Per-clip file overhead beyond its audio.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_SD_LOG_LINE",
+      "code": "0x27",
+      "suite": "sd",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SD_IDLE_TICK_1HZ",
+      "event": "one logged event",
+      "dependsOn": [
+        "card"
+      ],
+      "description": "Append one event line to a log and sync it inside one session.",
+      "forecastRole": "Charged per log_event, each of which is flushed.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_SD_MOUNT",
+      "code": "0x28",
+      "suite": "sd",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_TICK_1HZ",
+      "event": "one power-up and mount",
+      "dependsOn": [
+        "card"
+      ],
+      "description": "Power the card up, mount it, unmount it, and power it down.",
+      "forecastRole": "Charged per boot and per wake from power-off with reinitialization.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "MIC_CAPTURE_8K",
+      "code": "0x40",
+      "suite": "mic",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [
+        "microphone"
+      ],
+      "description": "Digital microphone capturing at 8000 Hz, buffers consumed and discarded.",
+      "forecastRole": "Capture state; storage is charged separately as SD sessions.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "MIC_CAPTURE_16K",
+      "code": "0x41",
+      "suite": "mic",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [
+        "microphone"
+      ],
+      "description": "Digital microphone capturing at 16000 Hz, buffers consumed and discarded.",
+      "forecastRole": "Capture state; storage is charged separately as SD sessions.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "MIC_CAPTURE_24K",
+      "code": "0x42",
+      "suite": "mic",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [
+        "microphone"
+      ],
+      "description": "Digital microphone capturing at 24000 Hz, buffers consumed and discarded.",
+      "forecastRole": "Capture state; storage is charged separately as SD sessions.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "MIC_CAPTURE_32K",
+      "code": "0x43",
+      "suite": "mic",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [
+        "microphone"
+      ],
+      "description": "Digital microphone capturing at 32000 Hz, buffers consumed and discarded.",
+      "forecastRole": "Capture state; storage is charged separately as SD sessions.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "MIC_CAPTURE_48K",
+      "code": "0x44",
+      "suite": "mic",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [
+        "microphone"
+      ],
+      "description": "Digital microphone capturing at 48000 Hz, buffers consumed and discarded.",
+      "forecastRole": "Capture state; storage is charged separately as SD sessions.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_MIC_CYCLE_16K",
+      "code": "0x48",
+      "suite": "mic",
+      "kind": "cycle",
+      "unit": "uC",
+      "baseline": "MIC_CAPTURE_16K",
+      "offBaseline": "SLEEP_FLOOR",
+      "event": "one microphone start and stop",
+      "dependsOn": [
+        "microphone"
+      ],
+      "description": "Digital microphone started at 16 kHz, run 4 s, stopped, every 6 s.",
+      "forecastRole": "Charge per clip start beyond the capture state itself: power-up, settling, rate measurement.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_MIC_CYCLE_48K",
+      "code": "0x49",
+      "suite": "mic",
+      "kind": "cycle",
+      "unit": "uC",
+      "baseline": "MIC_CAPTURE_48K",
+      "offBaseline": "SLEEP_FLOOR",
+      "event": "one microphone start and stop",
+      "dependsOn": [
+        "microphone"
+      ],
+      "description": "Digital microphone started at 48 kHz, run 4 s, stopped, every 6 s.",
+      "forecastRole": "As EVT_MIC_CYCLE_16K, at the Opus rate.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "ANALOG_CAPTURE_8K",
+      "code": "0x50",
+      "suite": "analog",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "Analog front end capturing at 8000 Hz, buffers consumed and discarded.",
+      "forecastRole": "Capture state for the analog path; storage is charged separately.",
+      "prior": {
+        "value": 300,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx MicPower!C3 (Analog, marked 'Measure')",
+        "note": "Microphone only."
+      },
+      "measurements": []
+    },
+    {
+      "id": "ANALOG_CAPTURE_16K",
+      "code": "0x51",
+      "suite": "analog",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "Analog front end capturing at 16000 Hz, buffers consumed and discarded.",
+      "forecastRole": "Capture state for the analog path; storage is charged separately.",
+      "prior": {
+        "value": 300,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx MicPower!C3 (Analog, marked 'Measure')",
+        "note": "Microphone only."
+      },
+      "measurements": []
+    },
+    {
+      "id": "ANALOG_CAPTURE_24K",
+      "code": "0x52",
+      "suite": "analog",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "Analog front end capturing at 24000 Hz, buffers consumed and discarded.",
+      "forecastRole": "Capture state for the analog path; storage is charged separately.",
+      "prior": {
+        "value": 300,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx MicPower!C3 (Analog, marked 'Measure')",
+        "note": "Microphone only."
+      },
+      "measurements": []
+    },
+    {
+      "id": "ANALOG_CAPTURE_32K",
+      "code": "0x53",
+      "suite": "analog",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "Analog front end capturing at 32000 Hz, buffers consumed and discarded.",
+      "forecastRole": "Capture state for the analog path; storage is charged separately.",
+      "prior": {
+        "value": 300,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx MicPower!C3 (Analog, marked 'Measure')",
+        "note": "Microphone only."
+      },
+      "measurements": []
+    },
+    {
+      "id": "ANALOG_CAPTURE_48K",
+      "code": "0x54",
+      "suite": "analog",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "Analog front end capturing at 48000 Hz, buffers consumed and discarded.",
+      "forecastRole": "Capture state for the analog path; storage is charged separately.",
+      "prior": {
+        "value": 300,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx MicPower!C3 (Analog, marked 'Measure')",
+        "note": "Microphone only."
+      },
+      "measurements": []
+    },
+    {
+      "id": "ANALOG_ARMED",
+      "code": "0x58",
+      "suite": "analog",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "Amplitude-triggered recording waiting for a sound: microphone and comparator live, converter idle.",
+      "forecastRole": "Armed-idle state of AMPLITUDE mode. Any trigger during the window is counted and spoils it.",
+      "prior": {
+        "value": 50,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx measurements.ts IDLE_STATE.comparatorCurrentMa",
+        "note": "Placeholder, never measured."
+      },
+      "measurements": []
+    },
+    {
+      "id": "EVT_ANALOG_CYCLE_16K",
+      "code": "0x59",
+      "suite": "analog",
+      "kind": "cycle",
+      "unit": "uC",
+      "baseline": "ANALOG_CAPTURE_16K",
+      "offBaseline": "SLEEP_FLOOR",
+      "event": "one analog start and stop",
+      "dependsOn": [],
+      "description": "Analog front end started at 16 kHz, run 4 s, stopped, every 6 s.",
+      "forecastRole": "Charge per clip start on the analog path.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_LOWPASS_16K",
+      "code": "0x60",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one second of audio filtered",
+      "dependsOn": [],
+      "description": "The low-pass biquad over one second of 16 kHz audio.",
+      "forecastRole": "Charged per second of recorded audio when the filter is on.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_HIGHPASS_16K",
+      "code": "0x61",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one second of audio filtered",
+      "dependsOn": [],
+      "description": "The high-pass biquad over one second of 16 kHz audio.",
+      "forecastRole": "Charged per second of recorded audio when the filter is on.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_BANDPASS_16K",
+      "code": "0x62",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one second of audio filtered",
+      "dependsOn": [],
+      "description": "The band-pass biquad over one second of 16 kHz audio.",
+      "forecastRole": "Charged per second of recorded audio when the filter is on.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_LOWPASS_48K",
+      "code": "0x63",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one second of audio filtered",
+      "dependsOn": [],
+      "description": "The low-pass biquad over one second of 48 kHz audio.",
+      "forecastRole": "Charged per second of recorded audio when the filter is on.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_HIGHPASS_48K",
+      "code": "0x64",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one second of audio filtered",
+      "dependsOn": [],
+      "description": "The high-pass biquad over one second of 48 kHz audio.",
+      "forecastRole": "Charged per second of recorded audio when the filter is on.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_BANDPASS_48K",
+      "code": "0x65",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one second of audio filtered",
+      "dependsOn": [],
+      "description": "The band-pass biquad over one second of 48 kHz audio.",
+      "forecastRole": "Charged per second of recorded audio when the filter is on.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_SILENCE_FRAME_16K",
+      "code": "0x68",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one FFT frame analysed in full",
+      "dependsOn": [],
+      "description": "One full silence-filter FFT frame at 16 kHz (2048 points).",
+      "forecastRole": "Charged per frame the gate examines; frames per buffer follow from the DMA size. Analysis stops at the first loud frame, so this is the most a buffer can cost.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_SILENCE_FRAME_48K",
+      "code": "0x69",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one FFT frame analysed in full",
+      "dependsOn": [],
+      "description": "One full silence-filter FFT frame at 48 kHz (4096 points).",
+      "forecastRole": "Charged per frame the gate examines; frames per buffer follow from the DMA size. Analysis stops at the first loud frame, so this is the most a buffer can cost.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "EVT_OPUS_16KBPS",
+      "code": "0x70",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one second of audio encoded",
+      "dependsOn": [],
+      "description": "Opus-encoding one second of 48 kHz audio at 16 kbit/s.",
+      "forecastRole": "Charged per second of recorded audio when Opus is on.",
+      "prior": {
+        "value": 599,
+        "unit": "uC",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx Planner!I12:I16 encode time at (Calculations!E28 - E27)",
+        "note": "Encode milliseconds per 2 s interval, halved, at 2.3 mA."
+      },
+      "measurements": []
+    },
+    {
+      "id": "EVT_OPUS_24KBPS",
+      "code": "0x71",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one second of audio encoded",
+      "dependsOn": [],
+      "description": "Opus-encoding one second of 48 kHz audio at 24 kbit/s.",
+      "forecastRole": "Charged per second of recorded audio when Opus is on.",
+      "prior": {
+        "value": 693,
+        "unit": "uC",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx Planner!I12:I16 encode time at (Calculations!E28 - E27)",
+        "note": "Encode milliseconds per 2 s interval, halved, at 2.3 mA."
+      },
+      "measurements": []
+    },
+    {
+      "id": "EVT_OPUS_32KBPS",
+      "code": "0x72",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one second of audio encoded",
+      "dependsOn": [],
+      "description": "Opus-encoding one second of 48 kHz audio at 32 kbit/s.",
+      "forecastRole": "Charged per second of recorded audio when Opus is on.",
+      "prior": {
+        "value": 787,
+        "unit": "uC",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx Planner!I12:I16 encode time at (Calculations!E28 - E27)",
+        "note": "Encode milliseconds per 2 s interval, halved, at 2.3 mA."
+      },
+      "measurements": []
+    },
+    {
+      "id": "EVT_OPUS_64KBPS",
+      "code": "0x73",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one second of audio encoded",
+      "dependsOn": [],
+      "description": "Opus-encoding one second of 48 kHz audio at 64 kbit/s.",
+      "forecastRole": "Charged per second of recorded audio when Opus is on.",
+      "prior": {
+        "value": 935,
+        "unit": "uC",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx Planner!I12:I16 encode time at (Calculations!E28 - E27)",
+        "note": "Encode milliseconds per 2 s interval, halved, at 2.3 mA."
+      },
+      "measurements": []
+    },
+    {
+      "id": "EVT_OPUS_96KBPS",
+      "code": "0x74",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one second of audio encoded",
+      "dependsOn": [],
+      "description": "Opus-encoding one second of 48 kHz audio at 96 kbit/s.",
+      "forecastRole": "Charged per second of recorded audio when Opus is on.",
+      "prior": {
+        "value": 1007,
+        "unit": "uC",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx Planner!I12:I16 encode time at (Calculations!E28 - E27)",
+        "note": "Encode milliseconds per 2 s interval, halved, at 2.3 mA."
+      },
+      "measurements": []
+    },
+    {
+      "id": "EVT_OPUS_128KBPS",
+      "code": "0x75",
+      "suite": "dsp",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SLEEP_FLOOR",
+      "event": "one second of audio encoded",
+      "dependsOn": [],
+      "description": "Opus-encoding one second of 48 kHz audio at 128 kbit/s.",
+      "forecastRole": "Charged per second of recorded audio when Opus is on.",
+      "prior": {
+        "value": 1029,
+        "unit": "uC",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx Planner!I12:I16 encode time at (Calculations!E28 - E27)",
+        "note": "Encode milliseconds per 2 s interval, halved, at 2.3 mA."
+      },
+      "measurements": []
+    },
+    {
+      "id": "IMU_RAW_3HZ",
+      "code": "0x80",
+      "suite": "imu",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "IMU streaming at 3 Hz into a counting callback.",
+      "forecastRole": "Raw-data state; storage is charged separately.",
+      "prior": {
+        "value": 0.47,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx ImuPower!C3:C12",
+        "note": "IMU datasheet current only; excludes FIFO-drain wakes."
+      },
+      "measurements": []
+    },
+    {
+      "id": "IMU_RAW_6HZ",
+      "code": "0x81",
+      "suite": "imu",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "IMU streaming at 6 Hz into a counting callback.",
+      "forecastRole": "Raw-data state; storage is charged separately.",
+      "prior": {
+        "value": 6.1,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx ImuPower!C3:C12",
+        "note": "IMU datasheet current only; excludes FIFO-drain wakes."
+      },
+      "measurements": []
+    },
+    {
+      "id": "IMU_RAW_25HZ",
+      "code": "0x82",
+      "suite": "imu",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "IMU streaming at 25 Hz into a counting callback.",
+      "forecastRole": "Raw-data state; storage is charged separately.",
+      "prior": {
+        "value": 6.1,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx ImuPower!C3:C12",
+        "note": "IMU datasheet current only; excludes FIFO-drain wakes."
+      },
+      "measurements": []
+    },
+    {
+      "id": "IMU_RAW_50HZ",
+      "code": "0x83",
+      "suite": "imu",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "IMU streaming at 50 Hz into a counting callback.",
+      "forecastRole": "Raw-data state; storage is charged separately.",
+      "prior": {
+        "value": 6.1,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx ImuPower!C3:C12",
+        "note": "IMU datasheet current only; excludes FIFO-drain wakes."
+      },
+      "measurements": []
+    },
+    {
+      "id": "IMU_RAW_100HZ",
+      "code": "0x84",
+      "suite": "imu",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "IMU streaming at 100 Hz into a counting callback.",
+      "forecastRole": "Raw-data state; storage is charged separately.",
+      "prior": {
+        "value": 6.1,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx ImuPower!C3:C12",
+        "note": "IMU datasheet current only; excludes FIFO-drain wakes."
+      },
+      "measurements": []
+    },
+    {
+      "id": "IMU_RAW_200HZ",
+      "code": "0x85",
+      "suite": "imu",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "IMU streaming at 200 Hz into a counting callback.",
+      "forecastRole": "Raw-data state; storage is charged separately.",
+      "prior": {
+        "value": 6.1,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx ImuPower!C3:C12",
+        "note": "IMU datasheet current only; excludes FIFO-drain wakes."
+      },
+      "measurements": []
+    },
+    {
+      "id": "IMU_RAW_400HZ",
+      "code": "0x86",
+      "suite": "imu",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "IMU streaming at 400 Hz into a counting callback.",
+      "forecastRole": "Raw-data state; storage is charged separately.",
+      "prior": {
+        "value": 6.1,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx ImuPower!C3:C12",
+        "note": "IMU datasheet current only; excludes FIFO-drain wakes."
+      },
+      "measurements": []
+    },
+    {
+      "id": "IMU_RAW_800HZ",
+      "code": "0x87",
+      "suite": "imu",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "IMU streaming at 800 Hz into a counting callback.",
+      "forecastRole": "Raw-data state; storage is charged separately.",
+      "prior": {
+        "value": 6.1,
+        "unit": "uA",
+        "basis": "increment",
+        "source": "Web/reference/A3EM Deployment Planner.xlsx ImuPower!C3:C12",
+        "note": "IMU datasheet current only; excludes FIFO-drain wakes."
+      },
+      "measurements": []
+    },
+    {
+      "id": "IMU_MOTION_ARMED",
+      "code": "0x88",
+      "suite": "imu",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [],
+      "description": "IMU waiting for motion above 200 mg.",
+      "forecastRole": "Armed state of ACTIVITY mode.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "BATT_FLOOR",
+      "code": "0x90",
+      "suite": "battery",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [
+        "battery"
+      ],
+      "description": "The floor, on a real cell.",
+      "forecastRole": "Rest voltage of the cell under test.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "BATT_APP_IDLE",
+      "code": "0x91",
+      "suite": "battery",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [
+        "battery"
+      ],
+      "description": "Every peripheral initialized, card powered, magnet armed, on a real cell.",
+      "forecastRole": "Voltage under the between-clips load.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "BATT_MIC_48K",
+      "code": "0x92",
+      "suite": "battery",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [
+        "battery"
+      ],
+      "description": "Digital capture at 48 kHz on a real cell, voltage sampled each second.",
+      "forecastRole": "Voltage under a sustained capture load, at the temperature of the run.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "BATT_SD_512K",
+      "code": "0x93",
+      "suite": "battery",
+      "kind": "event",
+      "unit": "uC",
+      "baseline": "SD_IDLE_TICK_1HZ",
+      "event": "one session writing 512 KiB",
+      "dependsOn": [
+        "battery"
+      ],
+      "description": "512 KiB card sessions at 1 Hz on a real cell, voltage sampled between 32 KiB chunks.",
+      "forecastRole": "Lowest voltage under the heaviest pulse the device draws.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "BATT_CPU_LEDS",
+      "code": "0x94",
+      "suite": "battery",
+      "kind": "state",
+      "unit": "uA",
+      "baseline": null,
+      "dependsOn": [
+        "battery"
+      ],
+      "description": "Processor flat out with both LEDs lit on a real cell, voltage sampled each second.",
+      "forecastRole": "Voltage under the heaviest sustained load without the card.",
+      "prior": null,
+      "measurements": []
+    },
+    {
+      "id": "BROWNOUT_HEAVY",
+      "code": "0xA0",
+      "suite": "brownout",
+      "kind": "limit",
+      "unit": "mV",
+      "baseline": null,
+      "dependsOn": [
+        "card",
+        "microphone"
+      ],
+      "description": "48 kHz capture plus a 512 KiB card session and a battery reading every second, run while the supply is stepped down until cycles fail.",
+      "forecastRole": "The lowest supply the board works at under its heaviest load. A cell is used up when its loaded voltage at the sensed temperature falls to this, so it sets end of life in the forecast and is where a temperature-aware cutoff belongs.",
+      "prior": null,
+      "measurements": []
+    }
+  ]
+}

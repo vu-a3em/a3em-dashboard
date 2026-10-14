@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
  *
  * `reference/firmware-snapshot.json`  <- tools/extract_firmware_constants.py
  * `reference/planner-snapshot.json`   <- tools/extract_power_measurements.py
+ * `reference/power/*.json`            <- tools/power/power_ingest.py (measurements only)
  *
  * Test-time only — nothing in the shipped browser bundle reads these. They exist so
  * a firmware change or a spreadsheet revision surfaces as a failing test naming the
@@ -55,6 +56,26 @@ export interface FirmwareSnapshot {
    * they live — and because nothing else in the snapshot would notice one being added.
    */
   resetReasons: { all: string[]; faults: string[] };
+  /**
+   * The power characterization firmware's step table. Each step's code is what its marker
+   * frame carries and what `reference/power/measurements.json` is keyed by.
+   */
+  powerSteps: PowerStep[];
+  /** Marker codes the deployment firmware sends at points of interest, by name. */
+  powerMarks: Record<string, number>;
+}
+
+export interface PowerStep {
+  code: number;
+  name: string;
+  suite: string;
+  kind: 'state' | 'event' | 'cycle' | 'limit';
+  flags: string[];
+  tickHz: number;
+  /** The step's parameter exactly as written in the C table. */
+  param: string;
+  /** Code of the state the step is charged against, or null for a state. */
+  baseline: number | null;
 }
 
 export interface PlannerGoldenWav {
@@ -121,3 +142,9 @@ export const loadFirmwareSnapshot = (): FirmwareSnapshot =>
 
 export const loadPlannerSnapshot = (): PlannerSnapshot =>
   load<PlannerSnapshot>('planner-snapshot.json');
+
+/** Any file under `reference/`, by relative path, such as `power/measurements.json`. */
+export const loadReference = <T>(relative: string): T => load<T>(relative);
+
+/** The text of any file under `Web/`, by path relative to it, such as `tools/power/ppk2_capture.py`. */
+export const readWebFile = (relative: string): string => readFileSync(join(referenceDir(), '..', relative), 'utf8');

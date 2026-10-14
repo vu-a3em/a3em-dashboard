@@ -1,0 +1,65 @@
+{
+  "_comment": "Datasheet profile. Curve points were read off the published charts by eye and carry the stated uncertainty; labelled discharge results are exact as printed. Replace or supplement with measured data as it arrives, keeping the datasheet entries for comparison.",
+  "id": "tadiran-tl-2100",
+  "name": "Tadiran TL-2100 (Lithium XTRA)",
+  "chemistry": "Li-SOCl2, bobbin",
+  "size": "AA (ER14505)",
+  "source": {
+    "document": "Tadiran TL-2100 datasheet, Rev. B 04/03",
+    "url": null,
+    "sha256": "ef572ebda274474e7d14e602c1f8d177d6c9889bb3f6a758cf709d408c2b1090",
+    "retrieved": "2026-10-14, supplied locally"
+  },
+  "ratings": {
+    "nominalVoltageV": 3.6,
+    "nominalCapacityAh": 2.1,
+    "nominalCapacityConditions": "2 mA to 2.0 V at 25 C",
+    "maxContinuousCurrentMa": 120,
+    "maxPulseCurrentMa": 200,
+    "operatingTemperatureC": [-55, 85],
+    "massG": 17.6,
+    "volumeCc": 8,
+    "lithiumContentG": null
+  },
+  "dischargeAt25C": {
+    "cutoffV": 2.0,
+    "note": "Labelled results from the 'Discharge characteristics @ +25 C' chart. Plateau voltages are read from the chart to about +/-0.03 V.",
+    "points": [
+      { "loadOhm": 200, "currentMa": 16, "capacityAh": 1.6, "plateauV": 3.35 },
+      { "loadOhm": 1800, "currentMa": 2, "capacityAh": 2.1, "plateauV": 3.55 },
+      { "loadOhm": 6800, "currentMa": 0.5, "capacityAh": 2.1, "plateauV": 3.57 },
+      { "loadOhm": 36000, "currentMa": 0.1, "capacityAh": 1.85, "plateauV": 3.62 },
+      { "loadOhm": 180000, "currentMa": 0.02, "capacityAh": 1.6, "plateauV": 3.65 }
+    ]
+  },
+  "capacityVsCurrent": {
+    "digitized": true,
+    "uncertaintyAh": 0.05,
+    "note": "From the 'Capacity vs. current' chart, log current axis 0.01-2 mA; nothing is published above 2 mA. Cold capacity peaks at a few hundred microamps and falls away above it; warm capacity is lost at low currents to self-discharge.",
+    "series": [
+      { "temperatureC": -30, "points": [[0.01, 1.85], [0.03, 1.95], [0.1, 2.02], [0.15, 2.05], [0.3, 1.9], [1, 1.6], [2, 1.4]] },
+      { "temperatureC": 0, "points": [[0.01, 1.65], [0.03, 1.8], [0.1, 1.93], [0.2, 2.0], [0.5, 1.92], [1, 1.85], [2, 1.78]] },
+      { "temperatureC": 25, "points": [[0.01, 1.4], [0.03, 1.62], [0.1, 1.85], [0.3, 2.05], [0.5, 2.1], [2, 2.1]] },
+      { "temperatureC": 50, "points": [[0.01, 1.05], [0.03, 1.35], [0.1, 1.65], [0.3, 1.8], [1, 1.87], [2, 1.88]] },
+      { "temperatureC": 72, "points": [[0.01, 0.8], [0.03, 1.1], [0.1, 1.42], [0.3, 1.62], [1, 1.68], [2, 1.7]] }
+    ]
+  },
+  "loadedVoltageVsTemperature": {
+    "digitized": true,
+    "uncertaintyV": 0.03,
+    "note": "From the 'Voltage vs. temperature' chart: the voltage the cell holds under a steady load, early in life. Points are [currentMa, volts] at each temperature.",
+    "series": [
+      { "temperatureC": -30, "points": [[0.01, 3.38], [0.03, 3.33], [0.2, 3.25], [2, 3.19], [16, 3.06]] },
+      { "temperatureC": 0, "points": [[0.01, 3.58], [0.03, 3.52], [0.2, 3.45], [2, 3.37], [16, 3.18]] },
+      { "temperatureC": 25, "points": [[0.01, 3.66], [0.03, 3.62], [0.2, 3.58], [2, 3.52], [16, 3.32]] },
+      { "temperatureC": 70, "points": [[0.01, 3.69], [0.03, 3.68], [0.2, 3.64], [2, 3.58], [16, 3.52]] }
+    ]
+  },
+  "voltageDelay": null,
+  "storage": null,
+  "openQuestions": [
+    "Loaded voltage at the 35-75 mA an SD write draws is far beyond the 16 mA top of every published curve; the battery suite measures it on a real cell at each temperature.",
+    "End of life is where the loaded voltage, at the sensed temperature and the device's heaviest load, falls to the board's minimum operating voltage (BROWNOUT_HEAVY). The cold curves above are what make that temperature-dependent.",
+    "Passivation and storage behaviour are not published for this model."
+  ]
+}

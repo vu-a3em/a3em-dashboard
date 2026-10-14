@@ -1,0 +1,22 @@
+{
+  "_comment": "Parts the power model distinguishes. A measurement whose quantity dependsOn a component records which one it was taken with, by id. Add a part here before measuring it.",
+  "cards": [
+    { "id": "adata", "name": "ADATA microSD", "notes": "Fill in the exact model, capacity and speed class from the card itself." },
+    { "id": "micron", "name": "Micron microSD", "notes": "Fill in the exact model, capacity and speed class from the card itself." },
+    { "id": "delkin-usdcoem", "name": "Delkin USDCOEM", "notes": "Fill in the capacity and speed class from the card itself." }
+  ],
+  "microphones": [
+    { "id": "SPH18R1LM4H-1", "type": "digital", "spreadsheetKey": "SPH18R1LM4H" },
+    { "id": "IM72D128V", "type": "digital", "spreadsheetKey": "IM72D128V" },
+    { "id": "MMICT5838", "type": "digital", "spreadsheetKey": "MMICT5838" },
+    { "id": "SPH0141L", "type": "digital", "spreadsheetKey": "SPH0141L" },
+    { "id": "MP34DT05", "type": "digital", "spreadsheetKey": "MP34DT05" },
+    { "id": "CMM4030DT", "type": "digital", "spreadsheetKey": "CMM4030DT" },
+    { "id": "DMM3526-4-B", "type": "digital", "spreadsheetKey": "DMM3526-4-B" },
+    { "id": "analog-front-end", "type": "analog", "spreadsheetKey": "Analog", "notes": "The on-board analog path; measured by the analog suite rather than per part." }
+  ],
+  "batteries": [
+    { "id": "tadiran-tl-5903", "profile": "batteries/tadiran-tl-5903.json" },
+    { "id": "tadiran-tl-2100", "profile": "batteries/tadiran-tl-2100.json" }
+  ]
+}

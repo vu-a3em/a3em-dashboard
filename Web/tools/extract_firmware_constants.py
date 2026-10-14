@@ -58,6 +58,9 @@ MAIN_C = "app/main.c"
 AUDIO_C = "peripherals/src/audio.c"
 # The self-test moved into the system peripheral; its constants and events live there now.
 SELF_TEST_C = "peripherals/src/system.c"
+POWER_MARKER_H = "peripherals/include/power_marker.h"
+# Relative to the firmware root rather than src/: the power characterization steps live with the tests.
+TEST_POWER_C = "tests/peripherals/test_power.c"
 
 
 def resolve_firmware(explicit: Path | None) -> Path:
@@ -134,6 +137,13 @@ ENUMS = {
 
 def read(firmware: Path, relative: str) -> str:
     path = firmware / "src" / relative
+    if not path.is_file():
+        raise SystemExit(f"ERROR: expected firmware file not found: {path}")
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def read_from_root(firmware: Path, relative: str) -> str:
+    path = firmware / relative
     if not path.is_file():
         raise SystemExit(f"ERROR: expected firmware file not found: {path}")
     return path.read_text(encoding="utf-8", errors="replace")
@@ -305,6 +315,62 @@ def extract_log_events(sources: dict[str, str]) -> dict[str, list[str]]:
     return {code: events[code] for code in sorted(events)}
 
 
+def extract_power_steps(source: str) -> list[dict[str, object]]:
+    """The power characterization firmware's step table.
+
+    Each step's code is what its marker frame carries and what the measurement catalogue in
+    reference/power/measurements.json is keyed by, so the two are held in lockstep: a step
+    renamed, renumbered or rebased in the firmware has to show up here as drift.
+    """
+    steps: list[dict[str, object]] = []
+    pattern = re.compile(
+        r'^\s*S\(\s*(0x[0-9A-Fa-f]+)\s*,\s*"(\w+)"\s*,\s*SUITE_(\w+)\s*,\s*([^,]+?)\s*,\s*(\d+)\s*,'
+        r'\s*(.+?)\s*,\s*(0x[0-9A-Fa-f]+|0)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*\)\s*,?\s*$',
+        re.MULTILINE,
+    )
+    for match in pattern.finditer(source):
+        code, name, suite, flags, tick_hz, param, baseline = match.groups()[:7]
+        flag_set = {f.strip() for f in flags.split("|")} - {"0"}
+        if "STEP_ENDLESS" in flag_set:
+            kind = "limit"
+        elif "STEP_CYCLE" in flag_set:
+            kind = "cycle"
+        else:
+            kind = "event" if "STEP_EVENT" in flag_set else "state"
+        steps.append(
+            {
+                "code": int(code, 16),
+                "name": name,
+                "suite": suite.lower(),
+                "kind": kind,
+                "flags": sorted(f.removeprefix("STEP_").lower() for f in flag_set),
+                "tickHz": int(tick_hz),
+                "param": param,
+                "baseline": int(baseline, 16) if baseline != "0" else None,
+            }
+        )
+    if not steps:
+        raise SystemExit("ERROR: no steps found in the power characterization firmware")
+    codes = [step["code"] for step in steps]
+    if len(codes) != len(set(codes)):
+        raise SystemExit("ERROR: the power characterization firmware reuses a step code")
+    return steps
+
+
+def extract_power_marks(source: str) -> dict[str, int]:
+    """Marker codes the deployment firmware emits at points of interest, such as each phase edge."""
+    body = re.search(r"typedef\s+enum\s*\{([^}]*)\}\s*power_mark_t\s*;", source, re.DOTALL)
+    if not body:
+        raise SystemExit("ERROR: power_mark_t not found")
+    marks: dict[str, int] = {}
+    value = -1
+    for entry in [e.strip() for e in body.group(1).split(",") if e.strip()]:
+        name, _, explicit = entry.partition("=")
+        value = int(explicit.strip(), 0) if explicit.strip() else value + 1
+        marks[name.strip().removeprefix("POWER_MARK_")] = value
+    return marks
+
+
 def build_snapshot(firmware: Path) -> dict:
     static_config = read(firmware, STATIC_CONFIG_H)
     runtime_config_h = read(firmware, RUNTIME_CONFIG_H)
@@ -387,6 +453,8 @@ def build_snapshot(firmware: Path) -> dict:
             }
         ),
         "resetReasons": extract_reset_reasons(self_test_c),
+        "powerSteps": extract_power_steps(read_from_root(firmware, TEST_POWER_C)),
+        "powerMarks": extract_power_marks(read(firmware, POWER_MARKER_H)),
         "_sourceFiles": sorted(
             {
                 STATIC_CONFIG_H: len(static_config),

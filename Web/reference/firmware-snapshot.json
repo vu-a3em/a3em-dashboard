@@ -320,6 +320,8 @@
     "_write",
     "active_main",
     "active_main_get_end_reason",
+    "activity_sleep_begin",
+    "activity_sleep_end",
     "add_resolved_window",
     "ai_continue",
     "ai_initialize",
@@ -704,6 +706,8 @@
     "magnet_sensor_verify_field",
     "main",
     "make_rand",
+    "marker_claim",
+    "marker_release",
     "mel_scale",
     "mfcc_compute",
     "mfcc_initialize",
@@ -754,6 +758,8 @@
     "platform_read",
     "platform_write",
     "plausible_timestamp",
+    "power_marker_end",
+    "power_marker_frame",
     "pre_active_main",
     "print_reset_reason",
     "process_audio_continuous",
@@ -803,6 +809,7 @@
     "sd_sleep_if_idle",
     "sd_wake",
     "seconds_until_next_scheduled_recording",
+    "seconds_until_next_scheduled_recording_now",
     "service_background_work",
     "set_tail_window",
     "setup_hardware",
@@ -826,6 +833,7 @@
     "storage_flush_early_log",
     "storage_flush_imu_data",
     "storage_flush_log",
+    "storage_get_activity",
     "storage_get_allocation_unit_bytes",
     "storage_get_current_activation_number",
     "storage_get_free_space_mb",
@@ -878,6 +886,8 @@
     "system_enter_deep_sleep_mode",
     "system_enter_power_off_mode",
     "system_feed_watchdog",
+    "system_get_activity_stats",
+    "system_get_activity_ticks",
     "system_get_boot_info",
     "system_get_cache_stats",
     "system_get_first_hal_failure",
@@ -1088,7 +1098,16 @@
       "icache_served",
       "icache_hit_pct",
       "rate_est_hz",
-      "rate_settled"
+      "rate_settled",
+      "card_wakes",
+      "sd_writes",
+      "sd_kb",
+      "audio_opens",
+      "audio_closes",
+      "mic_starts",
+      "opus_ms",
+      "awake_ms",
+      "sleeps"
     ]
   },
   "maxFrequencyHeadroomHz": 200,
@@ -1120,6 +1139,844 @@
     "SD_CARD_ALLOCATION_UNIT_BYTES": 32768,
     "WAV_STAGING_BUFFER_SIZE": 524288
   },
+  "powerMarks": {
+    "BOOT": 240,
+    "PHASE_END": 242,
+    "PHASE_START": 241,
+    "POWER_OFF": 245,
+    "SELF_TEST_END": 244,
+    "SELF_TEST_START": 243
+  },
+  "powerSteps": [
+    {
+      "baseline": null,
+      "code": 1,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_FLOOR",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 2,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_NO_HFADJ",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 3,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_SRAM_ACTIVE",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 4,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_TIMER_XT",
+      "param": "AM_HAL_TIMER_CLOCK_XT",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 5,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_TIMER_HFRC",
+      "param": "AM_HAL_TIMER_CLOCK_HFRC_DIV16",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 6,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_WATCHDOG",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 7,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_TICK_1HZ",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 1
+    },
+    {
+      "baseline": null,
+      "code": 8,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_MAGNET_ARMED",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 9,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_TRACKER_SLAVE",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 10,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_IMU_IDLE",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 11,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_ADC_IDLE",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 12,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_MIC_PINS_DRIVEN",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 13,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_LED_RED",
+      "param": "LED_RED",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 14,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_LED_GREEN",
+      "param": "LED_GREEN",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 15,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_VHF_ENABLED",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 16,
+      "flags": [],
+      "kind": "state",
+      "name": "SLEEP_APP_IDLE",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 17,
+      "flags": [
+        "busy"
+      ],
+      "kind": "state",
+      "name": "CPU_ACTIVE",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 18,
+      "flags": [
+        "power_off"
+      ],
+      "kind": "state",
+      "name": "OFF_RTC",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 19,
+      "flags": [
+        "magnet_wake",
+        "power_off"
+      ],
+      "kind": "state",
+      "name": "OFF_MAGNET",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 0
+    },
+    {
+      "baseline": 4,
+      "code": 24,
+      "flags": [
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_WAKE",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 64
+    },
+    {
+      "baseline": 7,
+      "code": 25,
+      "flags": [
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_BATTERY_READ",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 1
+    },
+    {
+      "baseline": null,
+      "code": 32,
+      "flags": [
+        "needs_card"
+      ],
+      "kind": "state",
+      "name": "SD_IDLE",
+      "param": "0",
+      "suite": "sd",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 33,
+      "flags": [
+        "needs_card"
+      ],
+      "kind": "state",
+      "name": "SD_IDLE_TICK_1HZ",
+      "param": "0",
+      "suite": "sd",
+      "tickHz": 1
+    },
+    {
+      "baseline": 33,
+      "code": 34,
+      "flags": [
+        "event",
+        "needs_card"
+      ],
+      "kind": "event",
+      "name": "EVT_SD_SESSION_4K",
+      "param": "4 * 1024",
+      "suite": "sd",
+      "tickHz": 1
+    },
+    {
+      "baseline": 33,
+      "code": 35,
+      "flags": [
+        "event",
+        "needs_card"
+      ],
+      "kind": "event",
+      "name": "EVT_SD_SESSION_32K",
+      "param": "32 * 1024",
+      "suite": "sd",
+      "tickHz": 1
+    },
+    {
+      "baseline": 33,
+      "code": 36,
+      "flags": [
+        "event",
+        "needs_card"
+      ],
+      "kind": "event",
+      "name": "EVT_SD_SESSION_128K",
+      "param": "128 * 1024",
+      "suite": "sd",
+      "tickHz": 1
+    },
+    {
+      "baseline": 33,
+      "code": 37,
+      "flags": [
+        "event",
+        "needs_card"
+      ],
+      "kind": "event",
+      "name": "EVT_SD_SESSION_512K",
+      "param": "512 * 1024",
+      "suite": "sd",
+      "tickHz": 1
+    },
+    {
+      "baseline": 33,
+      "code": 38,
+      "flags": [
+        "event",
+        "needs_card"
+      ],
+      "kind": "event",
+      "name": "EVT_SD_FILE_CYCLE",
+      "param": "0",
+      "suite": "sd",
+      "tickHz": 1
+    },
+    {
+      "baseline": 33,
+      "code": 39,
+      "flags": [
+        "event",
+        "needs_card"
+      ],
+      "kind": "event",
+      "name": "EVT_SD_LOG_LINE",
+      "param": "0",
+      "suite": "sd",
+      "tickHz": 1
+    },
+    {
+      "baseline": 7,
+      "code": 40,
+      "flags": [
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_SD_MOUNT",
+      "param": "0",
+      "suite": "sd",
+      "tickHz": 1
+    },
+    {
+      "baseline": null,
+      "code": 64,
+      "flags": [],
+      "kind": "state",
+      "name": "MIC_CAPTURE_8K",
+      "param": "8000",
+      "suite": "mic",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 65,
+      "flags": [],
+      "kind": "state",
+      "name": "MIC_CAPTURE_16K",
+      "param": "16000",
+      "suite": "mic",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 66,
+      "flags": [],
+      "kind": "state",
+      "name": "MIC_CAPTURE_24K",
+      "param": "24000",
+      "suite": "mic",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 67,
+      "flags": [],
+      "kind": "state",
+      "name": "MIC_CAPTURE_32K",
+      "param": "32000",
+      "suite": "mic",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 68,
+      "flags": [],
+      "kind": "state",
+      "name": "MIC_CAPTURE_48K",
+      "param": "48000",
+      "suite": "mic",
+      "tickHz": 0
+    },
+    {
+      "baseline": 65,
+      "code": 72,
+      "flags": [
+        "cycle",
+        "event"
+      ],
+      "kind": "cycle",
+      "name": "EVT_MIC_CYCLE_16K",
+      "param": "16000",
+      "suite": "mic",
+      "tickHz": 1
+    },
+    {
+      "baseline": 68,
+      "code": 73,
+      "flags": [
+        "cycle",
+        "event"
+      ],
+      "kind": "cycle",
+      "name": "EVT_MIC_CYCLE_48K",
+      "param": "48000",
+      "suite": "mic",
+      "tickHz": 1
+    },
+    {
+      "baseline": null,
+      "code": 80,
+      "flags": [],
+      "kind": "state",
+      "name": "ANALOG_CAPTURE_8K",
+      "param": "8000",
+      "suite": "analog",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 81,
+      "flags": [],
+      "kind": "state",
+      "name": "ANALOG_CAPTURE_16K",
+      "param": "16000",
+      "suite": "analog",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 82,
+      "flags": [],
+      "kind": "state",
+      "name": "ANALOG_CAPTURE_24K",
+      "param": "24000",
+      "suite": "analog",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 83,
+      "flags": [],
+      "kind": "state",
+      "name": "ANALOG_CAPTURE_32K",
+      "param": "32000",
+      "suite": "analog",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 84,
+      "flags": [],
+      "kind": "state",
+      "name": "ANALOG_CAPTURE_48K",
+      "param": "48000",
+      "suite": "analog",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 88,
+      "flags": [],
+      "kind": "state",
+      "name": "ANALOG_ARMED",
+      "param": "16000",
+      "suite": "analog",
+      "tickHz": 0
+    },
+    {
+      "baseline": 81,
+      "code": 89,
+      "flags": [
+        "cycle",
+        "event"
+      ],
+      "kind": "cycle",
+      "name": "EVT_ANALOG_CYCLE_16K",
+      "param": "16000",
+      "suite": "analog",
+      "tickHz": 1
+    },
+    {
+      "baseline": 1,
+      "code": 96,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_LOWPASS_16K",
+      "param": "BIQUAD(FILTER_LOW_PASS, 16000)",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": 1,
+      "code": 97,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_HIGHPASS_16K",
+      "param": "BIQUAD(FILTER_HIGH_PASS, 16000)",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": 1,
+      "code": 98,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_BANDPASS_16K",
+      "param": "BIQUAD(FILTER_BAND_PASS, 16000)",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": 1,
+      "code": 99,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_LOWPASS_48K",
+      "param": "BIQUAD(FILTER_LOW_PASS, 48000)",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": 1,
+      "code": 100,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_HIGHPASS_48K",
+      "param": "BIQUAD(FILTER_HIGH_PASS, 48000)",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": 1,
+      "code": 101,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_BANDPASS_48K",
+      "param": "BIQUAD(FILTER_BAND_PASS, 48000)",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": 1,
+      "code": 104,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_SILENCE_FRAME_16K",
+      "param": "16000",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": 1,
+      "code": 105,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_SILENCE_FRAME_48K",
+      "param": "48000",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": 1,
+      "code": 112,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_OPUS_16KBPS",
+      "param": "16000",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": 1,
+      "code": 113,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_OPUS_24KBPS",
+      "param": "24000",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": 1,
+      "code": 114,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_OPUS_32KBPS",
+      "param": "32000",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": 1,
+      "code": 115,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_OPUS_64KBPS",
+      "param": "64000",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": 1,
+      "code": 116,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_OPUS_96KBPS",
+      "param": "96000",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": 1,
+      "code": 117,
+      "flags": [
+        "busy",
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_OPUS_128KBPS",
+      "param": "128000",
+      "suite": "dsp",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 128,
+      "flags": [],
+      "kind": "state",
+      "name": "IMU_RAW_3HZ",
+      "param": "3",
+      "suite": "imu",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 129,
+      "flags": [],
+      "kind": "state",
+      "name": "IMU_RAW_6HZ",
+      "param": "6",
+      "suite": "imu",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 130,
+      "flags": [],
+      "kind": "state",
+      "name": "IMU_RAW_25HZ",
+      "param": "25",
+      "suite": "imu",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 131,
+      "flags": [],
+      "kind": "state",
+      "name": "IMU_RAW_50HZ",
+      "param": "50",
+      "suite": "imu",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 132,
+      "flags": [],
+      "kind": "state",
+      "name": "IMU_RAW_100HZ",
+      "param": "100",
+      "suite": "imu",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 133,
+      "flags": [],
+      "kind": "state",
+      "name": "IMU_RAW_200HZ",
+      "param": "200",
+      "suite": "imu",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 134,
+      "flags": [],
+      "kind": "state",
+      "name": "IMU_RAW_400HZ",
+      "param": "400",
+      "suite": "imu",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 135,
+      "flags": [],
+      "kind": "state",
+      "name": "IMU_RAW_800HZ",
+      "param": "800",
+      "suite": "imu",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 136,
+      "flags": [],
+      "kind": "state",
+      "name": "IMU_MOTION_ARMED",
+      "param": "0",
+      "suite": "imu",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 144,
+      "flags": [],
+      "kind": "state",
+      "name": "BATT_FLOOR",
+      "param": "0",
+      "suite": "battery",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 145,
+      "flags": [],
+      "kind": "state",
+      "name": "BATT_APP_IDLE",
+      "param": "0",
+      "suite": "battery",
+      "tickHz": 0
+    },
+    {
+      "baseline": null,
+      "code": 146,
+      "flags": [
+        "track_vbat"
+      ],
+      "kind": "state",
+      "name": "BATT_MIC_48K",
+      "param": "48000",
+      "suite": "battery",
+      "tickHz": 1
+    },
+    {
+      "baseline": 33,
+      "code": 147,
+      "flags": [
+        "event",
+        "needs_card",
+        "track_vbat"
+      ],
+      "kind": "event",
+      "name": "BATT_SD_512K",
+      "param": "512 * 1024",
+      "suite": "battery",
+      "tickHz": 1
+    },
+    {
+      "baseline": null,
+      "code": 148,
+      "flags": [
+        "busy",
+        "track_vbat"
+      ],
+      "kind": "state",
+      "name": "BATT_CPU_LEDS",
+      "param": "0",
+      "suite": "battery",
+      "tickHz": 1
+    },
+    {
+      "baseline": null,
+      "code": 160,
+      "flags": [
+        "endless",
+        "needs_card"
+      ],
+      "kind": "limit",
+      "name": "BROWNOUT_HEAVY",
+      "param": "48000",
+      "suite": "brownout",
+      "tickHz": 1
+    }
+  ],
   "resetReasons": {
     "all": [
       "AUDIO-ERROR",

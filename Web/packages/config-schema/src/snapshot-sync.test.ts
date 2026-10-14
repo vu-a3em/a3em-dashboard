@@ -277,6 +277,10 @@ describe('the log parser stays in step with the firmware event contract', () => 
       'mic_left_on',
       // The device's own measurement of the rate it is actually running at.
       'rate_est_hz', 'rate_settled',
+      // Work counters that reconcile a deployment against the power model: each is an
+      // event the model charges for, and awake time is everything outside deep sleep.
+      'card_wakes', 'sd_writes', 'sd_kb', 'audio_opens', 'audio_closes', 'mic_starts',
+      'opus_ms', 'awake_ms', 'sleeps',
     ],
     MIC_HEALTH: ['result', 'rms', 'peak', 'min', 'max', 'mean', 'samples', 'dc_offset'],
     MIC_CHECK: ['type', 'dc_offset', 'nominal', 'tolerance', 'result'],

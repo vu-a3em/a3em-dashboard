@@ -105,6 +105,22 @@ export interface TelemetrySample {
   measuredSampleRateHz: number | null;
   /** Whether that measurement has stabilized. An unsettled estimate is still moving. */
   sampleRateSettled: boolean | null;
+  /**
+   * Work done since the phase began, for reconciling a deployment against the power model.
+   *
+   * Each counts an event the model charges a measured amount of charge for, so a forecast
+   * can be checked against what the device actually did rather than what its configuration
+   * implied. Awake time is everything outside deep sleep, measured on the crystal.
+   */
+  sdCardWakes: number | null;
+  sdWriteTransactions: number | null;
+  sdKilobytesWritten: number | null;
+  audioFilesOpened: number | null;
+  audioFilesClosed: number | null;
+  microphoneStarts: number | null;
+  opusEncodeMs: number | null;
+  awakeMs: number | null;
+  deepSleeps: number | null;
 }
 
 export interface MicrophoneHealthSample {
@@ -933,6 +949,15 @@ function telemetryFromFields(timestamp: string, fields: Record<string, string>):
     imuFilesClosed: counter(fields.imu_closes),
     motionChanges: counter(fields.motion_changes),
     micLeftRunning: counter(fields.mic_left_on),
+    sdCardWakes: counter(fields.card_wakes),
+    sdWriteTransactions: counter(fields.sd_writes),
+    sdKilobytesWritten: counter(fields.sd_kb),
+    audioFilesOpened: counter(fields.audio_opens),
+    audioFilesClosed: counter(fields.audio_closes),
+    microphoneStarts: counter(fields.mic_starts),
+    opusEncodeMs: counter(fields.opus_ms),
+    awakeMs: counter(fields.awake_ms),
+    deepSleeps: counter(fields.sleeps),
   };
 }
 
@@ -1000,6 +1025,15 @@ function readDetailsBlock(lines: string[], startIndex: number): { sample: Teleme
       instructionCacheHitPercent: null,
       measuredSampleRateHz: null,
       sampleRateSettled: null,
+      sdCardWakes: null,
+      sdWriteTransactions: null,
+      sdKilobytesWritten: null,
+      audioFilesOpened: null,
+      audioFilesClosed: null,
+      microphoneStarts: null,
+      opusEncodeMs: null,
+      awakeMs: null,
+      deepSleeps: null,
     },
   };
 }
