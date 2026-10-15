@@ -5,11 +5,14 @@
  *   node tools/make-test-config.mjs quick [--start ISO] [--tz ZONE] [--card GB] [--battery MAH]
  *   node tools/make-test-config.mjs soak  [--start ISO] [--tz ZONE] [--card GB] [--battery MAH]
  *   node tools/make-test-config.mjs analog [--gain DB] [--start ISO] [--tz ZONE]
+ *   node tools/make-test-config.mjs restarts [--gain DB] [--start ISO] [--tz ZONE]
  *
  * `analog` is the one-hour check of the analog path. Nothing in it depends on what the
  * microphone hears: it checks the machinery around the converter — clip counts and sizes, the
  * measured rate, DMA completion, the front end powering up and down, phase changes — so an
- * unreliable microphone cannot make it pass or fail.
+ * unreliable microphone cannot make it pass or fail. `restarts` is its ten-minute companion: it
+ * starts the analog converter every way it can be started, to prove that no recording opens with a
+ * buffer left over from the converter's previous run.
  *
  * Dates are computed at generation time rather than baked in, because every phase boundary and
  * every scheduled listening window is an absolute instant or a time of day: a file written last
@@ -37,8 +40,8 @@ const flag = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
-if (!['quick', 'soak', 'gaps', 'wd', 'wdfast', 'analog'].includes(kind)) {
-  console.error('usage: make-test-config.mjs <quick|soak|gaps|wd|wdfast|analog> [--start ISO] [--tz ZONE] [--card GB] [--battery MAH]');
+if (!['quick', 'soak', 'gaps', 'wd', 'wdfast', 'analog', 'restarts'].includes(kind)) {
+  console.error('usage: make-test-config.mjs <quick|soak|gaps|wd|wdfast|analog|restarts> [--start ISO] [--tz ZONE] [--card GB] [--battery MAH]');
   process.exit(2);
 }
 
@@ -54,19 +57,21 @@ const start = new Date(flag('start', defaultStart.toISOString()));
 const iso = (d) => new Date(d).toISOString().replace(/\.\d{3}Z$/, 'Z');
 const plus = (base, seconds) => new Date(base.getTime() + seconds * 1000);
 
+const analog = kind === 'analog' || kind === 'restarts';
+
 const config = defaultConfig(timezone);
 config.timezone = timezone;
-config.micType = kind === 'analog' ? 'ANALOG' : 'DIGITAL';
+config.micType = analog ? 'ANALOG' : 'DIGITAL';
 // 18 dB is exactly on the PDM ladder, so nothing is silently rounded. The analog PGA takes any
 // value up to 45 dB; set it to what the production units will use, since the trigger level is
 // a fraction of what the amplified signal can reach.
-config.micAmplificationDb = kind === 'analog' ? Number(flag('gain', 20)) : 18;
+config.micAmplificationDb = analog ? Number(flag('gain', 20)) : 18;
 config.gpsAvailable = false;
 config.awakeOnMagnet = true; // the magnet path is itself under test
 config.setRtcAtMagnetDetect = true;
 config.ledsEnabled = true;
 // Off for the analog check, which is an hour on the bench: a cutoff there can only end it early
-config.batteryLowMv = kind === 'analog' ? 0 : 3000;
+config.batteryLowMv = analog ? 0 : 3000;
 config.isPhased = true;
 config.startTime = iso(start);
 
@@ -205,6 +210,28 @@ const SPECS = {
            extendClipIfContinuousAudio: true, maxAudioClips: 3, maxClipsTimeScale: 'MINUTES',
            imuRecordingMode: 'AUDIO', imuSampleRateHz: 50 } },
   ],
+  /*
+    Ten minutes that start the analog converter every way it can be started. Each start must open
+    on fresh audio rather than on a buffer left from the converter's previous run, which shows as a
+    first second of garbage: the leftover buffer has already been converted in place once. The first
+    phase follows the self-test, which is what left its last buffer behind before; the other two
+    stop and restart the converter for every clip or window.
+  */
+  restarts: [
+    { name: 'R1 after self-test', hours: 240 / 3600,
+      purpose: 'First clip after the self-test, at 48 kHz with the IMU at 400 Hz; no buffers may drop.',
+      p: { audioRecordingMode: 'CONTINUOUS', audioSampleRateHz: 48000, audioClipLengthSeconds: 30,
+           imuRecordingMode: 'AUDIO', imuSampleRateHz: 400 } },
+    { name: 'R2 interval restarts', hours: 180 / 3600,
+      purpose: 'A 10 s clip every 30 s: the converter stopped and restarted six times.',
+      p: { audioRecordingMode: 'INTERVAL', audioTriggerInterval: 30, audioTriggerIntervalTimeScale: 'SECONDS',
+           audioSampleRateHz: 16000, audioClipLengthSeconds: 10, imuRecordingMode: 'NONE' } },
+    { name: 'R3 window restarts', hours: 180 / 3600,
+      purpose: 'Two 1 min listening windows: a restart at the start of each.',
+      p: { audioRecordingMode: 'SCHEDULED', audioSampleRateHz: 24000, audioClipLengthSeconds: 20,
+           imuRecordingMode: 'NONE' },
+      windows: [[20, 80], [110, 170]] },
+  ],
   // Reordered so that the four phases which have never completed run first, and renumbered by
   // execution order so the card's directories read in the order they were written. The mapping to
   // the previous run is M3=old M6, M4=old M5, M5=old M4, M6=old M3.
@@ -271,7 +298,7 @@ config.phases = specs.map((spec, index) => {
   return phase;
 });
 config.endTime = iso(plus(start, offsets[specs.length]));
-config.deviceLabel = { quick: 'A3EM_QUICK', soak: 'A3EM_SOAK', gaps: 'A3EM_GAPS', wd: 'A3EM_WD', wdfast: 'A3EM_WDFAST', analog: 'A3EM_ANALOG' }[kind];
+config.deviceLabel = { quick: 'A3EM_QUICK', soak: 'A3EM_SOAK', gaps: 'A3EM_GAPS', wd: 'A3EM_WD', wdfast: 'A3EM_WDFAST', analog: 'A3EM_ANALOG', restarts: 'A3EM_RESTARTS' }[kind];
 config.vhfMode = 'END'; // beacon fires at the end of the deployment, exercising the VHF path
 config.vhfStartTime = config.endTime;
 config.ledsActiveSeconds = kind === 'soak' ? 600 : 1800;
@@ -289,7 +316,7 @@ const outFile = path.join(outDir, `${kind}_conf.a3m`);
 fs.writeFileSync(outFile, text);
 
 const f = forecast({ config, sdCardCapacityGb: cardGb, batteryCapacityMah: batteryMah,
-                     microphone: kind === 'analog' ? 'Analog' : 'DIGITAL', firmware: FIRMWARE_CURRENT });
+                     microphone: analog ? 'Analog' : 'DIGITAL', firmware: FIRMWARE_CURRENT });
 const hours = offsets[specs.length] / 3600;
 const gb = (bytes) => (bytes / 1024 ** 3).toFixed(2);
 

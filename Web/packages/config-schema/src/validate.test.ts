@@ -613,6 +613,52 @@ describe('recording periods across midnight', () => {
   });
 });
 
+describe('a short phase whose periods never come round', () => {
+  // A test phase moved to a new time of day keeps its old periods, and then records nothing
+  const scheduled = (timezone: string, startTime: string, endTime: string, periods: Array<[string, string]>): DeploymentConfig => {
+    const clock = (time: string) => Number(time.slice(0, 2)) * 3600 + Number(time.slice(3, 5)) * 60;
+    return {
+      ...defaultConfig(timezone),
+      deviceLabel: 'OWL',
+      timezone,
+      startTime,
+      endTime,
+      phases: [{
+        ...defaultPhase(),
+        audioRecordingMode: 'SCHEDULED',
+        audioTriggerTimes: periods.map(([start, end]) => ({ startSecond: clock(start), endSecond: clock(end) })),
+      }],
+    };
+  };
+  const warned = (config: DeploymentConfig) =>
+    validateConfig(config, FIRMWARE_CURRENT).some((issue) => issue.severity === 'warning' && /records nothing/.test(issue.message));
+
+  it('warns when every period falls outside the phase', () => {
+    // The soak card that recorded nothing: windows from the morning, phase in the afternoon
+    const config = scheduled('America/Chicago', '2026-10-15T21:30:00.000Z', '2026-10-15T21:40:00.000Z', [['11:11', '11:14'], ['11:16', '11:19']]);
+    assert.ok(warned(config));
+    assert.ok(validateConfig(config, FIRMWARE_CURRENT).some((issue) => /16:30–16:40/.test(issue.message)));
+  });
+
+  it('judges the periods on local time, not UTC', () => {
+    assert.ok(!warned(scheduled('America/Chicago', '2026-10-15T21:30:00.000Z', '2026-10-15T21:40:00.000Z', [['16:31', '16:34']])));
+    assert.ok(warned(scheduled('America/Chicago', '2026-10-15T21:30:00.000Z', '2026-10-15T21:40:00.000Z', [['21:31', '21:34']])));
+  });
+
+  it('counts a period that only partly overlaps the phase', () => {
+    assert.ok(!warned(scheduled('UTC', '2026-10-15T16:30:00.000Z', '2026-10-15T16:40:00.000Z', [['16:38', '16:50']])));
+  });
+
+  it('follows a phase across midnight', () => {
+    assert.ok(!warned(scheduled('UTC', '2026-10-15T23:55:00.000Z', '2026-10-16T00:05:00.000Z', [['00:01', '00:03']])));
+    assert.ok(warned(scheduled('UTC', '2026-10-15T23:55:00.000Z', '2026-10-16T00:05:00.000Z', [['00:06', '00:09']])));
+  });
+
+  it('says nothing about a phase a day or longer, which sees every period', () => {
+    assert.ok(!warned(scheduled('UTC', '2026-10-15T16:30:00.000Z', '2026-10-16T16:30:00.000Z', [['11:11', '11:14']])));
+  });
+});
+
 describe('device labels', () => {
   it('reports each problem in its own sentence', () => {
     assert.deepEqual(deviceLabelProblems('SITE_01'), []);

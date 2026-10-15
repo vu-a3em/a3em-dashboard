@@ -48,7 +48,7 @@ import {
   SECONDS_PER_DAY,
   solarPeriodReports,
 } from './schedule.js';
-import { formatZonedDate } from './timezone.js';
+import { formatZonedDate, secondsPastLocalMidnight } from './timezone.js';
 
 /**
  * Every rule the desktop `validate_details()` enforced, plus the ones the
@@ -733,6 +733,39 @@ function validatePhase(
         break;
       }
       if (!reach || current.segment.endSecond > reach.segment.endSecond) reach = current;
+    }
+
+    /*
+      A phase shorter than a day only ever sees part of the clock. If none of its periods fall
+      in that part it records nothing at all, which is easy to do by moving a short phase
+      without moving its periods. Judged on the wall clock the periods were typed against.
+    */
+    if (!solar && phase.audioTriggerTimes.length) {
+      const from = Date.parse(config.isPhased ? (phase.startTime ?? config.startTime) : config.startTime);
+      const to = Date.parse(config.isPhased ? (phase.endTime ?? config.endTime) : config.endTime);
+      const spanSeconds = (to - from) / 1000;
+      if (spanSeconds > 0 && spanSeconds < SECONDS_PER_DAY) {
+        let opens: number | null = null;
+        try {
+          opens = secondsPastLocalMidnight(config.timezone, new Date(from).toISOString());
+        } catch {
+          opens = null; // An unusable timezone is reported on its own
+        }
+        if (opens !== null) {
+          const runs = { startSecond: opens, endSecond: opens + spanSeconds };
+          const listens = phase.audioTriggerTimes.flatMap(periodSegments).some((period) =>
+            periodSegments(runs).some(
+              (part) => Math.min(part.endSecond, period.endSecond) > Math.max(part.startSecond, period.startSecond),
+            ),
+          );
+          if (!listens) {
+            warn(
+              at('audioTriggerTimes'),
+              `none of the recording periods fall within the phase, which runs ${describeWindow(runs)}, so it records nothing.`,
+            );
+          }
+        }
+      }
     }
   }
 
