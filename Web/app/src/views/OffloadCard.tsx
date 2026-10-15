@@ -284,6 +284,9 @@ export function OffloadCard({
   };
 
   const totalBytes = layout.files.reduce((sum, file) => sum + file.sizeBytes, 0);
+  // The card helper is here but could not tell which card this folder is on, so the filesystem
+  // check and the fast copy are both out of reach. Said rather than silently worked around.
+  const unidentified = cardDevice.available && cardDevice.status === 'unmatched';
   // A copy where every file failed is a different outcome from one that left a few behind
   const nothingCopied = Boolean(result && !result.canceled && result.skippedTotal && !result.copied && !result.alreadyPresent);
   // A file whose data is recovered into its copy is not lost, though the card records it empty.
@@ -369,6 +372,13 @@ export function OffloadCard({
                 long each file was, so players see them as empty. Copy the card below and these will be
                 repaired in the copy.
               </div>
+            ) : null}
+
+            {unidentified ? (
+              <p className="stat-note" style={{ marginTop: 14 }}>
+                The A3EM Card Helper could not identify this card, so its filesystem was not checked for log and IMU
+                data the card does not list.
+              </p>
             ) : null}
 
             {looking === 'check' ? (
@@ -465,6 +475,12 @@ export function OffloadCard({
               </span>
             </span>
           </label>
+        ) : null}
+
+        {unidentified && !progress ? (
+          <p className="stat-note">
+            The A3EM Card Helper could not identify this card, so copying will go through the browser, which is slower.
+          </p>
         ) : null}
 
         {looking === 'copy' ? (

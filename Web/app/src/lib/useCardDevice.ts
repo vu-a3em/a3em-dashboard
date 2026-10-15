@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CardReadinessReport } from '@a3em/config-schema';
+import type { CardLayout, CardReadinessReport } from '@a3em/config-schema';
 import { checkReadiness, ejectDevice, identifyCard, type HelperDevice } from './helper';
 import type { useCard } from './useCard';
 import type { Helper } from './useHelper';
@@ -29,15 +29,44 @@ export type CardDeviceStatus = 'none' | 'matching' | 'matched' | 'unmatched';
 /** The helper's shallow read of a card: its identity, contents, and what was recorded here. */
 export type CardDetails = CardReadinessReport;
 
-function sameName(folder: string, device: HelperDevice): boolean {
-  const normalize = (value: string) => value.replace(/[\\/]+$/, '').toLowerCase();
+/**
+ * Whether the open folder could be this device's volume, which decides whether a marker is worth writing.
+ *
+ * A whole drive picked on Windows arrives as a handle named with a bare backslash (see
+ * `cardDisplayName`), which no mount point or label matches. That left every card opened at
+ * its root on Windows unidentified, so copying fell back to the browser and the filesystem
+ * check behind "Check recordings" was skipped, both without a word. A bare root is the root of
+ * some drive, so any removable card mounted at a drive letter could be it, and the marker decides
+ * which. Which drive the root belongs to cannot be told from its name, so the caller also checks
+ * that it holds nothing but what a card holds (`looksLikeCardRoot`) before writing to it.
+ */
+export function sameName(folder: string, device: HelperDevice): boolean {
+  const normalize = (value: string) => value.trim().replace(/[\\/]+$/, '').toLowerCase();
   const wanted = normalize(folder);
   return device.volumes.some((volume) => {
     if (!volume.mountPoint) return false;
     const mount = normalize(volume.mountPoint);
+    if (wanted === '') return (device.removable || device.virtual) && /^[a-z]:$/.test(mount);
     const last = mount.split(/[\\/]/).pop() ?? '';
     return last === wanted || mount === wanted || (volume.label !== null && normalize(volume.label) === wanted);
   });
+}
+
+/** Whether a folder's name is that of a whole drive, which Chrome gives on Windows as a bare backslash. */
+function isBareRoot(folder: string): boolean {
+  return folder.trim().replace(/[\\/]+$/, '') === '';
+}
+
+/**
+ * Whether a drive root holds only what a card would: recorder files, or nothing at all.
+ *
+ * A bare root carries no name to go on, and the marker that identifies a card is written into
+ * it, so this stands in for the name: a hard drive's root holds folders no card has, and is
+ * never written to. A new card counts, and so does what Windows itself puts on removable media.
+ */
+export function looksLikeCardRoot(layout: CardLayout | undefined): boolean {
+  if (!layout) return false;
+  return layout.files.every((file) => file.kind !== 'other' || /^(System Volume Information\/|\.)/i.test(file.path));
 }
 
 export function useCardDevice(card: Card, helper: Helper) {
@@ -73,7 +102,8 @@ export function useCardDevice(card: Card, helper: Helper) {
 
   useEffect(() => {
     if (!handle || !ready || refreshedFor.current !== handle || probedFor.current === handle) return;
-    if (!devices.some((device) => sameName(handle.name, device))) {
+    const unnamed = isBareRoot(handle.name) && !looksLikeCardRoot(card.contents?.layout);
+    if (unnamed || !devices.some((device) => sameName(handle.name, device))) {
       // Could be a card the list has not caught up with; a later list gets another look.
       setStatus('unmatched');
       return;
@@ -86,7 +116,7 @@ export function useCardDevice(card: Card, helper: Helper) {
         setStatus('matched');
       })
       .catch(() => setStatus('unmatched'));
-  }, [handle, ready, devices]);
+  }, [handle, ready, devices, card.contents]);
 
   // The match holds only while that card is still listed and the same folder is still open.
   const device =
