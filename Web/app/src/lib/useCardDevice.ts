@@ -52,6 +52,11 @@ export function sameName(folder: string, device: HelperDevice): boolean {
     if (!volume.mountPoint) return false;
     const mount = normalize(volume.mountPoint);
     if (wanted === '') return (device.removable || device.virtual) && /^[a-z]:$/.test(mount);
+    // A drive letter's root has no name of its own, so a named folder that matches only the
+    // label is a folder inside the card, typically the device's folder, which the recorder names
+    // after the same label. The helper looks for the marker at the mount point alone, so writing
+    // one into that folder could never match.
+    if (/^[a-z]:$/.test(mount)) return mount === wanted;
     const last = mount.split(/[\\/]/).pop() ?? '';
     return last === wanted || mount === wanted || (volume.label !== null && normalize(volume.label) === wanted);
   });
@@ -87,14 +92,46 @@ export function looksLikeCardRoot(layout: CardLayout | undefined): boolean {
 /** The kinds of file that live at a card's root: its configuration, device file, and self-test. */
 const ROOT_KINDS = new Set(['config', 'device-info', 'self-test', 'self-test-clip']);
 
+/**
+ * Whether the open folder is a device's own folder on a card rather than the card itself.
+ *
+ * The recorder names that folder after its label, which is also what the card is usually
+ * labelled, so on macOS and Linux it passes `sameName` exactly as the card's root does. The
+ * helper looks for the marker only at a volume's mount point, so one written into this folder is
+ * never found, and the failure reads as though the card were not there at all.
+ */
+export function isDeviceFolder(layout: CardLayout | undefined): boolean {
+  return Boolean(layout?.files.some((file) => /^Activation_\d+\//.test(file.path)));
+}
+
+/** What the helper listed, when none of it could be the open folder. */
+function describeNoCandidate(folder: string, devices: HelperDevice[], loading: boolean): string {
+  if (loading && !devices.length) return 'the A3EM Card Helper is still listing cards';
+  const mounts = devices.flatMap((device) =>
+    device.volumes.map((volume) =>
+      `${volume.mountPoint ?? 'not mounted'}${volume.label ? ` (${volume.label})` : ''}${device.removable ? '' : ', not removable'}`,
+    ),
+  );
+  const shown = folder.trim() === '' || isBareRoot(folder) ? 'the root of a drive' : `"${folder}"`;
+  return mounts.length
+    ? `the open folder is ${shown}, and the A3EM Card Helper sees only ${mounts.join('; ')}`
+    : `the A3EM Card Helper lists no cards on this computer`;
+}
+
 export function useCardDevice(card: Card, helper: Helper) {
   const handle = card.status === 'ready' ? card.handle : null;
   const ready = helper.status === 'ready';
-  const { devices, rescan } = helper;
+  const { devices, devicesLoading, rescan } = helper;
 
   const [match, setMatch] = useState<{ handle: FileSystemDirectoryHandle; device: string; volume: string } | null>(null);
   const [status, setStatus] = useState<CardDeviceStatus>('none');
   const [error, setError] = useState<string | null>(null);
+  /*
+    Why the open folder could not be matched to a card, in words. Each step that can fail used to
+    end in the same silent 'unmatched', so a card that was never identified on one platform gave
+    no clue which of them it was: no card listed, none mounted there, or the marker check failing.
+  */
+  const [unmatchedReason, setUnmatchedReason] = useState<string | null>(null);
   const [details, setDetails] = useState<{ device: string; report: CardDetails } | null>(null);
   // The folder the list was refreshed for, and the one a marker was written into, so neither
   // happens twice for the same folder.
@@ -114,27 +151,44 @@ export function useCardDevice(card: Card, helper: Helper) {
     setMatch(null);
     setDetails(null);
     setError(null);
+    setUnmatchedReason(null);
     setStatus('matching');
     void rescan();
   }, [handle, ready, rescan]);
 
   useEffect(() => {
     if (!handle || !ready || refreshedFor.current !== handle || probedFor.current === handle) return;
-    const unnamed = isBareRoot(handle.name) && !looksLikeCardRoot(card.contents?.layout);
-    if (unnamed || !devices.some((device) => sameName(handle.name, device))) {
+    if (isBareRoot(handle.name) && !looksLikeCardRoot(card.contents?.layout)) {
+      setUnmatchedReason('the open folder is the root of a drive, but holds none of the files an A3EM card has at its root');
+      setStatus('unmatched');
+      return;
+    }
+    if (isDeviceFolder(card.contents?.layout)) {
+      setUnmatchedReason(
+        `"${handle.name}" is a device's folder on the card, not the card itself, so choose the card instead`,
+      );
+      setStatus('unmatched');
+      return;
+    }
+    if (!devices.some((device) => sameName(handle.name, device))) {
       // Could be a card the list has not caught up with; a later list gets another look.
+      setUnmatchedReason(describeNoCandidate(handle.name, devices, devicesLoading));
       setStatus('unmatched');
       return;
     }
     probedFor.current = handle;
     setStatus('matching');
+    setUnmatchedReason(null);
     identifyCard(handle)
       .then((found) => {
         setMatch({ handle, ...found });
         setStatus('matched');
       })
-      .catch(() => setStatus('unmatched'));
-  }, [handle, ready, devices, card.contents]);
+      .catch((failure: unknown) => {
+        setUnmatchedReason(`the marker check failed: ${failure instanceof Error ? failure.message : String(failure)}`);
+        setStatus('unmatched');
+      });
+  }, [handle, ready, devices, devicesLoading, card.contents]);
 
   // The match holds only while that card is still listed and the same folder is still open.
   const device =
@@ -172,6 +226,8 @@ export function useCardDevice(card: Card, helper: Helper) {
     status: effective,
     device,
     volumeId: device ? match!.volume : null,
+    /** Why the folder is not matched to a card, when it is not. */
+    unmatchedReason: effective === 'unmatched' ? unmatchedReason : null,
     details: details && device && details.device === device.id ? details.report : null,
     error,
     loadDetails,

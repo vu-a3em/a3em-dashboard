@@ -378,6 +378,7 @@ export function OffloadCard({
               <p className="stat-note" style={{ marginTop: 14 }}>
                 The A3EM Card Helper could not identify this card, so its filesystem was not checked for log and IMU
                 data the card does not list.
+                {cardDevice.unmatchedReason ? ` (Why: ${cardDevice.unmatchedReason}.)` : ''}
               </p>
             ) : null}
 
@@ -480,6 +481,7 @@ export function OffloadCard({
         {unidentified && !progress ? (
           <p className="stat-note">
             The A3EM Card Helper could not identify this card, so copying will go through the browser, which is slower.
+            {cardDevice.unmatchedReason ? ` (Why: ${cardDevice.unmatchedReason}.)` : ''}
           </p>
         ) : null}
 
