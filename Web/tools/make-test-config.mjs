@@ -4,6 +4,12 @@
  *
  *   node tools/make-test-config.mjs quick [--start ISO] [--tz ZONE] [--card GB] [--battery MAH]
  *   node tools/make-test-config.mjs soak  [--start ISO] [--tz ZONE] [--card GB] [--battery MAH]
+ *   node tools/make-test-config.mjs analog [--gain DB] [--start ISO] [--tz ZONE]
+ *
+ * `analog` is the one-hour check of the analog path. Nothing in it depends on what the
+ * microphone hears: it checks the machinery around the converter — clip counts and sizes, the
+ * measured rate, DMA completion, the front end powering up and down, phase changes — so an
+ * unreliable microphone cannot make it pass or fail.
  *
  * Dates are computed at generation time rather than baked in, because every phase boundary and
  * every scheduled listening window is an absolute instant or a time of day: a file written last
@@ -23,6 +29,7 @@ import { validateConfig } from '../packages/config-schema/dist/validate.js';
 import { FIRMWARE_CURRENT } from '../packages/config-schema/dist/firmware-profile.js';
 import { forecast } from '../packages/config-schema/dist/power/forecast.js';
 import { secondsPastLocalMidnight } from '../packages/config-schema/dist/timezone.js';
+import { MIN_WIPER, wiperToStoredFraction } from '../packages/config-schema/dist/audio-threshold.js';
 
 const args = process.argv.slice(2);
 const kind = args.find((a) => !a.startsWith('--')) ?? 'quick';
@@ -30,8 +37,8 @@ const flag = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
-if (!['quick', 'soak', 'gaps', 'wd', 'wdfast'].includes(kind)) {
-  console.error('usage: make-test-config.mjs <quick|soak|gaps|wd|wdfast> [--start ISO] [--tz ZONE] [--card GB] [--battery MAH]');
+if (!['quick', 'soak', 'gaps', 'wd', 'wdfast', 'analog'].includes(kind)) {
+  console.error('usage: make-test-config.mjs <quick|soak|gaps|wd|wdfast|analog> [--start ISO] [--tz ZONE] [--card GB] [--battery MAH]');
   process.exit(2);
 }
 
@@ -49,13 +56,17 @@ const plus = (base, seconds) => new Date(base.getTime() + seconds * 1000);
 
 const config = defaultConfig(timezone);
 config.timezone = timezone;
-config.micType = 'DIGITAL';
-config.micAmplificationDb = 18; // exactly on the PDM ladder, so nothing is silently rounded
+config.micType = kind === 'analog' ? 'ANALOG' : 'DIGITAL';
+// 18 dB is exactly on the PDM ladder, so nothing is silently rounded. The analog PGA takes any
+// value up to 45 dB; set it to what the production units will use, since the trigger level is
+// a fraction of what the amplified signal can reach.
+config.micAmplificationDb = kind === 'analog' ? Number(flag('gain', 20)) : 18;
 config.gpsAvailable = false;
 config.awakeOnMagnet = true; // the magnet path is itself under test
 config.setRtcAtMagnetDetect = true;
 config.ledsEnabled = true;
-config.batteryLowMv = 3000;
+// Off for the analog check, which is an hour on the bench: a cutoff there can only end it early
+config.batteryLowMv = kind === 'analog' ? 0 : 3000;
 config.isPhased = true;
 config.startTime = iso(start);
 
@@ -152,6 +163,48 @@ const SPECS = {
            imuRecordingMode: 'AUDIO', imuSampleRateHz: 400 },
       windows: [[600, 720]] },
   ],
+  /*
+    The analog path, in an hour, with nothing that depends on what the microphone hears.
+
+    The earlier analog runs were all CONTINUOUS at one rate. These cover the other rates,
+    including one the AUDADC timer cannot hit exactly, the power cycling of the front end
+    between clips on both wait paths, Opus and IMU pairing on analog buffers, and a band-pass
+    filter, which changes the samples whatever they are. Every expectation is a count, a
+    size, a header or a log line.
+
+    The one sound-triggered phase is a robustness check, not a trigger test: at the lowest
+    level the hardware allows it may fire constantly on the front end's own noise or never at
+    all, and either is a pass. What it must do is obey the cap and the clip-length rules,
+    whatever triggers it, and never reset.
+  */
+  analog: [
+    { name: 'A1 wav 48k+imu', hours: 600 / 3600,
+      purpose: 'The heaviest analog load: 1 s DMA buffers at 48 kHz, IMU at 400 Hz beside each clip.',
+      p: { audioRecordingMode: 'CONTINUOUS', audioSampleRateHz: 48000, audioClipLengthSeconds: 30,
+           imuRecordingMode: 'AUDIO', imuSampleRateHz: 400 } },
+    { name: 'A2 interval 32k', hours: 600 / 3600,
+      purpose: 'Front end powered down and back up for every clip; DC offset reused from MRAM.',
+      p: { audioRecordingMode: 'INTERVAL', audioTriggerInterval: 1, audioTriggerIntervalTimeScale: 'MINUTES',
+           audioSampleRateHz: 32000, audioClipLengthSeconds: 10, imuRecordingMode: 'NONE' } },
+    { name: 'A3 scheduled 24k', purpose: 'The scheduled wait path on analog: two 3 min windows.',
+      hours: 600 / 3600,
+      p: { audioRecordingMode: 'SCHEDULED', audioSampleRateHz: 24000, audioClipLengthSeconds: 20,
+           imuRecordingMode: 'NONE' },
+      windows: [[60, 240], [360, 540]] },
+    { name: 'A4 opus 48k', hours: 600 / 3600,
+      purpose: 'Opus encoding fed by the analog converter.',
+      p: { audioRecordingMode: 'CONTINUOUS', audioSampleRateHz: 48000, audioClipLengthSeconds: 60,
+           useOpusEncoding: true, opusBitrate: 32000, imuRecordingMode: 'NONE' } },
+    { name: 'A5 22050 band', hours: 480 / 3600,
+      purpose: 'A rate the AUDADC timer cannot hit exactly, labelled by measurement; band-pass on.',
+      p: { audioRecordingMode: 'CONTINUOUS', audioSampleRateHz: 22050, audioClipLengthSeconds: 30,
+           audioFilterType: 'BAND', audioFilterLowHz: 300, audioFilterHighHz: 8000, imuRecordingMode: 'NONE' } },
+    { name: 'A6 triggered rules', hours: 600 / 3600,
+      purpose: 'Sound-triggered at the lowest level: may fire or not; must obey the cap and never reset.',
+      p: { audioRecordingMode: 'AMPLITUDE', audioSampleRateHz: 16000, audioClipLengthSeconds: 6,
+           extendClipIfContinuousAudio: true, maxAudioClips: 3, maxClipsTimeScale: 'MINUTES',
+           imuRecordingMode: 'AUDIO', imuSampleRateHz: 50 } },
+  ],
   // Reordered so that the four phases which have never completed run first, and renumbered by
   // execution order so the card's directories read in the order they were written. The mapping to
   // the previous run is M3=old M6, M4=old M5, M5=old M4, M6=old M3.
@@ -195,6 +248,8 @@ const SPECS = {
 };
 
 const specs = SPECS[kind];
+// The lowest level the comparator can be set to, so that if anything triggers it, it is this
+for (const spec of specs) if (spec.p.audioRecordingMode === 'AMPLITUDE') spec.p.audioTriggerThreshold = wiperToStoredFraction(MIN_WIPER);
 const phaseSeconds = kind === 'soak' ? SOAK_HOURS * 3600 : QUICK_MINUTES * 60;
 // Phases are laid end to end rather than on a fixed grid, so a spec can state its own length.
 const lengths = specs.map((spec) => Math.round(spec.hours ? spec.hours * 3600 : phaseSeconds));
@@ -216,7 +271,7 @@ config.phases = specs.map((spec, index) => {
   return phase;
 });
 config.endTime = iso(plus(start, offsets[specs.length]));
-config.deviceLabel = { quick: 'A3EM_QUICK', soak: 'A3EM_SOAK', gaps: 'A3EM_GAPS', wd: 'A3EM_WD', wdfast: 'A3EM_WDFAST' }[kind];
+config.deviceLabel = { quick: 'A3EM_QUICK', soak: 'A3EM_SOAK', gaps: 'A3EM_GAPS', wd: 'A3EM_WD', wdfast: 'A3EM_WDFAST', analog: 'A3EM_ANALOG' }[kind];
 config.vhfMode = 'END'; // beacon fires at the end of the deployment, exercising the VHF path
 config.vhfStartTime = config.endTime;
 config.ledsActiveSeconds = kind === 'soak' ? 600 : 1800;
@@ -234,7 +289,7 @@ const outFile = path.join(outDir, `${kind}_conf.a3m`);
 fs.writeFileSync(outFile, text);
 
 const f = forecast({ config, sdCardCapacityGb: cardGb, batteryCapacityMah: batteryMah,
-                     microphone: 'DIGITAL', firmware: FIRMWARE_CURRENT });
+                     microphone: kind === 'analog' ? 'Analog' : 'DIGITAL', firmware: FIRMWARE_CURRENT });
 const hours = offsets[specs.length] / 3600;
 const gb = (bytes) => (bytes / 1024 ** 3).toFixed(2);
 
@@ -274,7 +329,11 @@ config.phases.forEach((p) => {
   // the device's audio clock really does run slow against its RTC, and a header will sit a little
   // under the figure below rather than on it. Sizes are what this table is for; do not read it as
   // a prediction of the header.
-  const actual = { 4000: 3906, 11025: 10989, 22050: 21978, 32000: 31914, 44100: 44117 }[rate] ?? rate;
+  // The analog converter is paced by a different timer: 12 MHz divided by a whole count (audio.c,
+  // configure_repeat_trigger_timer), so 22050 Hz comes out at 22058.
+  const actual = config.micType === 'ANALOG'
+    ? Math.floor(12_000_000 / Math.floor(12_000_000 / rate))
+    : { 4000: 3906, 11025: 10989, 22050: 21978, 32000: 31914, 44100: 44117 }[rate] ?? rate;
   const bytes = p.useOpusEncoding
     ? (p.opusBitrate / 8) * p.audioClipLengthSeconds
     : actual * 2 * p.audioClipLengthSeconds + 44;
@@ -298,6 +357,11 @@ config.phases.forEach((p) => {
         }
       }
       count = Math.floor(recorded / p.audioClipLengthSeconds); break;
+    }
+    case 'AMPLITUDE': {
+      // Depends on what triggers it, so only the ceiling the cap sets is a prediction
+      const window = { SECONDS: 1, MINUTES: 60, HOURS: 3600, DAYS: 86400 }[p.maxClipsTimeScale];
+      count = `0 to ${p.maxAudioClips * Math.ceil(seconds / window)} lengths`; break;
     }
     default: count = 0;
   }

@@ -47,7 +47,7 @@ export function OffloadCard({
   onRecover: () => void;
 }>) {
   // Held in App so that a check or copy in flight survives switching to another section
-  const { report, setReport, checking, setChecking, progress, setProgress, result, setResult, repair, setRepair, error, setError } = task;
+  const { report, setReport, checking, setChecking, progress, setProgress, result, setResult, repair, setRepair, error, setError, copyStage, setCopyStage } = task;
   /*
     The controller for the copy in flight.
 
@@ -60,6 +60,8 @@ export function OffloadCard({
   // A copy stops at the next file boundary, which on a large clip is not instant, so the
   // button reports that it was heard rather than appearing to do nothing.
   const [stopping, setStopping] = useState(false);
+  // Catches a second click inside the same frame, before the disabled button has rendered
+  const starting = useRef(false);
 
   /*
     Correcting the clock as the files are COPIED, rather than renaming them on the card.
@@ -155,6 +157,9 @@ export function OffloadCard({
   };
 
   const runCopy = async () => {
+    if (copyStage || starting.current) return;
+    starting.current = true;
+    setCopyStage('choosing');
     setError(null);
     setResult(null);
     setRepair(null);
@@ -182,6 +187,7 @@ export function OffloadCard({
         };
         destination = await picker.showDirectoryPicker({ mode: 'readwrite' });
       }
+      setCopyStage('preparing');
 
       /*
         The repair below works from the check's findings, so without one nothing is
@@ -272,6 +278,8 @@ export function OffloadCard({
       abort.current = null;
       setStopping(false);
       setProgress(null);
+      setCopyStage(null);
+      starting.current = false;
     }
   };
 
@@ -301,8 +309,7 @@ export function OffloadCard({
         <h2>Check recordings</h2>
         <p className="hint">
           Examines every file for corruption. Copying runs this automatically, but you can run it
-          manually to see what can be repaired and what will be skipped. With the A3EM Card Helper, it also
-          checks the filesystem for log and IMU data the card does not list, which may ask for your password.
+          manually to see what can be repaired and what will be skipped. You may be prompted for your password.
         </p>
 
         {card.deviceInfo ? null : (
@@ -331,7 +338,7 @@ export function OffloadCard({
             </p>
           </>
         ) : (
-          <button className="btn" onClick={() => void runCheck()} disabled={Boolean(looking)}>
+          <button className="btn" onClick={() => void runCheck()} disabled={Boolean(looking || copyStage)}>
             Check {checkableCount.toLocaleString()} recordings
           </button>
         )}
@@ -378,8 +385,8 @@ export function OffloadCard({
                   the card lists
                 </strong>
                 The recorder wrote this data, then stopped before updating {tails.length === 1 ? 'the file’s' : 'the files’'}{' '}
-                size on the card, as happens when it loses power or is reset. Copying includes it in{' '}
-                {tails.length === 1 ? 'the copy' : 'the copies'}; the files on the card are not changed.
+                size on the card, as happens when it loses power or is reset. Copying will repair{' '}
+                {tails.length === 1 ? 'this file' : 'these files'}.
                 <ul className="finding-paths">
                   {tails.map((tail) => (
                     <li key={tail.path}>
@@ -494,8 +501,16 @@ export function OffloadCard({
             </button>
           </>
         ) : (
-          <button className="btn primary" onClick={() => void runCopy()} disabled={!CARD_ACCESS_SUPPORTED || Boolean(looking)}>
-            Choose destination and copy {(totalBytes / 1024 ** 3).toFixed(2)} GB
+          <button
+            className="btn primary"
+            onClick={() => void runCopy()}
+            disabled={!CARD_ACCESS_SUPPORTED || Boolean(looking || copyStage || checking)}
+          >
+            {copyStage === 'choosing'
+              ? 'Waiting for the folder dialog…'
+              : copyStage === 'preparing'
+                ? 'Preparing to copy…'
+                : `Choose destination and copy ${(totalBytes / 1024 ** 3).toFixed(2)} GB`}
           </button>
         )}
 

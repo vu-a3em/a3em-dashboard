@@ -20,10 +20,18 @@ export function useOffloadTask() {
   const [result, setResult] = useState<CopyResult | null>(null);
   const [repair, setRepair] = useState<RepairResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /*
+    A copy that has been asked for but is not yet moving files: waiting on the folder dialog,
+    which macOS takes a few seconds to draw, then checking the card before the first file.
+    Nothing on screen changed in that time, so the button looked dead and was clicked again,
+    starting a second copy behind the first. Held here, beside the rest of the task, so that
+    looking at another section and coming back cannot re-enable it partway.
+  */
+  const [copyStage, setCopyStage] = useState<'choosing' | 'preparing' | null>(null);
 
   // Switching sections is now safe, but a browser reload or close is not: the task lives in
   // this page and dies with it, part-copied. That case genuinely warrants a prompt.
-  const busy = checking !== null || progress !== null;
+  const busy = checking !== null || progress !== null || copyStage !== null;
   useEffect(() => {
     if (!busy) return undefined;
     const warn = (event: BeforeUnloadEvent) => {
@@ -48,6 +56,8 @@ export function useOffloadTask() {
     setRepair,
     error,
     setError,
+    copyStage,
+    setCopyStage,
   };
 }
 
