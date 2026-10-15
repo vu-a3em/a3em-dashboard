@@ -24,6 +24,8 @@ import {
   IMU_FIFO_SAMPLES,
   IMU_RECORDING_MODES,
   LOG_FILE_NAME,
+  BOOT_LOG_FILE_NAME,
+  UNACTIVATED_LOG_FILE_NAME,
   MAGNET_DEFAULT_VALIDATION_MS,
   MAX_AUDIO_TRIGGER_TIMES,
   MAX_CFG_LINE_LENGTH,
@@ -159,6 +161,8 @@ describe('firmware-constants.ts agrees with the firmware source', () => {
     assert.equal(CONFIG_FILE_NAME, snapshot.stringDefines.CONFIG_FILE_NAME);
     assert.equal(LEGACY_CONFIG_FILE_NAME, snapshot.stringDefines.LEGACY_CONFIG_FILE_NAME);
     assert.equal(LOG_FILE_NAME, snapshot.stringDefines.LOG_FILE_NAME);
+    assert.equal(BOOT_LOG_FILE_NAME, snapshot.stringDefines.BOOT_LOG_FILE_NAME);
+    assert.equal(UNACTIVATED_LOG_FILE_NAME, snapshot.stringDefines.UNACTIVATED_LOG_FILE_NAME);
   });
 
   it('tracks the max-frequency clamp headroom', () => {

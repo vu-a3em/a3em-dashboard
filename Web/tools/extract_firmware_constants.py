@@ -120,7 +120,8 @@ NUMERIC_DEFINES = {
 }
 
 STRING_DEFINES = {
-    STATIC_CONFIG_H: ["CONFIG_FILE_NAME", "LEGACY_CONFIG_FILE_NAME", "LOG_FILE_NAME"],
+    STATIC_CONFIG_H: ["CONFIG_FILE_NAME", "LEGACY_CONFIG_FILE_NAME", "LOG_FILE_NAME", "BOOT_LOG_FILE_NAME",
+                      "UNACTIVATED_LOG_FILE_NAME"],
 }
 
 # C enums whose ORDER matters, because the .cfg stores the names and the firmware

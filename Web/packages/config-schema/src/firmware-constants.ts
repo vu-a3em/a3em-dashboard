@@ -24,6 +24,9 @@ export const TRANSCRIBED_FROM_FIRMWARE = 'a3em-firmware @ src/app/static_config.
 export const CONFIG_FILE_NAME = '_conf.a3m'; // static_config.h: CONFIG_FILE_NAME
 export const LEGACY_CONFIG_FILE_NAME = '_a3em.cfg'; // static_config.h: LEGACY_CONFIG_FILE_NAME
 export const LOG_FILE_NAME = 'a3em.log'; // static_config.h: LOG_FILE_NAME
+/** Written at the card root by every boot, so their presence marks a card the recorder has run on. */
+export const BOOT_LOG_FILE_NAME = 'boot.log'; // static_config.h: BOOT_LOG_FILE_NAME
+export const UNACTIVATED_LOG_FILE_NAME = '_a3em.boot.txt'; // static_config.h: UNACTIVATED_LOG_FILE_NAME
 
 // ---------------------------------------------------------------------------
 // Hard firmware limits. Exceeding these is a memory-safety issue on device,

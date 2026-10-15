@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CardLayout, CardReadinessReport } from '@a3em/config-schema';
+import {
+  BOOT_LOG_FILE_NAME,
+  UNACTIVATED_LOG_FILE_NAME,
+  type CardLayout,
+  type CardReadinessReport,
+} from '@a3em/config-schema';
 import { checkReadiness, ejectDevice, identifyCard, type HelperDevice } from './helper';
 import type { useCard } from './useCard';
 import type { Helper } from './useHelper';
@@ -58,16 +63,29 @@ function isBareRoot(folder: string): boolean {
 }
 
 /**
- * Whether a drive root holds only what a card would: recorder files, or nothing at all.
+ * Whether a drive root shows signs of being an A3EM card: something the recorder or the dashboard
+ * writes, or nothing at all.
  *
  * A bare root carries no name to go on, and the marker that identifies a card is written into
- * it, so this stands in for the name: a hard drive's root holds folders no card has, and is
- * never written to. A new card counts, and so does what Windows itself puts on removable media.
+ * it, so this stands in for the name: a hard drive's root holds none of these, and is never
+ * written to. It asks for evidence rather than for purity. A first version demanded that every
+ * file be one the layout recognises, and the recorder's own boot logs are not among those, so
+ * every card the recorder had run on was refused. A blank card counts, along with the hidden
+ * files and the folder Windows and macOS put on removable media.
  */
 export function looksLikeCardRoot(layout: CardLayout | undefined): boolean {
   if (!layout) return false;
-  return layout.files.every((file) => file.kind !== 'other' || /^(System Volume Information\/|\.)/i.test(file.path));
+  const housekeeping = (path: string) => /^(System Volume Information\/|\.)/i.test(path);
+  // Only the root's own files count: a hard drive holds recordings of its own somewhere deep
+  // inside, but never the files the recorder and the dashboard put at a card's root
+  const rootEvidence = (file: CardLayout['files'][number]) =>
+    !file.path.includes('/') &&
+    (ROOT_KINDS.has(file.kind) || [BOOT_LOG_FILE_NAME, UNACTIVATED_LOG_FILE_NAME].includes(file.path.toLowerCase()));
+  return layout.files.some(rootEvidence) || layout.files.every((file) => housekeeping(file.path));
 }
+
+/** The kinds of file that live at a card's root: its configuration, device file, and self-test. */
+const ROOT_KINDS = new Set(['config', 'device-info', 'self-test', 'self-test-clip']);
 
 export function useCardDevice(card: Card, helper: Helper) {
   const handle = card.status === 'ready' ? card.handle : null;

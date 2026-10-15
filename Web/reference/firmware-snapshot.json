@@ -36,9 +36,11 @@
       "WAV_STAGING_BUFFER_SIZE"
     ],
     "stringDefines": [
+      "BOOT_LOG_FILE_NAME",
       "CONFIG_FILE_NAME",
       "LEGACY_CONFIG_FILE_NAME",
-      "LOG_FILE_NAME"
+      "LOG_FILE_NAME",
+      "UNACTIVATED_LOG_FILE_NAME"
     ]
   },
   "_sourceFiles": [
@@ -2002,9 +2004,11 @@
     ]
   },
   "stringDefines": {
+    "BOOT_LOG_FILE_NAME": "boot.log",
     "CONFIG_FILE_NAME": "_conf.a3m",
     "LEGACY_CONFIG_FILE_NAME": "_a3em.cfg",
-    "LOG_FILE_NAME": "a3em.log"
+    "LOG_FILE_NAME": "a3em.log",
+    "UNACTIVATED_LOG_FILE_NAME": "_a3em.boot.txt"
   },
   "triggerDigipotSteps": 255
 }
