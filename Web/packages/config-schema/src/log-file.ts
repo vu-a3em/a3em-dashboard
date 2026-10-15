@@ -126,6 +126,10 @@ export interface TelemetrySample {
 export interface MicrophoneHealthSample {
   timestamp: string;
   result: 'PASS' | 'WARN_SILENT' | 'FAIL_CONSTANT' | 'FAIL';
+  /**
+   * Signal level and largest excursion, both measured about the window's mean, so an
+   * offset the device has not removed does not count as sound.
+   */
   rms: number;
   peak: number;
   min: number | null;

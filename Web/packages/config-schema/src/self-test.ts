@@ -51,6 +51,10 @@ export interface SelfTestResults {
     type: 'ANALOG' | 'DIGITAL';
     /** PASS_SILENT means the path works but the room was quiet — not a fault. */
     result: 'PASS' | 'PASS_SILENT' | 'FAIL';
+    /**
+     * Signal level and largest excursion, both measured about the window's mean, so an
+     * offset the device has not removed does not count as sound.
+     */
     rms: number;
     /**
      * How many samples the RMS figure was taken over.
