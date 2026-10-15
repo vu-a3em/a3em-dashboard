@@ -291,6 +291,8 @@ func (d *Dispatcher) route(req protocol.Request) (reply, error) {
 		case err != nil:
 			return nil, err
 		}
+		// macOS's dialog names the folder with a trailing slash; hand back the plain form
+		path = filepath.Clean(path)
 		if err := offCard(volume, path); err != nil {
 			return nil, err
 		}
@@ -942,6 +944,8 @@ func (d *Dispatcher) copy(req protocol.Request) (reply, error) {
 	if req.Destination == "" || !filepath.IsAbs(req.Destination) {
 		return nil, refuse("The copy destination must be a full path.", "bad-destination")
 	}
+	// A page built before the dialog's answer was cleaned may still send it with a trailing slash
+	req.Destination = filepath.Clean(req.Destination)
 	if err := offCard(volume, req.Destination); err != nil {
 		return nil, err
 	}

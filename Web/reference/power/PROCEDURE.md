@@ -95,6 +95,12 @@ Use a scratch card for this run, because writes at failing voltages can corrupt 
 | battery | 5 | 6 min | each cell, ampere mode, fresh cells | all three |
 | brownout | sweep | 15–30 min | heaviest card and microphone, source mode | all three |
 
+Card capacity is not part of a card's id. Each run records the capacity and allocation unit of
+the card in the slot. To settle whether capacity matters for a model, run the sd suite at room
+temperature on the smallest and the largest capacity you use of that model. If the two agree
+within a few percent, capacity can be ignored for that model. If they don't, the forecaster
+treats capacity as a variable within the model, so you still don't need a new part id.
+
 Times exclude the soak. Fridge and freezer runs add an hour each, which a whole suite list can
 share if the board stays in the cold between runs. Swapping parts usually means opening the
 door, though, so plan the cold runs around the parts swaps.
@@ -109,6 +115,14 @@ condensation does not form on the board.
 The characterization runs measure the pieces. Validation runs measure whole deployments, so that
 the forecaster can be checked against them. Each run is an ordinary deployment on the deployment
 firmware built with markers.
+
+Validation runs are bench runs on the PPK2 source meter at 3.6 V, and each lasts only as long as
+its config. They check charge, not battery life. Battery life follows from the validated charge
+model together with the cell profiles and the battery and brown-out runs.
+
+Build with markers for these bench runs only. A real deployment uses the normal `make` build.
+The marker build differs only by a few marker frames at boot, at phase edges and at power-off,
+so a result measured on it holds for the normal build.
 
 1. Build and flash with `cd a3em-firmware && make POWER_MARKERS=1`. The objects go to
    `bin/power_markers/`, apart from the normal build.

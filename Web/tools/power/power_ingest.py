@@ -229,6 +229,9 @@ def ingest_run(args: argparse.Namespace) -> int:
             "temperature": temperature,
             "dieTemperatureC": float(step["temp_c"]) if step.get("temp_c") else None,
             "components": {part: parts[part] for part in ("card", "microphone", "battery") if parts.get(part)},
+            # Recorded for every run, so whether capacity matters can be read off the measurements later
+            "card": {"capacityMb": int(header["card_mb"]) if header.get("card_mb") else None,
+                     "allocationUnitBytes": int(header["card_au"]) if header.get("card_au") else None},
             "supplyMv": capture.get("supplyMv"),
             "mode": capture.get("mode"),
             "firmware": header.get("fw"),

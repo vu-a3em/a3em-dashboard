@@ -73,7 +73,10 @@ type Report struct {
 	BytesCopied    int64     `json:"bytesCopied"`
 	Recovered      []string  `json:"recovered,omitempty"`
 	Skipped        []Skipped `json:"skipped,omitempty"`
-	Canceled       bool      `json:"canceled"`
+	// SkippedTotal counts every file that could not be copied, including those past the
+	// bounded list, so a copy that failed on every file cannot read as one that failed on a few.
+	SkippedTotal int  `json:"skippedTotal"`
+	Canceled     bool `json:"canceled"`
 	// SkippedTruncated is set when there were more failures than the reply can carry.
 	SkippedTruncated bool `json:"skippedTruncated,omitempty"`
 }
@@ -277,17 +280,22 @@ func listSizes(dir string) map[string]int64 {
 
 // safeJoin keeps a relative path inside its root, so a name from the page cannot reach out
 // of the folder the person chose.
+//
+// Containment is decided by where the joined path lies relative to the root, never by
+// comparing strings against the root as given. The root arrives in whatever form a folder
+// dialog or a mount table used, and macOS's dialog ends it with a slash; a prefix built by
+// appending a separator to that refused every file of a card as outside its own folder.
 func safeJoin(root, rel string) (string, error) {
 	if rel == "" {
 		return "", errors.New("a file with no name")
 	}
-	if filepath.IsAbs(rel) || strings.HasPrefix(rel, `\`) {
+	if filepath.IsAbs(rel) || strings.HasPrefix(rel, `\`) || filepath.VolumeName(rel) != "" {
 		return "", fmt.Errorf("%s is not a relative path", rel)
 	}
-	clean := filepath.Clean(filepath.FromSlash(rel))
-	joined := filepath.Join(root, clean)
-	prefix := root + string(os.PathSeparator)
-	if joined != root && !strings.HasPrefix(joined, prefix) {
+	root = filepath.Clean(root)
+	joined := filepath.Join(root, filepath.FromSlash(rel))
+	inside, err := filepath.Rel(root, joined)
+	if err != nil || inside == "." || inside == ".." || strings.HasPrefix(inside, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("%s points outside the folder", rel)
 	}
 	return joined, nil
@@ -306,6 +314,7 @@ func stopped(stop <-chan struct{}) bool {
 }
 
 func (r *Report) note(path string, err error) {
+	r.SkippedTotal++
 	if len(r.Skipped) >= maxSkipped {
 		r.SkippedTruncated = true
 		return

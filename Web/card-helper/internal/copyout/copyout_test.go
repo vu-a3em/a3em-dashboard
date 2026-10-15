@@ -314,3 +314,59 @@ func TestRefusesAPatchAtANegativeOffset(t *testing.T) {
 		t.Fatalf("copied %d, skipped %v", report.Copied, report.Skipped)
 	}
 }
+
+func TestAcceptsAFolderNamedWithATrailingSeparator(t *testing.T) {
+	/*
+		macOS's folder dialog names the chosen folder with a trailing slash, and so can a
+		mount point. The containment check once built its prefix by appending a separator to
+		the root as given, so every file of a whole card was refused as pointing outside a
+		folder it was plainly inside.
+	*/
+	src := card(t, map[string]string{"LBL/Activation_0001/1/2/a.wav": "aaaa"})
+	dst := t.TempDir()
+	sep := string(os.PathSeparator)
+
+	report, err := Run(list(t, src, "LBL/Activation_0001/1/2/a.wav"),
+		Options{Source: src + sep, Destination: dst + sep})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Copied != 1 || len(report.Skipped) != 0 {
+		t.Fatalf("copied %d, skipped %v", report.Copied, report.Skipped)
+	}
+	if got := read(t, filepath.Join(dst, "LBL/Activation_0001/1/2/a.wav")); got != "aaaa" {
+		t.Fatalf("copy is %q", got)
+	}
+}
+
+func TestContainmentHoldsAtADriveRoot(t *testing.T) {
+	// A drive root is a folder someone can choose, and it is the one root that stays
+	// ending in a separator however it is cleaned.
+	root := filepath.VolumeName(os.TempDir()) + string(os.PathSeparator)
+	if _, err := safeJoin(root, "A3EM/a.wav"); err != nil {
+		t.Fatalf("a file inside the drive root was refused: %v", err)
+	}
+	for _, rel := range []string{"../a.wav", "A3EM/../../a.wav"} {
+		if _, err := safeJoin(filepath.Join(os.TempDir(), "dst"), rel); err == nil {
+			t.Fatalf("%s was let out of the folder", rel)
+		}
+	}
+}
+
+func TestCountsEverySkipBeyondTheListed(t *testing.T) {
+	// The list is bounded for the reply's sake; the count is not, so a copy that failed
+	// on every file cannot read as one that failed on a few hundred.
+	src := t.TempDir()
+	dst := t.TempDir()
+	files := make([]File, maxSkipped+50)
+	for i := range files {
+		files[i] = File{From: "gone.wav", To: "gone.wav", Bytes: 1}
+	}
+	report, err := Run(files, Options{Source: src, Destination: dst})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.SkippedTotal != maxSkipped+50 {
+		t.Fatalf("counted %d skips, want %d", report.SkippedTotal, maxSkipped+50)
+	}
+}

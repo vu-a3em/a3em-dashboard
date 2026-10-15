@@ -789,6 +789,8 @@ export interface HelperCopyReport {
   canceled: boolean;
   /** More files failed than the reply could carry. */
   skippedTruncated?: boolean;
+  /** Every file that failed, listed or not. Absent from helpers released before it was added. */
+  skippedTotal?: number;
 }
 
 /**

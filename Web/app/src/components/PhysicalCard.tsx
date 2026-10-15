@@ -54,7 +54,7 @@ export function PhysicalCard({
   clipSeconds?: number | null;
 }>) {
   const { device, volumeId, details, loadDetails } = cardDevice;
-  // What logs and IMU files hold past their recorded end, for "Check & copy" to add to their copies.
+  // Data in logs and IMU files past the size the card lists for them, for "Check & copy" to add to their copies.
   const { tails, setTails } = useRecoveredTails(device, volumeId);
   const logs = useCardLogs('review');
   const { now, isWorking, working } = logs;
@@ -369,16 +369,15 @@ function RepairAdvice({
   );
 }
 
-/** The helper's own check, which says what is wrong in words and names the files it touches. */
-/** What logs and IMU files hold past their recorded end, and where it goes. */
+/** Data in logs and IMU files past the size the card lists for them, and where it goes. */
 function Recovered({ tails }: Readonly<{ tails: RecoveredTail[] }>) {
   return (
     <>
       <p style={{ margin: '6px 0 0' }}>
-        {tails.length === 1 ? 'One file holds' : `${tails.length.toLocaleString()} files hold`} more than the card
-        records: what the recorder wrote before it lost power, and had not yet recorded. <TabLink to="offload" /> adds it
-        to{' '}
-        {tails.length === 1 ? 'the file’s copy' : 'their copies'}; the card is not changed.
+        {tails.length === 1 ? 'One file has' : `${tails.length.toLocaleString()} files have`} more data than the card
+        lists. The recorder wrote it, then stopped before updating {tails.length === 1 ? 'the file’s' : 'the files’'}{' '}
+        size on the card, as happens when it loses power or is reset. <TabLink to="offload" /> adds it to{' '}
+        {tails.length === 1 ? 'the copy' : 'the copies'}; the files on the card are not changed.
       </p>
       <ul className="finding-paths">
         {tails.map((tail) => (
@@ -391,6 +390,7 @@ function Recovered({ tails }: Readonly<{ tails: RecoveredTail[] }>) {
   );
 }
 
+/** The helper's own check, which says what is wrong in words and names the files it touches. */
 function OwnCheckResult({ report, recovered }: Readonly<{ report: FsckReport; recovered?: RecoveredTail[] | null }>) {
   const findings = report.findings ?? [];
   const problems = findings.filter((finding) => finding.severity === 'problem');

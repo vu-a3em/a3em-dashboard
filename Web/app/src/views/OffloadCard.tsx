@@ -70,9 +70,10 @@ export function OffloadCard({
   */
   const { correction } = useClockCorrection(card, correctionState);
   const [applyCorrection, setApplyCorrection] = useState(true);
-  // What logs and IMU files hold past their recorded end, found by a filesystem check of this card.
+  // Data in logs and IMU files past the size the card lists for them, found by a filesystem check of this card.
   const { tails, setTails } = useRecoveredTails(cardDevice.device, cardDevice.volumeId);
-  const [looking, setLooking] = useState(false);
+  // Which button is waiting on that filesystem check, so the note appears beside it.
+  const [looking, setLooking] = useState<'check' | 'copy' | null>(null);
   const renamePlan = useMemo(
     () => (correction && card.contents ? planRename(card.contents.layout, correction) : null),
     [correction, card.contents],
@@ -92,7 +93,7 @@ export function OffloadCard({
         <p className="hint">Connect a card to check it for damage and copy its recordings off.</p>
         <RecoverHint available={cardDevice.available} onRecover={onRecover} />
         <HelperOffer helper={helper} as="note">
-          With the A3EM Card Helper, a small program with a browser extension, copying also recovers what a recorder wrote before it lost power but had not yet recorded, and the card can be ejected from here once it is copied.
+          With the A3EM Card Helper, a small program with a browser extension, checking and copying also find log and IMU data that a recorder wrote but never added to the file’s size on the card, as happens when it loses power or is reset, and the card can be ejected from here once it is copied.
         </HelperOffer>
       </div>
     );
@@ -109,6 +110,32 @@ export function OffloadCard({
     (file) => file.kind === 'audio' || file.kind === 'imu' || file.kind === 'self-test-clip',
   ).length;
 
+  /*
+    Data the recorder wrote to logs and IMU files past the size the card lists for them.
+
+    Only the card helper can see it, by checking the filesystem, which asks for the password
+    once. It is part of what a check reports as well as what a copy recovers: the check says
+    what the copy will do, so leaving this to the copy made the check's account incomplete and
+    had its findings appear only once copying began. A check already made of this card, here or
+    on "Review card", is used instead of asking again. Without the helper, or the password, the
+    answer is that nothing is found and the copy takes the files as the card lists them.
+  */
+  const findTails = async (purpose: 'check' | 'copy') => {
+    if (tails) return tails;
+    if (!cardDevice.device || !cardDevice.volumeId) return [];
+    setLooking(purpose);
+    try {
+      const found = await diagnoseVolume(cardDevice.volumeId);
+      const accepted = found.engine === 'a3em' ? acceptTails(found.tails, longestClip(card.existingConfig)) : [];
+      setTails(accepted);
+      return accepted;
+    } catch {
+      return [];
+    } finally {
+      setLooking(null);
+    }
+  };
+
   const runCheck = async () => {
     setError(null);
     setChecking({ done: 0, total: 0 });
@@ -124,6 +151,7 @@ export function OffloadCard({
     } finally {
       setChecking(null);
     }
+    await findTails('check');
   };
 
   const runCopy = async () => {
@@ -175,30 +203,13 @@ export function OffloadCard({
         }
       }
 
-      /*
-        What the recorder wrote past files' recorded ends, to go into their copies. The card
-        helper finds it while checking the filesystem, which asks for the password once; a check
-        already made of this card on "Review card" is used instead. Without the helper, or the
-        password, the copy goes ahead with the files as the card records them.
-      */
-      let recovered = tails;
-      if (!recovered && cardDevice.device && cardDevice.volumeId) {
-        setLooking(true);
-        try {
-          const found = await diagnoseVolume(cardDevice.volumeId);
-          recovered = found.engine === 'a3em' ? acceptTails(found.tails, longestClip(card.existingConfig)) : [];
-          setTails(recovered);
-        } catch {
-          recovered = [];
-        } finally {
-          setLooking(false);
-        }
-      }
+      // What the check found past files' listed sizes, to go into their copies (see findTails)
+      const recovered = await findTails('copy');
 
       const controller = new AbortController();
       abort.current = controller;
       setStopping(false);
-      const additions = new Map((recovered ?? []).map((tail) => [tail.path, tail]));
+      const additions = new Map(recovered.map((tail) => [tail.path, tail]));
       // Clips the device never closed, to be mended in the copy so the card's own header is
       // left as the device wrote it. Keyed by source path, which is what both copies see.
       const repairs = new Map(
@@ -243,7 +254,7 @@ export function OffloadCard({
       // The account of what was skipped goes next to the copy, so it survives the session
       // rather than living only on screen. It depends on what the copy did, so the helper
       // is asked to deposit it afterwards rather than handed it at the start.
-      if (copyResult.skipped.length || copyResult.recovered.length) {
+      if (copyResult.skippedTotal || copyResult.recovered.length) {
         const manifest = buildSkipManifest(copyResult, card.name ?? 'card');
         if (native) {
           await copyViaHelper(cardDevice.volumeId!, nativePath, [], { report: manifest });
@@ -265,6 +276,8 @@ export function OffloadCard({
   };
 
   const totalBytes = layout.files.reduce((sum, file) => sum + file.sizeBytes, 0);
+  // A copy where every file failed is a different outcome from one that left a few behind
+  const nothingCopied = Boolean(result && !result.canceled && result.skippedTotal && !result.copied && !result.alreadyPresent);
   // A file whose data is recovered into its copy is not lost, though the card records it empty.
   const recoveredPaths = new Set((tails ?? []).map((tail) => tail.path));
   const lost = report ? report.problems.filter((problem) => !recoveredPaths.has(problem.path)) : [];
@@ -272,7 +285,7 @@ export function OffloadCard({
   return (
     <>
       <HelperOffer helper={helper}>
-        With the A3EM Card Helper, a small program with a browser extension, copying also recovers what a recorder wrote before it lost power but had not yet recorded, and the card can be ejected from here once it is copied.
+        With the A3EM Card Helper, a small program with a browser extension, checking and copying also find log and IMU data that a recorder wrote but never added to the file’s size on the card, as happens when it loses power or is reset, and the card can be ejected from here once it is copied.
       </HelperOffer>
       {unreadable.length ? (
         <div className="banner crit">
@@ -288,7 +301,8 @@ export function OffloadCard({
         <h2>Check recordings</h2>
         <p className="hint">
           Examines every file for corruption. Copying runs this automatically, but you can run it
-          manually to see what can be repaired and what will be skipped.
+          manually to see what can be repaired and what will be skipped. With the A3EM Card Helper, it also
+          checks the filesystem for log and IMU data the card does not list, which may ask for your password.
         </p>
 
         {card.deviceInfo ? null : (
@@ -317,7 +331,7 @@ export function OffloadCard({
             </p>
           </>
         ) : (
-          <button className="btn" onClick={() => void runCheck()}>
+          <button className="btn" onClick={() => void runCheck()} disabled={Boolean(looking)}>
             Check {checkableCount.toLocaleString()} recordings
           </button>
         )}
@@ -350,14 +364,22 @@ export function OffloadCard({
               </div>
             ) : null}
 
+            {looking === 'check' ? (
+              <p className="stat-note" style={{ marginTop: 14 }}>
+                Asking the A3EM Card Helper to check the filesystem for log and IMU data the card does not list.
+                It may ask for your password.
+              </p>
+            ) : null}
+
             {tails?.length ? (
               <div className="banner ok" style={{ marginTop: 14, marginBottom: 0 }}>
                 <strong>
-                  {tails.length === 1 ? '1 file holds' : `${tails.length.toLocaleString()} files hold`} more than the
-                  card records
+                  {tails.length === 1 ? '1 file has' : `${tails.length.toLocaleString()} files have`} more data than
+                  the card lists
                 </strong>
-                What the recorder wrote before it lost power, and had not yet recorded. Copying adds it to{' '}
-                {tails.length === 1 ? 'the file’s copy' : 'their copies'}; the card is not changed.
+                The recorder wrote this data, then stopped before updating {tails.length === 1 ? 'the file’s' : 'the files’'}{' '}
+                size on the card, as happens when it loses power or is reset. Copying includes it in{' '}
+                {tails.length === 1 ? 'the copy' : 'the copies'}; the files on the card are not changed.
                 <ul className="finding-paths">
                   {tails.map((tail) => (
                     <li key={tail.path}>
@@ -438,10 +460,10 @@ export function OffloadCard({
           </label>
         ) : null}
 
-        {looking ? (
+        {looking === 'copy' ? (
           <p className="stat-note">
-            Asking the A3EM Card Helper for what logs and IMU files hold past their recorded end, to add it to their
-            copies. It may ask for your password.
+            Asking the A3EM Card Helper to check the filesystem for log and IMU data the card does not list, to include
+            it in the copies. It may ask for your password.
           </p>
         ) : null}
 
@@ -472,7 +494,7 @@ export function OffloadCard({
             </button>
           </>
         ) : (
-          <button className="btn primary" onClick={() => void runCopy()} disabled={!CARD_ACCESS_SUPPORTED}>
+          <button className="btn primary" onClick={() => void runCopy()} disabled={!CARD_ACCESS_SUPPORTED || Boolean(looking)}>
             Choose destination and copy {(totalBytes / 1024 ** 3).toFixed(2)} GB
           </button>
         )}
@@ -480,15 +502,17 @@ export function OffloadCard({
         {result ? (
           <>
             <div
-              className={`banner ${result.skipped.length ? 'warn' : 'ok'}`}
+              className={`banner ${nothingCopied ? 'crit' : result.skippedTotal ? 'warn' : 'ok'}`}
               style={{ marginTop: 16, marginBottom: 14 }}
             >
               <strong>
-                {result.canceled ? 'Copy canceled before finishing' : 'Copy finished'}
+                {result.canceled ? 'Copy canceled before finishing' : nothingCopied ? 'Nothing was copied' : 'Copy finished'}
               </strong>
-              {result.skipped.length
-                ? 'Everything below was left behind. The same list is saved as a3em-copy-report.txt in the destination folder.'
-                : 'Everything on the card transferred.'}
+              {nothingCopied
+                ? 'Every file failed. The reasons are below, and in a3em-copy-report.txt in the destination folder.'
+                : result.skippedTotal
+                  ? 'Everything below was left behind. The same list is saved as a3em-copy-report.txt in the destination folder.'
+                  : 'Everything on the card transferred.'}
               {/* The next thing anyone does with a copied card is take it out. */}
               {cardDevice.device && !result.canceled ? (
                 <div style={{ marginTop: 8 }}>
@@ -502,11 +526,12 @@ export function OffloadCard({
             {result.recovered.length ? (
               <div className="banner ok" style={{ marginTop: 0, marginBottom: 14 }}>
                 <strong>
-                  {result.recovered.length === 1 ? '1 copy holds' : `${result.recovered.length.toLocaleString()} copies hold`}{' '}
-                  what the card had not recorded
+                  {result.recovered.length === 1 ? '1 copy includes' : `${result.recovered.length.toLocaleString()} copies include`}{' '}
+                  data the card does not list
                 </strong>
-                What the recorder wrote past {result.recovered.length === 1 ? 'the file’s' : 'the files’'} recorded end,
-                added in place. The card still gives the shorter length; a3em-copy-report.txt lists these.
+                Data the recorder wrote past {result.recovered.length === 1 ? 'the file’s' : 'each file’s'} size on the
+                card, added to the end of the copy. The files on the card still show the shorter size;
+                a3em-copy-report.txt lists these.
                 <ul className="finding-paths">
                   {result.recovered.map((entry) => (
                     <li key={entry.path}>
@@ -537,8 +562,8 @@ export function OffloadCard({
               <Stat label="Already there" value={result.alreadyPresent.toLocaleString()} />
               <Stat
                 label="Skipped"
-                value={result.skipped.length.toLocaleString()}
-                tone={result.skipped.length ? 'crit' : undefined}
+                value={`${result.skippedTotal.toLocaleString()}${result.skippedTotalIsMinimum ? '+' : ''}`}
+                tone={result.skippedTotal ? 'crit' : undefined}
               />
               <Stat label="Transferred" value={`${(result.bytesCopied / 1024 ** 3).toFixed(2)} GB`} />
             </div>
@@ -561,10 +586,13 @@ export function OffloadCard({
                     ))}
                   </tbody>
                 </table>
-                {result.skipped.length > 100 ? (
+                {result.skippedTotal > 100 ? (
                   <p className="stat-note">
-                    Showing the first 100 of {result.skipped.length.toLocaleString()} — the report file
-                    has them all.
+                    Showing the first 100 of {result.skippedTotal.toLocaleString()}
+                    {result.skippedTotalIsMinimum ? ' or more' : ''}
+                    {result.skippedTotal > result.skipped.length
+                      ? ` — the report file lists the first ${result.skipped.length.toLocaleString()}.`
+                      : ' — the report file has them all.'}
                   </p>
                 ) : null}
               </div>

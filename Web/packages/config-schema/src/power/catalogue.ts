@@ -46,6 +46,11 @@ export interface PowerMeasurement {
   temperature: string;
   dieTemperatureC: number | null;
   components: Partial<Record<Part, string>>;
+  /**
+   * The geometry of the card in the slot, recorded for every run. Capacity is deliberately not part of a card's
+   * identity: if it turns out to matter for a model, it is a covariate within that model, not a new part.
+   */
+  card?: { capacityMb: number | null; allocationUnitBytes: number | null };
   supplyMv: number | null;
   mode: 'source' | 'ampere' | null;
   firmware: string | null;

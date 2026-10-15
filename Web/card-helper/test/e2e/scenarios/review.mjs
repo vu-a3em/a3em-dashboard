@@ -78,7 +78,7 @@ export default async ({ evaluate, shot, sleep, out, expect, cards }) => {
   await until(evaluate, sleep, `Boolean($btn('Choose destination and copy'))`, 100);
   await evaluate(`$btn('Choose destination and copy').click()`);
   out.copyDone = await until(evaluate, sleep, `(() => { const t = $text(document.querySelector('.content')); return /Copy finished/.test(t) ? t : null; })()`, 600);
-  expect('the copy says what it added past the card’s recorded end', /1 copy holds what the card had not recorded/.test(out.copyDone ?? '') && /OWL_09\/a3em\.log — 560 bytes of log text/.test(out.copyDone ?? ''), out.copyDone);
+  expect('the copy says what it added past the size the card lists', /1 copy includes data the card does not list/.test(out.copyDone ?? '') && /OWL_09\/a3em\.log — 560 bytes of log text/.test(out.copyDone ?? ''), out.copyDone);
   out.logCopy = await evaluate(`(async () => {
     const root = await navigator.storage.getDirectory();
     const copy = await root.getDirectoryHandle('copy-destination');

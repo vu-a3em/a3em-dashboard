@@ -1321,6 +1321,30 @@
       "tickHz": 0
     },
     {
+      "baseline": 4,
+      "code": 24,
+      "flags": [
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_WAKE",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 64
+    },
+    {
+      "baseline": 7,
+      "code": 25,
+      "flags": [
+        "event"
+      ],
+      "kind": "event",
+      "name": "EVT_BATTERY_READ",
+      "param": "0",
+      "suite": "core",
+      "tickHz": 1
+    },
+    {
       "baseline": null,
       "code": 18,
       "flags": [
@@ -1344,30 +1368,6 @@
       "param": "0",
       "suite": "core",
       "tickHz": 0
-    },
-    {
-      "baseline": 4,
-      "code": 24,
-      "flags": [
-        "event"
-      ],
-      "kind": "event",
-      "name": "EVT_WAKE",
-      "param": "0",
-      "suite": "core",
-      "tickHz": 64
-    },
-    {
-      "baseline": 7,
-      "code": 25,
-      "flags": [
-        "event"
-      ],
-      "kind": "event",
-      "name": "EVT_BATTERY_READ",
-      "param": "0",
-      "suite": "core",
-      "tickHz": 1
     },
     {
       "baseline": null,

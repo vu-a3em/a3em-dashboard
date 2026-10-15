@@ -1,9 +1,9 @@
 {
-  "_comment": "Parts the power model distinguishes. A measurement whose quantity dependsOn a component records which one it was taken with, by id. Add a part here before measuring it.",
+  "_comment": "Parts the power model distinguishes. A measurement whose quantity dependsOn a component records which one it was taken with, by id. Add a part here before measuring it. A card is identified by its model and speed class only: each run records the capacity and allocation unit of the card in the slot, so capacity is checked as a covariate instead of multiplying ids.",
   "cards": [
-    { "id": "adata", "name": "ADATA microSD", "notes": "Fill in the exact model, capacity and speed class from the card itself." },
-    { "id": "micron", "name": "Micron microSD", "notes": "Fill in the exact model, capacity and speed class from the card itself." },
-    { "id": "delkin-usdcoem", "name": "Delkin USDCOEM", "notes": "Fill in the capacity and speed class from the card itself." }
+    { "id": "adata", "name": "ADATA microSD", "notes": "Fill in the exact model and speed class from the card itself. Capacity is recorded per run, not here." },
+    { "id": "micron", "name": "Micron microSD", "notes": "Fill in the exact model and speed class from the card itself. Capacity is recorded per run, not here." },
+    { "id": "delkin-usdcoem", "name": "Delkin USDCOEM", "notes": "Fill in the exact model and speed class from the card itself. Capacity is recorded per run, not here." }
   ],
   "microphones": [
     { "id": "SPH18R1LM4H-1", "type": "digital", "spreadsheetKey": "SPH18R1LM4H" },

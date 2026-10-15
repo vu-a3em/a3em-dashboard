@@ -144,10 +144,18 @@ export interface CopyProgress {
 export interface CopyResult {
   copied: number;
   bytesCopied: number;
-  /** Files whose copies hold more than the card records: what the recorder wrote past their end. */
+  /** Files whose copies include data the recorder wrote past the size the card lists for them. */
   recovered: Array<{ path: string; summary: string }>;
   /** Files that could not be copied, with why. The point of the whole exercise. */
   skipped: Array<{ path: string; reason: string }>;
+  /**
+   * How many files could not be copied, which can be more than `skipped` lists: the card helper
+   * names at most a few hundred, to keep its reply small. Counted separately so that a copy that
+   * failed on every file cannot read as one that failed on a few hundred.
+   */
+  skippedTotal: number;
+  /** Set when the count is only a lower bound, from a card helper too old to report it. */
+  skippedTotalIsMinimum?: boolean;
   /** Files already present at the destination with the same size. */
   alreadyPresent: number;
   canceled: boolean;
@@ -183,7 +191,9 @@ export async function copyCard(
   } = {},
 ): Promise<CopyResult> {
   const bytesTotal = entries.reduce((sum, entry) => sum + entry.sizeBytes, 0);
-  const result: CopyResult = { copied: 0, bytesCopied: 0, recovered: [], skipped: [], alreadyPresent: 0, canceled: false };
+  const result: CopyResult = {
+    copied: 0, bytesCopied: 0, recovered: [], skipped: [], skippedTotal: 0, alreadyPresent: 0, canceled: false,
+  };
   const directoryCache = new Map<string, CopyDirectory>();
 
   for (const [index, entry] of entries.entries()) {
@@ -258,6 +268,7 @@ export async function copyCard(
     } catch (error) {
       // The whole point: record it and keep going.
       result.skipped.push({ path: entry.path, reason: describeError(error) });
+      result.skippedTotal++;
     }
   }
 
@@ -327,8 +338,9 @@ export function buildSkipManifest(result: CopyResult, cardName: string): string 
     `A3EM copy report — ${cardName}`,
     `Files copied: ${result.copied}`,
     `Already present: ${result.alreadyPresent}`,
-    `Skipped: ${result.skipped.length}`,
-    `Recovered past the recorded end: ${result.recovered.length}`,
+    `Skipped: ${result.skippedTotal}${result.skippedTotalIsMinimum ? ' or more' : ''}` +
+      (result.skippedTotal > result.skipped.length ? ` (the first ${result.skipped.length} are listed below)` : ''),
+    `Copies with data past the size the card lists: ${result.recovered.length}`,
     result.canceled ? 'Run was canceled before finishing.' : '',
     '',
   ];
@@ -336,8 +348,9 @@ export function buildSkipManifest(result: CopyResult, cardName: string): string 
   if (result.recovered.length) {
     lines.push(
       '',
-      'These copies hold more than the card records: what the recorder wrote before it lost power, and',
-      'had not yet recorded. The card itself still gives the shorter length.',
+      'The recorder wrote more to these files than the card lists as their size: it stopped, by losing',
+      'power or being reset, before updating the size. Their copies include that data. The files on the',
+      'card are unchanged and still show the shorter size.',
     );
     for (const entry of result.recovered) lines.push(`${entry.path}\t${entry.summary}`);
   }

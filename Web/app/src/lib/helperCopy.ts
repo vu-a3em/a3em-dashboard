@@ -91,6 +91,9 @@ export async function copyCardViaHelper(
     alreadyPresent: report.alreadyPresent,
     canceled: report.canceled,
     skipped: report.skipped ?? [],
+    // A helper older than the count says only that its list was cut short
+    skippedTotal: report.skippedTotal ?? report.skipped?.length ?? 0,
+    skippedTotalIsMinimum: report.skippedTotal === undefined && Boolean(report.skippedTruncated),
     recovered: (report.recovered ?? []).map((path) => ({ path, summary: summaries.get(path) ?? 'recovered' })),
   };
 }
