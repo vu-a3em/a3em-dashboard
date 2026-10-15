@@ -20,6 +20,30 @@ const sector = (recordedBytes: number, n: number) => (n === 0 ? 0 : CARD_SECTOR_
 describe('a log’s tail past its recorded end', () => {
   const before = text(lines(1788000000, 20));
 
+  it('ignores the rest of the last sector when it is FatFs’s leftover copy of the sector before', () => {
+    // A 13,910-byte log on a restart test card showed "426 bytes of log text": exactly the 512 - 86
+    // bytes left in its last sector, holding the previous sector's text at the same offsets.
+    const log = text(lines(1788000000, 600, 'a longer line of telemetry to fill the sector out'));
+    const recordedBytes = 13910;
+    const recorded = log.subarray(0, recordedBytes);
+    const remainder = CARD_SECTOR_BYTES - (recordedBytes % CARD_SECTOR_BYTES);
+    const stale = log.subarray(recordedBytes - CARD_SECTOR_BYTES, recordedBytes - CARD_SECTOR_BYTES + remainder);
+    const data = new Uint8Array(remainder + CARD_SECTOR_BYTES);
+    data.set(stale);
+    assert.equal(acceptLogTail({ recordedBytes, before: recorded.subarray(recordedBytes - 4096), data }), null);
+  });
+
+  it('still takes a real tail that begins in that same sector', () => {
+    const recordedBytes = 13910;
+    const recorded = text(lines(1788000000, 600, 'a longer line of telemetry to fill the sector out')).subarray(0, recordedBytes);
+    const accepted = acceptLogTail({
+      recordedBytes,
+      before: recorded.subarray(recordedBytes - 4096),
+      data: after(recordedBytes, lines(1788010000, 40, 'written after the last sync'), 2),
+    });
+    assert.ok(accepted && accepted.lines > 0);
+  });
+
   it('keeps the text written after the last sync, whole sectors of it', () => {
     const accepted = acceptLogTail({ recordedBytes: 1000, before, data: after(1000, lines(1788000100, 100, 'late'), 3) });
     assert.ok(accepted);

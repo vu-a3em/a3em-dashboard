@@ -72,6 +72,19 @@ function latestEventTime(text: string): number {
  */
 export function acceptLogTail(tail: { recordedBytes: number; before: Uint8Array; data: Uint8Array }): AcceptedLogTail | null {
   const { recordedBytes, data } = tail;
+
+  /*
+    FatFs writes whole sectors. A log synced partway into a sector goes to the card with the rest
+    of that sector holding whatever was left in FatFs's buffer: the previous sector's bytes at the
+    same offsets, which are the log's own older text and read as a tail. Anything the device wrote
+    after the sync starts in that same sector, so finding the leftover there means there is no tail.
+  */
+  const partial = recordedBytes % CARD_SECTOR_BYTES;
+  if (partial && tail.before.length >= CARD_SECTOR_BYTES) {
+    const remainder = CARD_SECTOR_BYTES - partial;
+    const previous = tail.before.subarray(tail.before.length - CARD_SECTOR_BYTES, tail.before.length - CARD_SECTOR_BYTES + remainder);
+    if (data.length >= remainder && previous.every((byte, index) => byte === data[index])) return null;
+  }
   // A sector's worth at a time, aligned to the file, while each is text.
   let end = 0;
   while (end < data.length) {
