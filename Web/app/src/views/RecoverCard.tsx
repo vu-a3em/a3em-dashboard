@@ -111,6 +111,20 @@ export function RecoverCard({ helper, onConnect }: Readonly<{ helper: Helper; on
           <p className="hint">This browser cannot use the A3EM Card Helper. It needs Chrome, Edge, Brave, Vivaldi, Arc, or Opera.</p>
         ) : helper.status === 'checking' ? (
           <p className="muted">Looking for the A3EM Card Helper…</p>
+        ) : helper.status === 'failed' ? (
+          <>
+            <p className="hint">
+              The A3EM Card Helper is installed but not responding{helper.error ? `: ${helper.error}` : '.'}
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn primary" onClick={() => void helper.refresh()}>
+                Try again
+              </button>
+              <button className="btn" onClick={() => setShowGuide(true)}>
+                Reinstall the A3EM Card Helper…
+              </button>
+            </div>
+          </>
         ) : helper.status === 'incomplete' ? (
           <p className="hint">The A3EM Card Helper cannot do this on {helper.identity?.platform} yet.</p>
         ) : (

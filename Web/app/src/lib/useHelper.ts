@@ -19,6 +19,9 @@ import {
  *  - `unsupported` — not a Chromium browser. Nothing to install; permanent.
  *  - `absent` — Chromium, extension not installed. **Offer the installer.** The app is
  *    fully usable in this state and most users will stay in it.
+ *  - `failed` — the extension answered but the helper program behind it did not: it crashed,
+ *    would not start, or replied with something unreadable. Say so, with the reason, and offer
+ *    to try again; this is a fault on this computer, not an unsupported browser.
  *  - `incomplete` — extension and host present, but this platform's build implements
  *    nothing yet.
  *  - `outdated` — a helper older than this page, which speaks an earlier protocol. Offer
@@ -32,7 +35,7 @@ import {
  * the moment the installer should be offered.
  */
 
-export type HelperStatus = 'checking' | 'unsupported' | 'absent' | 'incomplete' | 'outdated' | 'ready';
+export type HelperStatus = 'checking' | 'unsupported' | 'absent' | 'failed' | 'incomplete' | 'outdated' | 'ready';
 
 /** A long operation in flight, held here so it survives switching sections. */
 export interface HelperTask {
@@ -126,9 +129,14 @@ export function useHelper() {
       // list and its error are replaced.
       setState((previous) => ({ ...previous, devices, devicesLoading: false, error }));
     } catch (error) {
+      /*
+        The browser is Chromium by now, so a failure here is never `unsupported`. Reporting it
+        that way hid the rail entry outright and dropped the reason: the extension had answered,
+        and the helper program behind it had not.
+      */
       const missing = error instanceof HelperError && error.isMissing;
       setState({
-        status: missing ? 'absent' : 'unsupported',
+        status: missing ? 'absent' : 'failed',
         identity: null,
         devices: [],
         devicesLoading: false,

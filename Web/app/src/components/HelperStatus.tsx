@@ -73,6 +73,7 @@ function formatElapsed(ms: number): string {
 export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
   const [showGuide, setShowGuide] = useState(false);
   const [showIssues, setShowIssues] = useState(false);
+  const [showFailure, setShowFailure] = useState(false);
   // What the helper found missing on this computer, such as a Linux package it relies on.
   const issues = helper.status === 'ready' ? (helper.identity?.issues ?? []) : [];
   const problems = issues.filter((issue) => issue.severity === 'problem').length;
@@ -93,6 +94,35 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
         <span className="rail-foot-label">A3EM Card Helper</span>
         <span className="rail-foot-value muted">Loading…</span>
       </div>
+    );
+  }
+
+  if (helper.status === 'failed') {
+    // Installed but not answering: a fault on this computer, said in the one place someone looks
+    return (
+      <>
+        <div className="rail-foot-row">
+          <span className="rail-foot-label">A3EM Card Helper</span>
+          <button className="rail-foot-action warn" title={helper.error ?? undefined} onClick={() => setShowFailure(true)}>
+            not responding
+          </button>
+        </div>
+        {showFailure ? (
+          <HelperFailedDialog
+            reason={helper.error}
+            onRetry={() => {
+              setShowFailure(false);
+              void helper.refresh();
+            }}
+            onReinstall={() => {
+              setShowFailure(false);
+              setShowGuide(true);
+            }}
+            onClose={() => setShowFailure(false)}
+          />
+        ) : null}
+        {showGuide ? <InstallGuideDialog outdated={false} onClose={() => setShowGuide(false)} /> : null}
+      </>
     );
   }
 
@@ -156,6 +186,57 @@ export function HelperRailStatus({ helper }: Readonly<{ helper: Helper }>) {
       ) : null}
       {showIssues ? <SystemIssuesDialog issues={issues} onClose={() => setShowIssues(false)} /> : null}
     </>
+  );
+}
+
+/**
+ * The extension answered but the helper program behind it did not.
+ *
+ * The reason is the browser's own words for what went wrong, which is what anyone diagnosing
+ * it needs; the actions are the two that usually fix it.
+ */
+function HelperFailedDialog({
+  reason,
+  onRetry,
+  onReinstall,
+  onClose,
+}: Readonly<{ reason: string | null; onRetry: () => void; onReinstall: () => void; onClose: () => void }>) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = dialog.current;
+    if (!element) return undefined;
+    element.showModal();
+    element.addEventListener('close', onClose);
+    return () => element.removeEventListener('close', onClose);
+  }, [onClose]);
+  return (
+    <dialog className="modal" ref={dialog} aria-label="The A3EM Card Helper is not responding">
+      <h2>The A3EM Card Helper is not responding</h2>
+      <p className="hint">
+        The browser extension is installed, but the helper program it starts on this computer did not answer.
+      </p>
+      {reason ? (
+        <div className="banner warn">
+          <strong>What the browser reported</strong>
+          <span className="mono">{reason}</span>
+        </div>
+      ) : null}
+      <p className="hint">
+        Try again first. If it keeps failing, reinstall the A3EM Card Helper, which repairs its registration with the
+        browser. Security software that blocks or quarantines unfamiliar programs can also cause this.
+      </p>
+      <div className="modal-actions">
+        <button className="btn" onClick={() => dialog.current?.close()}>
+          Close
+        </button>
+        <button className="btn" onClick={onReinstall}>
+          Reinstall…
+        </button>
+        <button className="btn primary" onClick={onRetry}>
+          Try again
+        </button>
+      </div>
+    </dialog>
   );
 }
 
