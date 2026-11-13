@@ -3,6 +3,7 @@ import {
   CONFIG_FILE_NAME,
   applyProtocol,
   defaultConfig,
+  moveDeploymentStart,
   AUDIO_MAX_CLIP_LENGTH_SECONDS,
   AUDIO_MIN_CLIP_LENGTH_SECONDS,
   AUDIO_RECORDING_MODES,
@@ -497,7 +498,8 @@ export function DeploymentEditor({
                 value={config.startTime}
                 timezone={config.timezone}
                 aria-invalid={issues.some((issue) => issue.path === 'startTime' && issue.severity === 'error')}
-                onChange={(startTime) => update({ startTime })}
+                // A start moved to or past the end carries the end along with it.
+                onChange={(startTime) => update(moveDeploymentStart(config, startTime))}
               />
               <p className="help">
                 {config.setRtcAtMagnetDetect

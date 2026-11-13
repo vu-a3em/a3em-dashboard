@@ -6,7 +6,7 @@ import {
   maxFrequencyCeilingHz,
   LEDS_DEFAULT_ACTIVE_SECONDS,
 } from './firmware-constants.js';
-import { localMidnight } from './timezone.js';
+import { fromZonedInput, localMidnight, toZonedInput } from './timezone.js';
 import type { DeploymentConfig, PhaseConfig } from './types.js';
 
 /**
@@ -35,6 +35,12 @@ import type { DeploymentConfig, PhaseConfig } from './types.js';
 const START_MIC_AMPLIFICATION_DB = 1.5;
 const START_MAGNET_VALIDATION_MS = 3000;
 const START_IMU_SAMPLE_RATE_HZ = 50;
+
+/**
+ * How many years after its start a new deployment ends, and how far past the start the end
+ * is put when the start is moved to or beyond it.
+ */
+export const DEFAULT_DEPLOYMENT_YEARS = 5;
 
 export function defaultPhase(name = 'Phase 1'): PhaseConfig {
   return {
@@ -80,7 +86,8 @@ export function defaultPhase(name = 'Phase 1'): PhaseConfig {
 
 export function defaultConfig(timezone = 'UTC', now = new Date()): DeploymentConfig {
   /*
-    The coming local midnight, and two weeks after it, in the DEPLOYMENT's zone.
+    The coming local midnight in the DEPLOYMENT's zone, and the same local date and time
+    DEFAULT_DEPLOYMENT_YEARS later.
 
     It used to be today's UTC midnight, which read as 7 PM yesterday to anyone in Chicago —
     a start already in the past before a single field had been touched, and at an hour
@@ -90,15 +97,13 @@ export function defaultConfig(timezone = 'UTC', now = new Date()): DeploymentCon
   let endIso: string;
   try {
     startIso = localMidnight(timezone, now, 1);
-    endIso = localMidnight(timezone, now, 15);
+    endIso = withLocalYear(startIso, timezone, localYear(startIso, timezone) + DEFAULT_DEPLOYMENT_YEARS);
   } catch {
     const start = new Date(now);
     start.setUTCHours(0, 0, 0, 0);
     start.setUTCDate(start.getUTCDate() + 1);
-    const end = new Date(start);
-    end.setUTCDate(end.getUTCDate() + 14);
     startIso = start.toISOString();
-    endIso = end.toISOString();
+    endIso = withLocalYear(startIso, 'UTC', start.getUTCFullYear() + DEFAULT_DEPLOYMENT_YEARS);
   }
 
   return {
@@ -128,4 +133,47 @@ export function defaultConfig(timezone = 'UTC', now = new Date()): DeploymentCon
     isPhased: false,
     phases: [defaultPhase()],
   };
+}
+
+/**
+ * The schedule once the start has been moved to `startTime`.
+ *
+ * A start moved to or past the end would leave a deployment that ends before it begins, so
+ * the end moves with it: the same local date and time, in the year DEFAULT_DEPLOYMENT_YEARS
+ * after the new start's. An end still after the new start is left exactly as it was.
+ */
+export function moveDeploymentStart(
+  config: Pick<DeploymentConfig, 'endTime' | 'timezone'>,
+  startTime: string,
+): Pick<DeploymentConfig, 'startTime' | 'endTime'> {
+  if (Date.parse(startTime) < Date.parse(config.endTime)) return { startTime, endTime: config.endTime };
+  try {
+    const year = localYear(startTime, config.timezone) + DEFAULT_DEPLOYMENT_YEARS;
+    return { startTime, endTime: withLocalYear(config.endTime, config.timezone, year) };
+  } catch {
+    // An unreadable time or zone has nothing to carry the end along by.
+    return { startTime, endTime: config.endTime };
+  }
+}
+
+/** The year on the wall clock in `timezone` at an instant. */
+function localYear(isoInstant: string, timezone: string): number {
+  return Number(toZonedInput(isoInstant, timezone).split('-')[0]);
+}
+
+/**
+ * The same local date and time in `timezone`, in another year.
+ *
+ * Done on the wall clock rather than by adding seconds, so the time of day survives a
+ * daylight-saving difference between the two dates. 29 February becomes the 28th in a year
+ * without one.
+ */
+function withLocalYear(isoInstant: string, timezone: string, year: number): string {
+  const [, month, day, time] = /^\d+-(\d{2})-(\d{2})T(.+)$/.exec(toZonedInput(isoInstant, timezone)) ?? [];
+  if (!month || !day || !time) throw new Error(`Invalid ISO 8601 timestamp: ${isoInstant}`);
+  // Day 0 of the following month is the last day of this one.
+  const monthEnd = new Date(0);
+  monthEnd.setUTCFullYear(year, Number(month), 0);
+  const clampedDay = Math.min(Number(day), monthEnd.getUTCDate());
+  return fromZonedInput(`${String(year).padStart(4, '0')}-${month}-${String(clampedDay).padStart(2, '0')}T${time}`, timezone);
 }
