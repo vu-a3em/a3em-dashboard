@@ -54,8 +54,6 @@ RUNTIME_CONFIG_H = "app/runtime_config.h"
 RUNTIME_CONFIG_C = "app/runtime_config.c"
 DIGIPOT_C = "peripherals/src/digipot.c"
 ACTIVE_MAIN_C = "app/active_main.c"
-MAIN_C = "app/main.c"
-AUDIO_C = "peripherals/src/audio.c"
 # The self-test moved into the system peripheral; its constants and events live there now.
 SELF_TEST_C = "peripherals/src/system.c"
 POWER_MARKER_H = "peripherals/include/power_marker.h"
@@ -116,6 +114,13 @@ NUMERIC_DEFINES = {
         "IMU_DEFAULT_SAMPLING_RATE_HZ",
         "IMU_BUFFER_MAX_SAMPLES",
         "MAGNET_FIELD_DEFAULT_VALIDATION_LENGTH_MS",
+        # The ranges the self-test accepts as a believable battery voltage and die
+        # temperature. The dashboard judges the power check against them when the results
+        # file does not record that check's verdict.
+        "SELF_TEST_BATTERY_MIN_MV",
+        "SELF_TEST_BATTERY_MAX_MV",
+        "SELF_TEST_TEMPERATURE_MIN_C",
+        "SELF_TEST_TEMPERATURE_MAX_C",
     ],
 }
 
@@ -162,6 +167,8 @@ def extract_numeric_defines(source: str, names: list[str]) -> dict[str, int]:
         if depth > 8:
             return None
         expr = re.sub(r"/\*.*?\*/", "", expr).split("//")[0].strip()
+        # A C float literal such as 85.0f. Only whole values come out, as below.
+        expr = re.sub(r"(\d+\.\d*|\.\d+)[fF]\b", r"\1", expr)
         # Substitute known identifiers.
         for identifier in sorted(set(re.findall(r"[A-Za-z_]\w*", expr)), key=len, reverse=True):
             if identifier in every:
@@ -171,7 +178,7 @@ def extract_numeric_defines(source: str, names: list[str]) -> dict[str, int]:
                 expr = re.sub(rf"\b{re.escape(identifier)}\b", f"({inner})", expr)
         if re.search(r"[A-Za-z_]", expr):
             return None
-        if not re.fullmatch(r"[\d\s()+\-*/]+", expr):
+        if not re.fullmatch(r"[\d\s().+\-*/]+", expr):
             return None
         try:
             value = eval(expr, {"__builtins__": {}}, {})  # noqa: S307 - arithmetic only
@@ -378,9 +385,16 @@ def build_snapshot(firmware: Path) -> dict:
     runtime_config_c = read(firmware, RUNTIME_CONFIG_C)
     digipot_c = read(firmware, DIGIPOT_C)
     active_main_c = read(firmware, ACTIVE_MAIN_C)
-    main_c = read(firmware, MAIN_C)
-    audio_c = read(firmware, AUDIO_C)
     self_test_c = read(firmware, SELF_TEST_C)
+
+    # Log events can be emitted from any of the firmware's own sources (magnet validation
+    # reports from the magnet peripheral, for one), so every one of them is scanned rather
+    # than a fixed list that silently misses an event added somewhere new.
+    event_sources = {
+        path.relative_to(firmware / "src").as_posix(): path.read_text(encoding="utf-8", errors="replace")
+        for path in sorted((firmware / "src").rglob("*.c"))
+        if "AmbiqSDK" not in path.parts and "external" not in path.parts
+    }
 
     numeric: dict[str, int] = {}
     for relative, names in NUMERIC_DEFINES.items():
@@ -445,14 +459,7 @@ def build_snapshot(firmware: Path) -> dict:
         "configKeyOrder": extract_config_keys(runtime_config_c),
         "maxFrequencyHeadroomHz": extract_max_frequency_headroom(runtime_config_c),
         "triggerDigipotSteps": extract_digipot_steps(digipot_c),
-        "logEvents": extract_log_events(
-            {
-                ACTIVE_MAIN_C: active_main_c,
-                MAIN_C: main_c,
-                AUDIO_C: audio_c,
-                SELF_TEST_C: self_test_c,
-            }
-        ),
+        "logEvents": extract_log_events(event_sources),
         "resetReasons": extract_reset_reasons(self_test_c),
         "powerSteps": extract_power_steps(read_from_root(firmware, TEST_POWER_C)),
         "powerMarks": extract_power_marks(read(firmware, POWER_MARKER_H)),

@@ -558,3 +558,88 @@ describe('phase endings', () => {
     assert.equal(event?.notable, true, `${reason} should be notable`);
   });
 });
+
+describe('running from external power', () => {
+  const telem = (power: string, mv: number) => `EVT|TELEM|time=1770368400,power=${power},batt_mv=${mv},temp_c=21.50`;
+
+  it('has no battery reading on external power', () => {
+    const [sample] = parseLogs([{ name: 'a3em.log', text: telem('EXTERNAL', 0) }]).telemetry;
+    assert.equal(sample?.powerSource, 'EXTERNAL');
+    assert.equal(sample?.batteryMv, null);
+    assert.equal(sample?.temperatureC, 21.5);
+  });
+
+  it('reads the battery when the device ran from it', () => {
+    const [sample] = parseLogs([{ name: 'a3em.log', text: telem('BATTERY', 3538) }]).telemetry;
+    assert.equal(sample?.powerSource, 'BATTERY');
+    assert.equal(sample?.batteryMv, 3538);
+  });
+
+  it('treats a failed measurement as no reading rather than a flat battery', () => {
+    const [sample] = parseLogs([{ name: 'a3em.log', text: telem('BATTERY', 0) }]).telemetry;
+    assert.equal(sample?.batteryMv, null);
+  });
+
+  it('puts a change of supply on the timeline', () => {
+    const text = 'EVT|POWER_SOURCE|t=1770368400,source=EXTERNAL,previous=BATTERY';
+    const [event] = parseLogs([{ name: 'a3em.log', text }]).lifecycle;
+    assert.equal(event?.kind, 'POWER_SOURCE');
+    assert.equal(event?.summary, 'Power source changed from battery to external power');
+    assert.equal(event?.notable, false);
+  });
+
+  it('names the supply only on a boot that was not from battery', () => {
+    const boot = (power: string) =>
+      `EVT|BOOT|fw=2026.11.13,resets=0,epoch=4,last_stop=NONE,power=${power}`;
+    const [external] = parseLogs([{ name: 'a3em.log', text: boot('EXTERNAL') }]).lifecycle;
+    const [battery] = parseLogs([{ name: 'a3em.log', text: boot('BATTERY') }]).lifecycle;
+    assert.equal(external?.summary, 'Powered on from external power, running firmware version 2026.11.13');
+    assert.equal(battery?.summary, 'Powered on, running firmware version 2026.11.13');
+  });
+
+  it('leaves the unmeasured battery out of the self-test detail', () => {
+    const text = [
+      'EVT|SELF_TEST_START|fw=2026.11.13',
+      'EVT|SELF_TEST_DETAIL|check=POWER,result=PASS,source=EXTERNAL,mv=0,temp_c=22.10',
+    ].join('\n');
+    const [run] = parseLogs([{ name: 'a3em.log', text }]).selfTests;
+    assert.deepEqual(run?.checks[0]?.detail.map((d) => d.key), ['source', 'temp_c']);
+  });
+});
+
+describe('magnet validation', () => {
+  const validation = (fields: string) => {
+    const [event] = parseLogs([{ name: 'a3em.log', text: `EVT|MAG_VALIDATION|${fields}` }]).lifecycle;
+    return event;
+  };
+
+  it('records a validation that passed', () => {
+    const event = validation(
+      'result=PASS,reason=NONE,steps_completed=5,steps_required=5,step_ms=3000,elapsed_ms=19200,start_field=PRESENT',
+    );
+    assert.equal(event?.kind, 'MAGNET');
+    assert.equal(event?.summary, 'Magnet validation passed (5 steps of 3 s)');
+    assert.equal(event?.notable, false);
+    assert.equal(event?.caution, false);
+  });
+
+  it('says how far a failed validation got and why it stopped', () => {
+    const event = validation(
+      'result=FAIL,reason=REMOVED_EARLY,steps_completed=1,steps_required=5,step_ms=3000,elapsed_ms=4200,start_field=PRESENT',
+    );
+    assert.equal(
+      event?.summary,
+      'Magnet validation failed 4.2 s in, after 1 of 5 steps of 3 s — the magnet was taken away during a step that needed it held',
+    );
+    // Worth a look, not a problem: whoever held the magnet usually tried again.
+    assert.equal(event?.notable, false);
+    assert.equal(event?.caution, true);
+  });
+
+  it('tells a field that was gone before the check began from one taken away', () => {
+    const event = validation(
+      'result=FAIL,reason=REMOVED_EARLY,steps_completed=0,steps_required=5,step_ms=3000,elapsed_ms=100,start_field=ABSENT',
+    );
+    assert.match(event!.summary, /the field had already gone when the check began$/);
+  });
+});

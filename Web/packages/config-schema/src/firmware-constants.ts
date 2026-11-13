@@ -257,6 +257,15 @@ export const BATTERY_CUTOFF_MIN_MV = 2500; // static_config.h: SELF_TEST_BATTERY
 export const BATTERY_CUTOFF_MAX_MV = 4200; // a fully charged lithium cell
 /** Below this the cutoff is legal but leaves little margin for the write-failure retries. */
 export const BATTERY_CUTOFF_ADVISED_MIN_MV = 3000;
+/**
+ * The battery voltage and die temperature the self-test accepts as believable. A reading
+ * outside either range fails its power check (`test_power_and_clock()`); the battery is not
+ * judged on external power, where it is not measured.
+ */
+export const SELF_TEST_BATTERY_MIN_MV = 2500; // static_config.h
+export const SELF_TEST_BATTERY_MAX_MV = 5000; // static_config.h
+export const SELF_TEST_TEMPERATURE_MIN_C = -40; // static_config.h
+export const SELF_TEST_TEMPERATURE_MAX_C = 85; // static_config.h
 export const MAGNET_DEFAULT_VALIDATION_MS = 5000; // static_config.h
 
 /**

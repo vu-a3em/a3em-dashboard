@@ -84,7 +84,13 @@ export interface DeviceInfo {
   activationNumber: number;
   /** Last timestamp the device recorded, as an ISO instant. Null if never set. */
   lastTimestamp: string | null;
-  lastBatteryMv: number;
+  /** What the device was running from when it wrote this file. Null when the file does not say. */
+  lastPowerSource: PowerSource | null;
+  /**
+   * Battery voltage when the device wrote this file, or null when there is no reading: the battery
+   * is not measured on external power, and a failed measurement is written as 0.
+   */
+  lastBatteryMv: number | null;
   lastDeactivationReason: DeactivationReason;
   /**
    * Whether the device came back up cleanly after that stop.
@@ -129,6 +135,7 @@ export function parseDeviceInfo(text: string): DeviceInfo | null {
   if (!firmwareVersion || !deviceUid) return null;
 
   const lastTimestampSeconds = Number(values.get('LAST_TIMESTAMP') ?? '0');
+  const lastPowerSource = parsePowerSource(values.get('LAST_POWER_SOURCE'));
 
   return {
     firmwareVersion,
@@ -137,7 +144,8 @@ export function parseDeviceInfo(text: string): DeviceInfo | null {
     deviceUid,
     activationNumber: Number(values.get('ACTIVATION_NUMBER') ?? '0'),
     lastTimestamp: lastTimestampSeconds > 0 ? new Date(lastTimestampSeconds * 1000).toISOString() : null,
-    lastBatteryMv: Number(values.get('LAST_BATTERY_MV') ?? '0'),
+    lastPowerSource,
+    lastBatteryMv: batteryMillivolts(values.get('LAST_BATTERY_MV'), lastPowerSource),
     lastDeactivationReason: coerceReason(values.get('LAST_STOP_REASON')),
     recoveredFromLastStop: values.has('LAST_STOP_RECOVERED')
       ? values.get('LAST_STOP_RECOVERED') === 'True'
@@ -147,6 +155,36 @@ export function parseDeviceInfo(text: string): DeviceInfo | null {
     cardFreeBytes: megabytesToBytes(values.get('CARD_FREE_MB')),
     firmwareProfile: firmwareProfileById(firmwareVersion),
   };
+}
+
+/**
+ * What the device was running from, as `battery_monitor_power_source_name()` writes it.
+ *
+ * UNKNOWN is the firmware's own name for a source it could not identify; null means the
+ * file or line did not record a source at all.
+ */
+export type PowerSource = 'BATTERY' | 'EXTERNAL' | 'UNKNOWN';
+
+export const POWER_SOURCE_LABELS: Record<PowerSource, string> = {
+  BATTERY: 'battery',
+  EXTERNAL: 'external power',
+  UNKNOWN: 'an unidentified power source',
+};
+
+export function parsePowerSource(value: string | undefined): PowerSource | null {
+  if (value === undefined || value === '') return null;
+  return value === 'BATTERY' || value === 'EXTERNAL' ? value : 'UNKNOWN';
+}
+
+/**
+ * A battery reading in millivolts, or null when the value is not a reading.
+ *
+ * The device measures the battery only while running from it. On external power it writes
+ * 0 in the battery field, and it writes the same 0 when a measurement fails, so a 0 means
+ * "not measured" rather than a flat battery: a device reading 0 mV would not be running.
+ */
+export function batteryMillivolts(value: string | undefined, source: PowerSource | null): number | null {
+  return source === 'EXTERNAL' ? null : positiveOrNull(value);
 }
 
 /** The device writes 0 when it cannot determine a value, which means "unknown", not zero. */

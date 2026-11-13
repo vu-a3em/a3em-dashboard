@@ -425,8 +425,15 @@ export function CardOverview({
   // The zone the schedule was written in, so the axes read the way the deployment did.
   const chartTimezone = card.existingConfig?.timezone ?? 'UTC';
   const latestDiagnostics = [...telemetry].reverse().find((sample) => sample.sdWriteFailures !== null) ?? null;
-  const batteryStart = telemetry[0]?.batteryMv;
-  const batteryEnd = telemetry.at(-1)?.batteryMv;
+  // The battery is not measured while the device runs on external power, so its figures
+  // come from the readings that have one rather than from the first and last overall.
+  const batteryReadings = telemetry.filter((sample) => sample.batteryMv !== null);
+  const batteryStart = batteryReadings[0]?.batteryMv;
+  const batteryEnd = batteryReadings.at(-1)?.batteryMv;
+  const externalReadings = telemetry.filter((sample) => sample.powerSource === 'EXTERNAL').length;
+  const batteryPoints = plotted.flatMap((t) =>
+    t.batteryMv !== null ? [{ timestamp: t.timestamp, value: t.batteryMv / 1000 }] : [],
+  );
 
   return (
     <>
@@ -540,8 +547,14 @@ export function CardOverview({
           <Stat label="Audio data" value={`${(scoped.audioBytes / 1024 ** 3).toFixed(2)} GB`} />
           <Stat
             label="Battery"
-            value={batteryEnd != null ? `${(batteryEnd / 1000).toFixed(2)} V` : '—'}
-            note={batteryStart != null && batteryEnd != null ? `from ${(batteryStart / 1000).toFixed(2)} V` : undefined}
+            value={batteryEnd != null ? `${(batteryEnd / 1000).toFixed(2)} V` : externalReadings ? 'External power' : '—'}
+            note={
+              batteryStart != null && batteryEnd != null
+                ? `from ${(batteryStart / 1000).toFixed(2)} V`
+                : externalReadings
+                  ? 'battery not measured'
+                  : undefined
+            }
           />
         </div>
 
@@ -783,7 +796,17 @@ export function CardOverview({
                         {deviceTime(event.timestamp, correction, chartTimezone)}
                       </td>
                     ) : null}
-                    <td style={event.notable ? { color: 'var(--crit)' } : undefined}>{event.summary}</td>
+                    <td
+                      style={
+                        event.notable
+                          ? { color: 'var(--crit)' }
+                          : event.caution
+                            ? { color: 'var(--warn)' }
+                            : undefined
+                      }
+                    >
+                      {event.summary}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -866,16 +889,23 @@ export function CardOverview({
             }
           >
             <p className="hint">
-              {telemetry.length.toLocaleString()} samples over the deployment
+              {batteryPoints.length
+                ? `${batteryPoints.length.toLocaleString()} samples over the deployment`
+                : 'The device ran on external power for every reading, so the battery was never measured'}
+              {batteryPoints.length && externalReadings
+                ? ` · ${externalReadings.toLocaleString()} taken on external power are left out, since the battery is not measured then`
+                : ''}
             </p>
-            <TimeSeriesChart
-              points={plotted.map((t) => ({ timestamp: t.timestamp, value: t.batteryMv / 1000 }))}
-              color="var(--primary)"
-              unit="volts"
-              formatValue={(v) => `${v.toFixed(2)} V`}
-              timezone={chartTimezone}
-              height={160}
-            />
+            {batteryPoints.length ? (
+              <TimeSeriesChart
+                points={batteryPoints}
+                color="var(--primary)"
+                unit="volts"
+                formatValue={(v) => `${v.toFixed(2)} V`}
+                timezone={chartTimezone}
+                height={160}
+              />
+            ) : null}
           </Pane>
           <Pane
             id="temperature"

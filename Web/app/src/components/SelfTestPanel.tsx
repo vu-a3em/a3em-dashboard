@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ClockCorrection, SelfTestResults, SelfTestRun } from '@a3em/config-schema';
+import { powerCheckVerdict, type ClockCorrection, type SelfTestResults, type SelfTestRun } from '@a3em/config-schema';
 import { deviceTime } from '../lib/cardTime';
 import { Pane } from './Pane';
 
@@ -183,18 +183,7 @@ export function SelfTestPanel({
                     </>
                   }
                 />
-                <Row
-                  check="Power and clock"
-                  result={results.power.rtcValid ? 'PASS' : 'CLOCK INVALID'}
-                  ok={results.power.rtcValid}
-                  detail={
-                    <>
-                      {(results.power.batteryMv / 1000).toFixed(2)} V at{' '}
-                      {results.power.temperatureC.toFixed(1)} °C
-                      {results.power.rtcValid ? '' : ' · the real-time clock was not running'}
-                    </>
-                  }
-                />
+                <PowerRow results={results} />
               </tbody>
             </table>
           </div>
@@ -237,17 +226,51 @@ export function SelfTestPanel({
   );
 }
 
+/**
+ * The power and clock check, judged the way the firmware judged it.
+ *
+ * The results file records this verdict only by naming power as the failed subsystem, so
+ * after another check fails first it may not be known at all; the row says so rather than
+ * showing a pass nobody recorded.
+ */
+function PowerRow({ results }: Readonly<{ results: SelfTestResults }>) {
+  const verdict = powerCheckVerdict(results);
+  const { source, batteryMv, temperatureC, rtcValid } = results.power;
+  return (
+    <Row
+      check="Power and clock"
+      result={verdict.result ?? 'NOT RECORDED'}
+      ok={verdict.result === null ? null : verdict.result === 'PASS'}
+      detail={
+        <>
+          {batteryMv !== null
+            ? `${(batteryMv / 1000).toFixed(2)} V`
+            : source === 'EXTERNAL'
+              ? 'external power (battery not measured)'
+              : 'battery not measured'}{' '}
+          at {temperatureC.toFixed(1)} °C
+          {verdict.problems.length ? ` · ${verdict.problems.join('; ')}` : ''}
+          {verdict.result === null
+            ? ' · another check failed first, and the results file records only the first failure'
+            : ''}
+          {rtcValid ? '' : ' · the clock did not hold a valid date'}
+        </>
+      }
+    />
+  );
+}
+
 function Row({
   check,
   result,
   ok,
   detail,
-}: Readonly<{ check: string; result: string; ok: boolean; detail: React.ReactNode }>) {
+}: Readonly<{ check: string; result: string; ok: boolean | null; detail: React.ReactNode }>) {
   return (
     <tr>
       <td style={{ whiteSpace: 'nowrap' }}>{check}</td>
       <td>
-        <span className={`chip ${ok ? 'ok' : 'crit'}`}>{result}</span>
+        <span className={`chip${ok === null ? '' : ok ? ' ok' : ' crit'}`}>{result}</span>
       </td>
       <td>{detail}</td>
     </tr>

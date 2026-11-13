@@ -126,3 +126,25 @@ describe('which firmware wrote a card, with only two profiles', () => {
     assert.equal(FIRMWARE_PROFILES.length, 2);
   });
 });
+
+describe('what the device was running from', () => {
+  const base = 'FW_VERSION = "2026.11.13"\nDEVICE_UID = "AA:BB"\n';
+
+  it('reads the battery when the device ran from it', () => {
+    const info = parseDeviceInfo(base + 'LAST_POWER_SOURCE = "BATTERY"\nLAST_BATTERY_MV = "3540"\n')!;
+    assert.equal(info.lastPowerSource, 'BATTERY');
+    assert.equal(info.lastBatteryMv, 3540);
+  });
+
+  it('has no battery reading on external power', () => {
+    const info = parseDeviceInfo(base + 'LAST_POWER_SOURCE = "EXTERNAL"\nLAST_BATTERY_MV = "0"\n')!;
+    assert.equal(info.lastPowerSource, 'EXTERNAL');
+    assert.equal(info.lastBatteryMv, null);
+  });
+
+  it('says nothing about a source the file does not record', () => {
+    const info = parseDeviceInfo(base + 'LAST_BATTERY_MV = "3540"\n')!;
+    assert.equal(info.lastPowerSource, null);
+    assert.equal(info.lastBatteryMv, 3540);
+  });
+});

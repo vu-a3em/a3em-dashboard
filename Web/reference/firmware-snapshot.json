@@ -33,6 +33,10 @@
       "OPUS_MS_PER_FRAME",
       "OPUS_REQUIRED_SAMPLE_RATE_HZ",
       "SD_CARD_ALLOCATION_UNIT_BYTES",
+      "SELF_TEST_BATTERY_MAX_MV",
+      "SELF_TEST_BATTERY_MIN_MV",
+      "SELF_TEST_TEMPERATURE_MAX_C",
+      "SELF_TEST_TEMPERATURE_MIN_C",
       "WAV_STAGING_BUFFER_SIZE"
     ],
     "stringDefines": [
@@ -387,8 +391,11 @@
     "audio_stop_reading",
     "battery_monitor_deinit",
     "battery_monitor_get_details",
+    "battery_monitor_get_power_source",
+    "battery_monitor_get_temperature",
     "battery_monitor_init",
     "battery_monitor_is_critically_low",
+    "battery_monitor_power_source_name",
     "battery_monitor_reset_low_state",
     "battery_monitor_service_tempco",
     "bitreversal_f32",
@@ -476,6 +483,7 @@
     "config_time_scale_seconds",
     "config_use_opus_encoding",
     "config_was_corrected",
+    "configure_battery_slot",
     "configure_repeat_trigger_timer",
     "crc32",
     "create_chain",
@@ -537,6 +545,7 @@
     "ec_write_byte",
     "ec_write_byte_at_end",
     "eccentricity_earth_orbit",
+    "enable_edge_interrupts",
     "enable_sensor",
     "encode_pulses",
     "ensure_audio_directory",
@@ -714,6 +723,7 @@
     "make_rand",
     "marker_claim",
     "marker_release",
+    "median_of",
     "mel_scale",
     "mfcc_compute",
     "mfcc_initialize",
@@ -909,6 +919,7 @@
     "system_run_self_test",
     "system_set_sram_active",
     "system_teardown_stage_name",
+    "take_measurement",
     "tchar2uni",
     "test_gpt_header",
     "test_imu",
@@ -935,6 +946,7 @@
     "vAssertCalled",
     "validate",
     "validate_device_settings",
+    "validation_outcome_name",
     "vhf_activate",
     "vhf_activated",
     "vhf_deactivate",
@@ -970,7 +982,8 @@
       "last_stop",
       "scratch0",
       "scratch1",
-      "canary"
+      "canary",
+      "power"
     ],
     "CLOCK_RECOVERED": [
       "source",
@@ -995,6 +1008,15 @@
       "address",
       "cfsr",
       "teardown"
+    ],
+    "MAG_VALIDATION": [
+      "result",
+      "reason",
+      "steps_completed",
+      "steps_required",
+      "step_ms",
+      "elapsed_ms",
+      "start_field"
     ],
     "MIC_CHECK": [
       "type",
@@ -1036,6 +1058,10 @@
     "PHASE_START": [
       "phase"
     ],
+    "POWER_SOURCE": [
+      "source",
+      "previous"
+    ],
     "RECOVERED": [
       "from"
     ],
@@ -1059,6 +1085,7 @@
       "bytes",
       "magnitude_mg",
       "silent",
+      "source",
       "temp_c"
     ],
     "SELF_TEST_END": [
@@ -1079,6 +1106,7 @@
     ],
     "TELEM": [
       "time",
+      "power",
       "batt_mv",
       "temp_c",
       "lat",
@@ -1141,6 +1169,10 @@
     "OPUS_MS_PER_FRAME": 20,
     "OPUS_REQUIRED_SAMPLE_RATE_HZ": 48000,
     "SD_CARD_ALLOCATION_UNIT_BYTES": 32768,
+    "SELF_TEST_BATTERY_MAX_MV": 5000,
+    "SELF_TEST_BATTERY_MIN_MV": 2500,
+    "SELF_TEST_TEMPERATURE_MAX_C": 85,
+    "SELF_TEST_TEMPERATURE_MIN_C": -40,
     "WAV_STAGING_BUFFER_SIZE": 524288
   },
   "powerMarks": {

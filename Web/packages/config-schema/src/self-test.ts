@@ -8,6 +8,14 @@
  * Same `KEY = "value"` grammar as the configuration file and `_a3em.dev`.
  */
 
+import { batteryMillivolts, parsePowerSource, type PowerSource } from './device-info.js';
+import {
+  SELF_TEST_BATTERY_MAX_MV,
+  SELF_TEST_BATTERY_MIN_MV,
+  SELF_TEST_TEMPERATURE_MAX_C,
+  SELF_TEST_TEMPERATURE_MIN_C,
+} from './firmware-constants.js';
+
 export const SELF_TEST_RESULTS_FILE_NAME = '_a3em.test.results';
 export const SELF_TEST_CLIP_FILE_NAME = '_a3em.test.wav';
 
@@ -74,7 +82,14 @@ export interface SelfTestResults {
   };
   storage: { result: 'PASS' | 'FAIL'; bytesVerified: number; freeMb: number };
   imu: { result: 'PASS' | 'FAIL'; magnitudeMg: number };
-  power: { batteryMv: number; temperatureC: number; rtcValid: boolean };
+  power: {
+    /** What the device was running from during the test. Null when the file does not say. */
+    source: PowerSource | null;
+    /** Null when there is no reading: the battery is not measured on external power. */
+    batteryMv: number | null;
+    temperatureC: number;
+    rtcValid: boolean;
+  };
 }
 
 export function parseSelfTestResults(text: string): SelfTestResults | null {
@@ -92,6 +107,7 @@ export function parseSelfTestResults(text: string): SelfTestResults | null {
   if (!overall) return null;
 
   const num = (key: string) => Number(values.get(key) ?? '0');
+  const powerSource = parsePowerSource(values.get('POWER_SOURCE'));
   const testedAtSeconds = num('TEST_TIMESTAMP');
 
   return {
@@ -124,7 +140,8 @@ export function parseSelfTestResults(text: string): SelfTestResults | null {
       magnitudeMg: num('IMU_MAGNITUDE_MG'),
     },
     power: {
-      batteryMv: num('BATTERY_MV'),
+      source: powerSource,
+      batteryMv: batteryMillivolts(values.get('BATTERY_MV'), powerSource),
       temperatureC: num('TEMPERATURE_C'),
       rtcValid: values.get('RTC_VALID') === 'True',
     },
@@ -133,6 +150,51 @@ export function parseSelfTestResults(text: string): SelfTestResults | null {
 
 function coerceMicResult(value: string | undefined): SelfTestResults['microphone']['result'] {
   return value === 'FAIL' || value === 'PASS_SILENT' ? value : 'PASS';
+}
+
+export interface PowerCheckVerdict {
+  /** The check's verdict, or null when the results file does not settle it. */
+  result: 'PASS' | 'FAIL' | null;
+  /** What failed, in terms of what was measured. Empty unless the check failed. */
+  problems: string[];
+}
+
+/**
+ * The verdict of the self-test's power and clock check.
+ *
+ * Unlike the other checks it has no result key of its own. The file names only the FIRST
+ * failing subsystem, and power is judged last, so after another subsystem fails its verdict
+ * is not written anywhere. A failure can still be proved from the readings: a battery voltage
+ * or temperature outside the range the test accepts fails the check whatever else happened.
+ * The third part, that the clock advanced across the test, is not recorded at all, so a
+ * failure with both readings in range can only have been the clock.
+ */
+export function powerCheckVerdict(results: SelfTestResults): PowerCheckVerdict {
+  const { source, batteryMv, temperatureC } = results.power;
+  const problems: string[] = [];
+  // The battery is not judged on external power, where it is not measured.
+  if (source !== 'EXTERNAL') {
+    if (batteryMv === null) {
+      problems.push('the battery could not be measured');
+    } else if (batteryMv < SELF_TEST_BATTERY_MIN_MV || batteryMv > SELF_TEST_BATTERY_MAX_MV) {
+      problems.push(
+        `the battery read ${(batteryMv / 1000).toFixed(2)} V, outside the ` +
+          `${SELF_TEST_BATTERY_MIN_MV / 1000}–${SELF_TEST_BATTERY_MAX_MV / 1000} V the test accepts`,
+      );
+    }
+  }
+  if (temperatureC < SELF_TEST_TEMPERATURE_MIN_C || temperatureC > SELF_TEST_TEMPERATURE_MAX_C) {
+    problems.push(
+      `the temperature read ${temperatureC.toFixed(1)} °C, outside the ` +
+        `${SELF_TEST_TEMPERATURE_MIN_C} to ${SELF_TEST_TEMPERATURE_MAX_C} °C the test accepts`,
+    );
+  }
+
+  if (results.failedSubsystem === 'POWER_OR_CLOCK') {
+    return { result: 'FAIL', problems: problems.length ? problems : ['the clock did not advance during the test'] };
+  }
+  if (results.passed) return { result: 'PASS', problems: [] };
+  return problems.length ? { result: 'FAIL', problems } : { result: null, problems: [] };
 }
 
 /**

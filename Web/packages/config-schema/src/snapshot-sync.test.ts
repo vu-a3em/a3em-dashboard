@@ -40,6 +40,10 @@ import {
   OPUS_MAX_BITRATE,
   OPUS_MS_PER_FRAME,
   OPUS_REQUIRED_SAMPLE_RATE_HZ,
+  SELF_TEST_BATTERY_MAX_MV,
+  SELF_TEST_BATTERY_MIN_MV,
+  SELF_TEST_TEMPERATURE_MAX_C,
+  SELF_TEST_TEMPERATURE_MIN_C,
   TIME_SCALES,
   TRIGGER_DIGIPOT_STEPS,
 } from './firmware-constants.js';
@@ -88,6 +92,13 @@ describe('firmware-constants.ts agrees with the firmware source', () => {
     assert.equal(MAX_DEPLOYMENT_PHASES, define('MAX_NUM_DEPLOYMENT_PHASES'));
     assert.equal(MAX_AUDIO_TRIGGER_TIMES, define('MAX_AUDIO_TRIGGER_TIMES'));
     assert.equal(MAX_CFG_LINE_LENGTH, define('MAX_CFG_FILE_LINE_LENGTH'));
+  });
+
+  it('judges the self-test power check against the ranges the firmware uses', () => {
+    assert.equal(SELF_TEST_BATTERY_MIN_MV, define('SELF_TEST_BATTERY_MIN_MV'));
+    assert.equal(SELF_TEST_BATTERY_MAX_MV, define('SELF_TEST_BATTERY_MAX_MV'));
+    assert.equal(SELF_TEST_TEMPERATURE_MIN_C, define('SELF_TEST_TEMPERATURE_MIN_C'));
+    assert.equal(SELF_TEST_TEMPERATURE_MAX_C, define('SELF_TEST_TEMPERATURE_MAX_C'));
   });
 
   it('mirrors the clip-length and sample-rate bounds the firmware clamps against', () => {
@@ -264,6 +275,8 @@ describe('the log parser stays in step with the firmware event contract', () => 
     TELEM: [
       // Carries its own timestamp, which is preferred over the line prefix.
       'time',
+      // What the device ran from; the battery is not measured on external power.
+      'power',
       'batt_mv', 'temp_c', 'lat', 'lon', 'alt', 'leds', 'vhf', 'sd_free_mb',
       // The firmware counts recoveries rather than raw errors: a write that failed and
       // then succeeded on a reopen is a different event from one that lost data.
@@ -288,7 +301,8 @@ describe('the log parser stays in step with the firmware event contract', () => 
     ],
     MIC_HEALTH: ['result', 'rms', 'peak', 'min', 'max', 'mean', 'samples', 'dc_offset'],
     MIC_CHECK: ['type', 'dc_offset', 'nominal', 'tolerance', 'result'],
-    BOOT: ['fw', 'resets', 'epoch', 'last_stop'],
+    // `power` is named on the timeline only when the device booted on something other than battery.
+    BOOT: ['fw', 'resets', 'epoch', 'last_stop', 'power'],
     // CORRECTED is the state worth acting on: the file parsed, but the device had to
     // change something to make it usable.
     CONFIG: ['result', 'phases'],
@@ -300,6 +314,10 @@ describe('the log parser stays in step with the firmware event contract', () => 
     PHASE_END: ['reason'],
     AUDIO_FILTER: ['type', 'low_hz', 'high_hz'],
     BATTERY_LOW: ['batt_mv', 'cutoff_mv'],
+    // A change of supply while running: where battery readings and the cutoff stop or resume.
+    POWER_SOURCE: ['source', 'previous'],
+    // Why a magnet hold did or did not activate or switch off the device.
+    MAG_VALIDATION: ['result', 'reason', 'steps_completed', 'steps_required', 'step_ms', 'elapsed_ms', 'start_field'],
     CLOCK_SYNC: ['source', 'before', 'after'],
     // The results file carries the latest run; these give every run, which is what
     // shows a subsystem degrading between deployments.
@@ -310,6 +328,8 @@ describe('the log parser stays in step with the firmware event contract', () => 
       'check', 'result', 'phase', 'requested_hz', 'actual_hz', 'samples_per_buffer',
       'buffer_ms', 'rms', 'peak', 'value', 'dc_offset', 'bytes', 'magnitude_mg',
       'silent', 'temp_c', 'samples', 'before', 'after', 'mv', 'c',
+      // Also decides whether `mv` is shown: on external power it is not a reading.
+      'source',
     ],
     // Logged when a boot comes up clean after a failure — a blip, not a lost deployment.
     RECOVERED: ['from'],

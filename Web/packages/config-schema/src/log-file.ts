@@ -17,6 +17,7 @@
  */
 
 import { activationFromPath } from './card-layout.js';
+import { batteryMillivolts, parsePowerSource, POWER_SOURCE_LABELS, type PowerSource } from './device-info.js';
 
 export type LogSeverity = 'INFO' | 'WARNING' | 'ERROR';
 
@@ -36,7 +37,13 @@ export interface LogEntry {
 
 export interface TelemetrySample {
   timestamp: string;
-  batteryMv: number;
+  /** What the device was running from when it took the reading. Null when the log does not say. */
+  powerSource: PowerSource | null;
+  /**
+   * Battery voltage, or null when the reading has none: the battery is not measured while
+   * the device runs on external power, and a failed measurement is logged as 0.
+   */
+  batteryMv: number | null;
   temperatureC: number;
   /** Null when GPS is unavailable — the device logs [0,0,0], which is not a position. */
   latitude: number | null;
@@ -149,11 +156,25 @@ export interface MicrophoneHealthSample {
  */
 export interface LifecycleEvent {
   timestamp: string | null;
-  kind: 'ACTIVATED' | 'DEACTIVATED' | 'PHASE_START' | 'PHASE_END' | 'BOOT' | 'SELF_TEST' | 'BATTERY_LOW';
+  kind:
+    | 'ACTIVATED'
+    | 'DEACTIVATED'
+    | 'PHASE_START'
+    | 'PHASE_END'
+    | 'BOOT'
+    | 'SELF_TEST'
+    | 'BATTERY_LOW'
+    | 'POWER_SOURCE'
+    | 'MAGNET';
   /** One line in the terms a person reviewing the card would use. */
   summary: string;
   /** True for events that mean something went wrong. */
   notable: boolean;
+  /**
+   * True for events worth a look that are not problems, such as a magnet hold that did not
+   * validate: the person holding it usually just tried again.
+   */
+  caution?: boolean;
 }
 
 /** The device's own record of restarting, which a healthy deployment does rarely. */
@@ -636,13 +657,16 @@ export function parseLogs(
           if (Number.isFinite(resets)) maxResetsInEpoch = Math.max(maxResetsInEpoch, resets);
           const reason = fields.last_stop ?? 'UNKNOWN';
           restartReasons.push(reason);
+          // Battery is the normal case, so only a boot on anything else says what it ran from.
+          const power = parsePowerSource(fields.power);
+          const poweredBy = power && power !== 'BATTERY' ? ` from ${POWER_SOURCE_LABELS[power]}` : '';
           lifecycle.push({
             timestamp,
             kind: 'BOOT',
             summary:
               resets > 0
-                ? `Restarted (${resets} since power-on) after ${reason}`
-                : `Powered on, running firmware version ${fields.fw ?? 'unknown firmware'}`,
+                ? `Restarted (${resets} since power-on) after ${reason}${poweredBy ? `, running${poweredBy}` : ''}`
+                : `Powered on${poweredBy}, running firmware version ${fields.fw ?? 'unknown firmware'}`,
             // Marked for the same reasons the banner counts, so the row the warning refers
             // to can actually be found in a table that lists every restart including the
             // routine ones. Faults alone left a battery cutoff and an unexplained return
@@ -664,6 +688,9 @@ export function parseLogs(
           const run = selfTests.at(-1);
           if (run) {
             const { check, result, ...rest } = fields;
+            // The battery is not measured on external power, and the 0 logged in its place
+            // would read as a reading.
+            if (check === 'POWER' && rest.source === 'EXTERNAL') delete rest.mv;
             run.checks.push({
               check: check ?? 'UNKNOWN',
               result: result ?? null,
@@ -762,6 +789,38 @@ export function parseLogs(
             // Not just the faults: a phase that ended on the battery cutoff, or for a
             // reason the device could not name, is worth the reader's eye too.
             notable: isReportableReason(reason),
+          });
+        } else if (code === 'POWER_SOURCE') {
+          // Logged when the supply changes while the device runs. Not a fault, but it marks
+          // where battery readings stop or resume, and where the low-battery cutoff, which
+          // does not apply on external power, stops or starts guarding the deployment.
+          const source = parsePowerSource(fields.source) ?? 'UNKNOWN';
+          const previous = parsePowerSource(fields.previous) ?? 'UNKNOWN';
+          lifecycle.push({
+            timestamp,
+            kind: 'POWER_SOURCE',
+            summary: `Power source changed from ${POWER_SOURCE_LABELS[previous]} to ${POWER_SOURCE_LABELS[source]}`,
+            notable: false,
+          });
+        } else if (code === 'MAG_VALIDATION') {
+          // The magnet has to be held, taken away, and brought back in timed steps before the
+          // device acts on it. A failure is why an activation or switch-off did not happen
+          // at that moment, but rarely a problem: whoever held it usually tried again.
+          const passed = fields.result === 'PASS';
+          const steps = `${fields.steps_completed ?? '?'} of ${fields.steps_required ?? '?'} steps`;
+          const stepSeconds = fields.step_ms !== undefined ? ` of ${formatSeconds(fields.step_ms)}` : '';
+          const elapsed = fields.elapsed_ms !== undefined ? ` ${formatSeconds(fields.elapsed_ms)} in,` : '';
+          const why = fields.start_field === 'ABSENT'
+            ? 'the field had already gone when the check began'
+            : MAGNET_FAILURE_LABELS[fields.reason ?? ''] ?? `reason ${fields.reason ?? 'unrecorded'}`;
+          lifecycle.push({
+            timestamp,
+            kind: 'MAGNET',
+            summary: passed
+              ? `Magnet validation passed (${fields.steps_required ?? '?'} steps${stepSeconds})`
+              : `Magnet validation failed${elapsed} after ${steps}${stepSeconds} — ${why}`,
+            notable: false,
+            caution: !passed,
           });
         } else if (code === 'BATTERY_LOW') {
           lifecycle.push({
@@ -899,6 +958,20 @@ function byTimestamp(a: LogEntry, b: LogEntry): number {
   return 0;
 }
 
+/** Why a magnet validation failed, from `validation_outcome_name()`, as the person holding it would put it. */
+const MAGNET_FAILURE_LABELS: Record<string, string> = {
+  REMOVED_EARLY: 'the magnet was taken away during a step that needed it held',
+  RETURNED_EARLY: 'the magnet came back during a step that needed it away',
+  NOT_REMOVED: 'the magnet was not taken away in time for the next step',
+  NOT_RETURNED: 'the magnet was not brought back in time for the next step',
+};
+
+/** Milliseconds as seconds, to a tenth where the tenth carries anything. */
+function formatSeconds(milliseconds: string): string {
+  const seconds = Number(milliseconds) / 1000;
+  return `${Number.isInteger(seconds) ? seconds : seconds.toFixed(1)} s`;
+}
+
 function parseFields(payload: string): Record<string, string> {
   const fields: Record<string, string> = {};
   for (const pair of payload.split(',')) {
@@ -930,9 +1003,11 @@ function telemetryFromFields(timestamp: string, fields: Record<string, string>):
   // Absent is not zero. A legacy log carries none of these, and reporting them as zero
   // would claim a clean run on a card that simply never counted.
   const counter = (value: string | undefined) => (value !== undefined ? Number(value) : null);
+  const powerSource = parsePowerSource(fields.power);
   return {
     timestamp,
-    batteryMv: Number(fields.batt_mv ?? 0),
+    powerSource,
+    batteryMv: batteryMillivolts(fields.batt_mv, powerSource),
     temperatureC: Number(fields.temp_c ?? 0),
     ...coordinates(Number(fields.lat ?? 0), Number(fields.lon ?? 0), Number(fields.alt ?? 0)),
     ledsActive: fields.leds === '1',
@@ -1008,7 +1083,8 @@ function readDetailsBlock(lines: string[], startIndex: number): { sample: Teleme
     lastIndex: index - 1,
     sample: {
       timestamp: new Date(epoch * 1000).toISOString(),
-      batteryMv: Number(values.get('Battery Voltage (mV)') ?? 0),
+      powerSource: null,
+      batteryMv: batteryMillivolts(values.get('Battery Voltage (mV)'), null),
       temperatureC: Number(values.get('Temperature (C)') ?? 0),
       ...coordinates(location[0] ?? 0, location[1] ?? 0, location[2] ?? 0),
       ledsActive: values.get('LEDs Active') === 'True',
